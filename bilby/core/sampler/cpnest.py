@@ -5,9 +5,10 @@ import numpy as np
 from pandas import DataFrame
 
 from .base_sampler import NestedSampler
-from ..utils import logger, check_directory_exists_and_if_not_mkdir
+from .proposals import JumpProposal, JumpProposalCycle
+from ..utils import logger, check_directory_exists_and_if_not_mkdir, infer_parameters_from_function
 
-from cpnest import proposal
+from .proposals import cpnest_proposal_factory, cpnest_proposal_cycle_factory
 
 
 class Cpnest(NestedSampler):
@@ -152,7 +153,7 @@ class Cpnest(NestedSampler):
                                                                output=output,
                                                                poolsize=poolsize,
                                                                seed=self.seed + i,
-                                                               proposal=proposals['hmc'](model=self.user),
+                                                               proposal=proposals['hmc'](self.user),
                                                                resume_file=resume_file,
                                                                manager=self.manager
                                                                )
@@ -189,6 +190,8 @@ class Cpnest(NestedSampler):
 
         bounds = [[self.priors[key].minimum, self.priors[key].maximum]
                   for key in self.search_parameter_keys]
+        self._resolve_proposal_functions()
+
         model = Model(self.search_parameter_keys, bounds)
         out = GWCPNest(model, **self.kwargs)
         out.run()
@@ -214,3 +217,17 @@ class Cpnest(NestedSampler):
             self.kwargs['output'] = '{}/'.format(self.kwargs['output'])
         check_directory_exists_and_if_not_mkdir(self.kwargs['output'])
         NestedSampler._verify_kwargs_against_default_kwargs(self)
+
+    def _resolve_proposal_functions(self):
+        from cpnest.proposal import Proposal
+        if 'proposals' in self.kwargs:
+            for key, proposal in self.kwargs['proposals'].items():
+                if isinstance(proposal, JumpProposal):
+                    self.kwargs['proposals'][key] = cpnest_proposal_factory(proposal)
+                elif isinstance(proposal, JumpProposalCycle):
+                    self.kwargs['proposals'][key] = cpnest_proposal_cycle_factory(proposal.proposal_functions,
+                                                                                  proposal.weights)
+                elif isinstance(proposal, Proposal):
+                    pass
+                else:
+                    raise TypeError("Unknown proposal type")
