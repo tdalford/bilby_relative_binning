@@ -1,5 +1,6 @@
+import random
 from random import sample as random_sample
-from random import choice, uniform, gauss, randrange, random
+from random import choice, uniform, gauss, randrange
 from functools import reduce
 import numpy as np
 
@@ -116,20 +117,75 @@ def emcee_proposal_factory(jump_proposal, **kwargs):
     MHMove(proposal_function=jump_proposal_wrapper)
 
 
-def basic_ensemble_walk(sample, coordinates):
-    return ensemble_walk(sample=sample, coordinates=coordinates, random_number_generator=random.random, npoints=3)
+def ptmcmc_proposal_factory(jump_proposal, weight, proposal_name=None):
+    return ptmcmc_proposal_cycle_factory([jump_proposal], [weight], [proposal_name])
 
 
-def ensemble_walk(sample, coordinates, **kwargs):
+def ptmcmc_proposal_cycle_factory(jump_proposals, weights, proposal_names=None):
+    if proposal_names is None:
+        custom = {jump_proposals[i].__name__: [jump_proposals[i], weights[i]] for i in range(jump_proposals)}
+    else:
+        custom = {proposal_names[i]: [jump_proposals[i], weights[i]] for i in range(jump_proposals)}
+    return custom
 
-    random_number_generator = kwargs.get('random_number_generator', random.random)
-    npoints = kwargs.get('npoints', 3)
-    subset = random_sample(coordinates, npoints)
-    center_of_mass = reduce(type(sample).__add__, subset) / float(npoints)
-    out = sample
-    for x in subset:
-        out += (x - center_of_mass) * random_number_generator()
-    return out
+
+class UniformJump(object):
+
+    def __init__(self, pmin, pmax):
+        """Draw random parameters from pmin, pmax"""
+        self.min = pmin
+        self.max = pmax
+
+    def __call__(self, sample):
+        """
+        Function prototype must read in parameter vector x,
+        sampler iteration number it, and inverse temperature beta
+        """
+        q = np.random.uniform(self.min, self.max, len(x))
+        return q
+
+
+class NormJump(object):
+    def __init__(self, step_size):
+        """Draw random parameters from pmin, pmax"""
+        self.step_size = step_size
+
+    def __call__(self, sample):
+        q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
+        return q[0]
+
+
+class EnsembleWalk(object):
+
+    def __init__(self, random_number_generator=None, npoints=3):
+        if random_number_generator is None:
+            self.random_number_generator = random.random
+        self.npoints = npoints
+
+    def __call__(self, sample, coordinates, **kwargs):
+        subset = random_sample(coordinates, self.npoints)
+        center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
+        out = sample
+        for x in subset:
+            out += (x - center_of_mass) * self.random_number_generator()
+        return out
+
+
+class EnsembleWalkDegeneracy(EnsembleWalk):
+
+    def __call__(self, sample, coordinates, **kwargs):
+        subset = random_sample(coordinates, self.npoints)
+        center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
+        out = sample
+        for x in subset:
+            out['mass_1'] += (x['mass_1'] - center_of_mass['mass_1']) * self.random_number_generator()
+            out['phase'] += (x['phase'] - center_of_mass['phase']) * self.random_number_generator()
+            if self.random_number_generator() > 0.5:
+                if out['phase'] > np.pi:
+                    out['phase'] -= np.pi
+                else:
+                    out['phase'] += np.pi
+        return out
 
 
 class EnsembleStretch(object):
