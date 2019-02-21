@@ -183,3 +183,15 @@ class PTMCMCSampler(MCMCSampler):
         shutil.rmtree(temp_outDir)
 
         return samples, meta, loglike
+
+
+def ptmcmc_proposal_factory(jump_proposal, weight, proposal_name=None):
+    return ptmcmc_proposal_cycle_factory([jump_proposal], [weight], [proposal_name])
+
+
+def ptmcmc_proposal_cycle_factory(jump_proposals, weights, proposal_names=None):
+    if proposal_names is None:
+        custom = {jump_proposals[i].__name__: [jump_proposals[i], weights[i]] for i in range(jump_proposals)}
+    else:
+        custom = {proposal_names[i]: [jump_proposals[i], weights[i]] for i in range(jump_proposals)}
+    return custom

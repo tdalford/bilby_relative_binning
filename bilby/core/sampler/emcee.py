@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function
 import os
 
 import numpy as np
+from emcee.moves import MHMove
 from pandas import DataFrame
 from distutils.version import LooseVersion
 
@@ -268,3 +269,11 @@ class Emcee(MCMCSampler):
         else:
             log_likelihood = self.log_likelihood(theta)
             return log_likelihood + log_prior, [log_likelihood, log_prior]
+
+
+def emcee_proposal_factory(jump_proposal, **kwargs):
+
+    def jump_proposal_wrapper(random_number_generator, coordinates):
+        return jump_proposal(coordinates)
+
+    MHMove(proposal_function=jump_proposal_wrapper)

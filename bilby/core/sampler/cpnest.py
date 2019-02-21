@@ -1,14 +1,14 @@
 from __future__ import absolute_import
 
 import os
+
+import cpnest.proposal
 import numpy as np
 from pandas import DataFrame
 
 from .base_sampler import NestedSampler
 from .proposal import JumpProposal, JumpProposalCycle
 from ..utils import logger, check_directory_exists_and_if_not_mkdir, infer_parameters_from_function
-
-from .proposal import cpnest_proposal_factory, cpnest_proposal_cycle_factory
 
 
 class Cpnest(NestedSampler):
@@ -232,3 +232,39 @@ class Cpnest(NestedSampler):
                     pass
                 else:
                     raise TypeError("Unknown proposal type")
+
+
+def cpnest_proposal_factory(jump_proposal, **kwargs):
+    class CPNestEnsembleProposal(cpnest.proposal.EnsembleProposal):
+
+        def __init__(self):
+            self.log_J = kwargs.get('log_j', 0)
+            if 'log_j' in kwargs:
+                del kwargs['log_j']
+            self.kwargs = kwargs
+
+        def get_sample(self, old):
+            return jump_proposal(sample=old, coordinates=self.ensemble, **kwargs)
+
+        def set_ensemble(self, ensemble):
+            self.ensemble = ensemble
+
+    return CPNestEnsembleProposal
+
+
+def cpnest_proposal_cycle_factory(jump_proposals, **kwargs):
+
+    class CPNestProposalCycle(cpnest.proposal.ProposalCycle):
+
+        def __init__(self):
+            super().__init__(proposals=jump_proposals.proposal_functions,
+                             weights=jump_proposals.weights,
+                             cyclelength=jump_proposals.cycle_length, **kwargs)
+
+        def get_sample(self, old, **kwargs):
+            return jump_proposals(sample=old, coordinates=self.ensemble, **kwargs)
+
+        def set_ensemble(self, ensemble):
+            self.ensemble = ensemble
+
+    return CPNestProposalCycle
