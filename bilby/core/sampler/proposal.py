@@ -3,45 +3,46 @@ from random import sample as random_sample
 from random import choice, uniform, gauss, randrange
 from functools import reduce
 import numpy as np
+from inspect import isclass
 
 
-class JumpProposal(object):
+class JumpProposalWrapper(object):
 
     def __init__(self, proposal_function):
         self.proposal_function = proposal_function
 
-    def __call__(self, coordinates, **kwargs):
-        """
-
-        Parameters
-        ----------
-        coordinates
-
-        Returns
-        -------
-
-        """
-        return self.proposal_function(coordinates=coordinates, **kwargs)
+    def __call__(self, **kwargs):
+        return self.proposal_function(**kwargs)
 
 
-class JumpProposalCycle(object):
+class JumpProposalCycleWrapper(object):
 
     def __init__(self, proposal_functions, weights, cycle_length=100):
         self.proposal_functions = proposal_functions
         self.weights = weights
         self.cycle_length = cycle_length
         self._index = 0
-        self.cycle = np.random.choice(self.proposal_functions, size=self.cycle_length,
-                                      p=self.weights, replace=True)
+        self._cycle = np.random.choice(self.proposal_functions, size=self.cycle_length,
+                                       p=self.weights, replace=True)
 
     def __call__(self, coordinates, **kwargs):
-        proposal = self.cycle[self.index]
-        new = proposal(coordinates=coordinates, **kwargs)
+        proposal = self._cycle[self.index]
         self._index = (self.index + 1) % self.cycle_length
-        return new
+        return proposal(coordinates=coordinates, **kwargs)
 
     def __len__(self):
         return len(self.proposal_functions)
+
+    @property
+    def proposal_functions(self):
+        return self._proposal_functions
+
+    @proposal_functions.setter
+    def proposal_functions(self, proposal_functions):
+        for i, proposal in enumerate(proposal_functions):
+            if isclass(proposal):
+                proposal_functions[i] = proposal()
+        self._proposal_functions = proposal_functions
 
     @property
     def index(self):
@@ -54,7 +55,10 @@ class JumpProposalCycle(object):
     @weights.setter
     def weights(self, weights):
         assert len(weights) == len(self.proposal_functions)
-        self._weights = np.array(weights)/np.sum(np.array(weights))
+        self._weights = np.array(weights) / np.sum(np.array(weights))
+
+
+# Proposals
 
 
 class UniformJump(object):
@@ -64,7 +68,7 @@ class UniformJump(object):
         self.pmin = pmin
         self.pmax = pmax
 
-    def __call__(self, sample):
+    def __call__(self, sample, **kwargs):
         """
         Function prototype must read in parameter vector x,
         sampler iteration number it, and inverse temperature beta
@@ -74,27 +78,26 @@ class UniformJump(object):
 
 class NormJump(object):
     def __init__(self, step_size):
-        """Draw random parameters from pmin, pmax"""
         self.step_size = step_size
 
-    def __call__(self, sample):
+    def __call__(self, sample, **kwargs):
         q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
         return q[0]
 
 
 class EnsembleWalk(object):
 
-    def __init__(self, random_number_generator=None, npoints=3):
-        if random_number_generator is None:
-            self.random_number_generator = random.random
+    def __init__(self, random_number_generator=random.random, npoints=3, **random_number_generator_args):
+        self.random_number_generator = random_number_generator
         self.npoints = npoints
+        self.random_number_generator_args = random_number_generator_args
 
     def __call__(self, sample, coordinates, **kwargs):
         subset = random_sample(coordinates, self.npoints)
         center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
         out = sample
         for x in subset:
-            out += (x - center_of_mass) * self.random_number_generator()
+            out += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
         return out
 
 

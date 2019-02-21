@@ -32,7 +32,7 @@ np.random.seed(88170235)
 injection_parameters = dict(
     mass_1=36., mass_2=29., a_1=0.4, a_2=0.3, tilt_1=0.5, tilt_2=1.0,
     phi_12=1.7, phi_jl=0.3, luminosity_distance=6000., iota=0.4, psi=2.659,
-    phase=0, geocent_time=1126259642.413, ra=1.375, dec=-1.2108)
+    phase=1, geocent_time=1126259642.413, ra=1.375, dec=-1.2108)
 
 # Fixed arguments passed into the source model
 waveform_arguments = dict(waveform_approximant='IMRPhenomPv2',
@@ -80,19 +80,20 @@ likelihood = bilby.gw.GravitationalWaveTransient(
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 from cpnest.proposal import *
-from bilby.core.sampler.proposals import *
+from bilby.core.sampler.proposal import *
 
 
 # test_cycle = ProposalCycle(proposals=[EnsembleDegenerateWalk(), EnsembleStretch(),
 #                                       DifferentialEvolution(), EnsembleEigenVector()],
 #                            weights=[2, 2, 5, 1])
 
-test = JumpProposal(EnsembleEigenVector())
+test = JumpProposalCycleWrapper([EnsembleWalk(), EnsembleStretch(),
+                                 DifferentialEvolution(), EnsembleEigenVector()], weights=[2, 5, 2, 5, 4])
+
 
 proposals = dict(mhs=test, hmc=test)
 result = bilby.run_sampler(
     likelihood=likelihood, priors=priors, sampler='cpnest', npoints=100, nthreads=1,
     injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals)
-
 # Make a corner plot.
 result.plot_corner()
