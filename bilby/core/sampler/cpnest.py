@@ -5,10 +5,10 @@ import numpy as np
 from pandas import DataFrame
 
 from .base_sampler import NestedSampler
-from .proposals import JumpProposal, JumpProposalCycle
+from .proposal import JumpProposal, JumpProposalCycle
 from ..utils import logger, check_directory_exists_and_if_not_mkdir, infer_parameters_from_function
 
-from .proposals import cpnest_proposal_factory, cpnest_proposal_cycle_factory
+from .proposal import cpnest_proposal_factory, cpnest_proposal_cycle_factory
 
 
 class Cpnest(NestedSampler):
@@ -221,12 +221,13 @@ class Cpnest(NestedSampler):
     def _resolve_proposal_functions(self):
         from cpnest.proposal import Proposal
         if 'proposals' in self.kwargs:
+            if self.kwargs['proposals'] is None:
+                return
             for key, proposal in self.kwargs['proposals'].items():
                 if isinstance(proposal, JumpProposal):
                     self.kwargs['proposals'][key] = cpnest_proposal_factory(proposal)
                 elif isinstance(proposal, JumpProposalCycle):
-                    self.kwargs['proposals'][key] = cpnest_proposal_cycle_factory(proposal.proposal_functions,
-                                                                                  proposal.weights)
+                    self.kwargs['proposals'][key] = cpnest_proposal_cycle_factory(proposal)
                 elif isinstance(proposal, Proposal):
                     pass
                 else:

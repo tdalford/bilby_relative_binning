@@ -16,7 +16,7 @@ from .ptemcee import Ptemcee
 from .ptmcmc import PTMCMCSampler
 from .pymc3 import Pymc3
 from .pymultinest import Pymultinest
-from . import proposals
+from . import proposal
 
 IMPLEMENTED_SAMPLERS = {
     'cpnest': Cpnest, 'dynesty': Dynesty, 'emcee': Emcee, 'nestle': Nestle,

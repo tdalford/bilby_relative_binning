@@ -55,10 +55,10 @@ class JumpProposal(object):
 
 class JumpProposalCycle(object):
 
-    def __init__(self, proposal_functions, weights, cycle_length):
+    def __init__(self, proposal_functions, weights, cycle_length=100):
         assert len(proposal_functions) == len(weights)
         self.proposal_functions = proposal_functions
-        self._weights = weights
+        self.weights = weights
         self.cycle_length = cycle_length
         self.index = 0
         self.cycle = np.random.choice(self.proposal_functions, size=self.cycle_length,
@@ -66,9 +66,12 @@ class JumpProposalCycle(object):
 
     def __call__(self, coordinates, **kwargs):
         proposal = self.cycle[self.index]
-        new = proposal(coordinates, **kwargs)
+        new = proposal(coordinates=coordinates, **kwargs)
         self.index = (self.index + 1) % self.cycle_length
         return new
+
+    def __len__(self):
+        return len(self.proposal_functions)
 
     @property
     def weights(self):
@@ -97,14 +100,20 @@ def cpnest_proposal_factory(jump_proposal, **kwargs):
     return CPNestEnsembleProposal
 
 
-def cpnest_proposal_cycle_factory(jump_proposals, weights, **kwargs):
-    cpnest_jump_proposals = [cpnest_proposal_factory(jp) for jp in jump_proposals]
+def cpnest_proposal_cycle_factory(jump_proposals, **kwargs):
 
     class CPNestProposalCycle(cpnest.proposal.ProposalCycle):
 
         def __init__(self):
-            super().__init__(proposals=cpnest_jump_proposals,
-                             weights=weights, **kwargs)
+            super().__init__(proposals=jump_proposals.proposal_functions,
+                             weights=jump_proposals.weights,
+                             cyclelength=jump_proposals.cycle_length, **kwargs)
+
+        def get_sample(self, old, **kwargs):
+            return jump_proposals(sample=old, coordinates=self.ensemble, **kwargs)
+
+        def set_ensemble(self, ensemble):
+            self.ensemble = ensemble
 
     return CPNestProposalCycle
 
@@ -133,16 +142,15 @@ class UniformJump(object):
 
     def __init__(self, pmin, pmax):
         """Draw random parameters from pmin, pmax"""
-        self.min = pmin
-        self.max = pmax
+        self.pmin = pmin
+        self.pmax = pmax
 
     def __call__(self, sample):
         """
         Function prototype must read in parameter vector x,
         sampler iteration number it, and inverse temperature beta
         """
-        q = np.random.uniform(self.min, self.max, len(x))
-        return q
+        return np.random.uniform(self.pmin, self.pmax, len(sample))
 
 
 class NormJump(object):
@@ -244,7 +252,7 @@ class EnsembleEigenVector(object):
             self.covariance = np.cov(cov_array)
             self.eigen_values, self.eigen_vectors = np.linalg.eigh(self.covariance)
 
-    def __call__(self, sample, coordinates):
+    def __call__(self, sample, coordinates, **kwargs):
         self.update_eigenvectors(coordinates)
         out = sample
         i = randrange(sample.dimension)
