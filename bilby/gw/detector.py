@@ -147,38 +147,8 @@ class InterferometerList(list):
         if utils.command_line_args.test:
             return
 
-        fig = plt.figure()
-        for ii, interferometer in enumerate(self):
-            ax = fig.add_subplot(len(self) // 2, 2, ii + 1)
-            ax.loglog(interferometer.frequency_array,
-                      gwutils.asd_from_freq_series(freq_data=interferometer.frequency_domain_strain,
-                                                   df=(interferometer.frequency_array[1] -
-                                                       interferometer.frequency_array[0])),
-                      color='C0', label=interferometer.name)
-            ax.loglog(interferometer.frequency_array,
-                      interferometer.amplitude_spectral_density_array,
-                      color='C1', lw=0.5, label=interferometer.name + ' ASD')
-            ax.grid('on')
-            ax.set_ylabel(r'strain [strain/$\sqrt{\rm Hz}$]')
-            ax.set_xlabel(r'frequency [Hz]')
-            ax.set_xlim(20, 2000)
-            ax.legend(loc='best')
-        if signal is not None:
-            ax.loglog(self.frequency_array,
-                      gwutils.asd_from_freq_series(freq_data=signal,
-                                                   df=(self.frequency_array[1] -
-                                                       self.frequency_array[0])
-                                                   ),
-                      color='C2',
-                      label='Signal')
-        fig.tight_layout()
-        if label is None:
-            fig.savefig(
-                '{}/frequency_domain_data.png'.format(outdir))
-        else:
-            fig.savefig(
-                '{}/{}_frequency_domain_data.png'.format(
-                    outdir, label))
+        for interferometer in self:
+            interferometer.plot_data(signal=signal, outdir=outdir, label=label)
 
     @property
     def number_of_interferometers(self):
@@ -468,7 +438,9 @@ class InterferometerStrainData(object):
         strain = strain.filter(bp, filtfilt=True)
         self._time_domain_strain = strain.value
 
-    def create_power_spectral_density(self, fft_length, name='unknown', outdir=None):
+    def create_power_spectral_density(
+            self, fft_length, overlap=0, name='unknown', outdir=None,
+            analysis_segment_start_time=None):
         """ Use the time domain strain to generate a power spectral density
 
         This create a Tukey-windowed power spectral density and writes it to a
@@ -478,12 +450,17 @@ class InterferometerStrainData(object):
         ----------
         fft_length: float
             Duration of the analysis segment.
+        overlap: float
+            Number of seconds of overlap between FFTs.
         name: str
             The name of the detector, used in storing the PSD. Defaults to
             "unknown".
         outdir: str
             The output directory to write the PSD file too. If not given,
             the PSD will not be written to file.
+        analysis_segment_start_time: float
+            The start time of the analysis segment, if given, this data will
+            be removed before creating the PSD.
 
         Returns
         -------
@@ -491,11 +468,24 @@ class InterferometerStrainData(object):
             The frequencies and power spectral density array
 
         """
-        strain = gwpy.timeseries.TimeSeries(self.time_domain_strain, sample_rate=self.sampling_frequency)
+
+        if analysis_segment_start_time is not None:
+            logger.info("Removing analysis segment data from the PSD data")
+            analysis_segment_end_time = analysis_segment_start_time + fft_length
+            idxs = (
+                (self.time_array < analysis_segment_start_time) +
+                (self.time_array > analysis_segment_end_time))
+            data = self.time_domain_strain[idxs]
+        else:
+            data = self.time_domain_strain
+
+        strain = gwpy.timeseries.TimeSeries(data=data, sample_rate=self.sampling_frequency)
         psd_alpha = 2 * self.roll_off / fft_length
-        logger.info("Creating PSD with non-overlapping tukey window, alpha={}, roll off={}".format(
-            psd_alpha, self.roll_off))
-        psd = strain.psd(fftlength=fft_length, overlap=0, window=('tukey', psd_alpha))
+        logger.info(
+            "Tukey window PSD data with alpha={}, roll off={}".format(
+                psd_alpha, self.roll_off))
+        psd = strain.psd(
+            fftlength=fft_length, overlap=overlap, window=('tukey', psd_alpha))
 
         if outdir:
             psd_file = '{}/{}_PSD_{}_{}.txt'.format(outdir, name, self.start_time, self.duration)
@@ -1831,7 +1821,8 @@ class PowerSpectralDensity(object):
     @staticmethod
     def from_frame_file(frame_file, psd_start_time, psd_duration,
                         fft_length=4, sampling_frequency=4096, roll_off=0.2,
-                        channel=None):
+                        overlap=0, channel=None, name=None, outdir=None,
+                        analysis_segment_start_time=None):
         """ Generate power spectral density from a frame file
 
         Parameters
@@ -1849,15 +1840,25 @@ class PowerSpectralDensity(object):
             This is twice the maximum frequency.
         roll_off: float, optional
             Rise time in seconds of tukey window.
+        overlap: float,
+            Number of seconds of overlap between FFTs.
         channel: str, optional
             Name of channel to use to generate PSD.
+        name, outdir: str, optional
+            Name (and outdir) of the detector for which a PSD is to be
+            generated.
+        analysis_segment_start_time: float, optional
+            The start time of the analysis segment, if given, this data will
+            be removed before creating the PSD.
 
         """
         strain = InterferometerStrainData(roll_off=roll_off)
         strain.set_from_frame_file(
             frame_file, start_time=psd_start_time, duration=psd_duration,
             channel=channel, sampling_frequency=sampling_frequency)
-        frequency_array, psd_array = strain.create_power_spectral_density(fft_length=fft_length)
+        frequency_array, psd_array = strain.create_power_spectral_density(
+            fft_length=fft_length, name=name, outdir=outdir, overlap=overlap,
+            analysis_segment_start_time=analysis_segment_start_time)
         return PowerSpectralDensity(frequency_array=frequency_array, psd_array=psd_array)
 
     @staticmethod
@@ -2286,23 +2287,30 @@ def get_event_data(
 
 
 def load_data_from_cache_file(
-        cache_file, start_time, segment_duration, psd_duration,
-        channel_name=None, sampling_frequency=4096):
+        cache_file, start_time, segment_duration, psd_duration, psd_start_time,
+        channel_name=None, sampling_frequency=4096, roll_off=0.2,
+        overlap=0, outdir=None):
     """ Helper routine to generate an interferometer from a cache file
 
     Parameters
     ----------
     cache_file: str
         Path to the location of the cache file
-    start_time: float
-        GPS start time of the segment
+    start_time, psd_start_time: float
+        GPS start time of the segment and data stretch used for the PSD
     segment_duration, psd_duration: float
         Segment duration and duration of data to use to generate the PSD (in
         seconds).
+    roll_off: float, optional
+        Rise time in seconds of tukey window.
+    overlap: float,
+        Number of seconds of overlap between FFTs.
     channel_name: str
         Channel name
     sampling_frequency: int
         Sampling frequency
+    outdir: str, optional
+        The output directory in which the data is saved
 
     Returns
     -------
@@ -2313,7 +2321,6 @@ def load_data_from_cache_file(
 
     data_set = False
     psd_set = False
-    psd_start_time = start_time - psd_duration
 
     with open(cache_file, 'r') as ff:
         for line in ff:
@@ -2337,10 +2344,17 @@ def load_data_from_cache_file(
             if not psd_set & psd_in_cache:
                 ifo.power_spectral_density = \
                     PowerSpectralDensity.from_frame_file(
-                        cache.path, psd_start_time=psd_start_time,
+                        cache.path,
+                        psd_start_time=psd_start_time,
                         psd_duration=psd_duration,
+                        fft_length=segment_duration,
+                        sampling_frequency=sampling_frequency,
+                        roll_off=roll_off,
+                        overlap=overlap,
                         channel=channel_name,
-                        sampling_frequency=sampling_frequency)
+                        name=cache.observatory,
+                        outdir=outdir,
+                        analysis_segment_start_time=start_time)
                 psd_set = True
     if data_set and psd_set:
         return ifo
