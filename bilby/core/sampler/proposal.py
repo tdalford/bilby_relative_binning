@@ -11,8 +11,8 @@ class JumpProposalWrapper(object):
     def __init__(self, proposal_function):
         self.proposal_function = proposal_function
 
-    def __call__(self, **kwargs):
-        return self.proposal_function(**kwargs)
+    def __call__(self, *args, **kwargs):
+        return self.proposal_function(*args, **kwargs)
 
 
 class JumpProposalCycleWrapper(object):
@@ -50,15 +50,16 @@ class JumpProposalCycleWrapper(object):
 
     @property
     def weights(self):
-        return self._weights
+        return np.array(self._weights) / np.sum(np.array(self._weights))
 
     @weights.setter
     def weights(self, weights):
         assert len(weights) == len(self.proposal_functions)
-        self._weights = np.array(weights) / np.sum(np.array(weights))
+        self._weights = weights
 
-
-# Proposals
+    @property
+    def unnormalised_weights(self):
+        return self._weights
 
 
 class UniformJump(object):
@@ -68,7 +69,7 @@ class UniformJump(object):
         self.pmin = pmin
         self.pmax = pmax
 
-    def __call__(self, sample, **kwargs):
+    def __call__(self, sample, coordinates, *args, **kwargs):
         """
         Function prototype must read in parameter vector x,
         sampler iteration number it, and inverse temperature beta
@@ -80,7 +81,7 @@ class NormJump(object):
     def __init__(self, step_size):
         self.step_size = step_size
 
-    def __call__(self, sample, **kwargs):
+    def __call__(self, sample, coordinates, *args, **kwargs):
         q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
         return q[0]
 
@@ -92,7 +93,7 @@ class EnsembleWalk(object):
         self.npoints = npoints
         self.random_number_generator_args = random_number_generator_args
 
-    def __call__(self, sample, coordinates, **kwargs):
+    def __call__(self, sample, coordinates, *args, **kwargs):
         subset = random_sample(coordinates, self.npoints)
         center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
         out = sample

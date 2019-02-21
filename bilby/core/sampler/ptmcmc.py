@@ -6,6 +6,7 @@ import shutil
 import numpy as np
 
 from .base_sampler import MCMCSampler, SamplerNotInstalledError
+from .proposal import JumpProposalWrapper, JumpProposalCycleWrapper
 from ..utils import logger
 
 
@@ -90,6 +91,10 @@ class PTMCMCSampler(MCMCSampler):
     def custom_proposals(self):
         return self.kwargs['custom_proposals']
 
+    @custom_proposals.setter
+    def custom_proposals(self, custom_proposals):
+        self.kwargs['custom_proposals'] = custom_proposals
+
     @property
     def sampler_init_kwargs(self):
         keys = ['groups',
@@ -139,12 +144,13 @@ class PTMCMCSampler(MCMCSampler):
         sampler = PTMCMCSampler.PTSampler(ndim=self.ndim, logp=self.log_prior,
                                           logl=self.log_likelihood, cov=np.eye(self.ndim),
                                           **self.sampler_init_kwargs)
+
         if self.custom_proposals is not None:
-            for proposal in self.custom_proposals:
-                logger.info('Adding {} to proposals with weight {}'.format(
-                    proposal, self.custom_proposals[proposal][1]))
-                sampler.addProposalToCycle(self.custom_proposals[proposal][0],
-                                           self.custom_proposals[proposal][1])
+            for proposal, weight in zip(self.custom_proposals.proposal_functions,
+                                        self.custom_proposals.unnormalised_weights):
+                proposal = ptmcmc_proposal_factory(proposal, proposal_name=proposal.__class__.__name__)
+                logger.info('Adding {} to proposals with weight {}'.format(proposal, weight))
+                sampler.addProposalToCycle(proposal, weight)
         sampler.sample(p0=self.p0, **self.sampler_function_kwargs)
         samples, meta, loglike = self.__read_in_data()
 
@@ -185,13 +191,21 @@ class PTMCMCSampler(MCMCSampler):
         return samples, meta, loglike
 
 
-def ptmcmc_proposal_factory(jump_proposal, weight, proposal_name=None):
-    return ptmcmc_proposal_cycle_factory([jump_proposal], [weight], [proposal_name])
+def ptmcmc_proposal_factory(jump_proposal, proposal_name=None):
 
+    class PTMCMCProposal(object):
 
-def ptmcmc_proposal_cycle_factory(jump_proposals, weights, proposal_names=None):
-    if proposal_names is None:
-        custom = {jump_proposals[i].__name__: [jump_proposals[i], weights[i]] for i in range(jump_proposals)}
-    else:
-        custom = {proposal_names[i]: [jump_proposals[i], weights[i]] for i in range(jump_proposals)}
-    return custom
+        def __init__(self, jp, pn):
+            self.__name__ = pn
+            self.proposal_function = jp
+
+        def __call__(self, *args):
+            sample = args[0]
+            iteration = args[1]
+            inverse_temperature = args[2]
+            jump = self.proposal_function(sample=sample, iteration=iteration,
+                                          inverse_temperature=inverse_temperature, coordinates=0)
+            qxy = getattr(self.proposal_function, 'qxy', 0)
+            return jump, qxy
+
+    return PTMCMCProposal(jp=jump_proposal, pn=proposal_name)

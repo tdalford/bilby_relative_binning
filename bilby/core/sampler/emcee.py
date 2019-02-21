@@ -275,9 +275,20 @@ class Emcee(MCMCSampler):
             return log_likelihood + log_prior, [log_likelihood, log_prior]
 
 
-def emcee_proposal_factory(jump_proposal, **kwargs):
-
-    def jump_proposal_wrapper(random_number_generator, coordinates):
-        return jump_proposal(coordinates)
-
-    MHMove(proposal_function=jump_proposal_wrapper)
+# def emcee_proposal_factory(jump_proposal):
+#
+#     def emcee_proposal(jump_proposal):
+#     proposal_generator = MHMove(proposal_function=jump_proposal)
+#
+#     class EmceeProposal(object):
+#         def __init__(self):
+#             self.proposal_function = jump_proposal
+#             self.proposal_generator = MHMove(proposal_function=jump_proposal)
+#
+#         def __call__(self, coordinates):
+#             return self.proposal_generator(coordinates)
+#
+#     return EmceeProposal
+#
+#
+#     MHMove(proposal_function=jump_proposal_wrapper)

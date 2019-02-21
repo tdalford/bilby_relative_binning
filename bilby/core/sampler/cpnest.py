@@ -234,17 +234,14 @@ class Cpnest(NestedSampler):
                     raise TypeError("Unknown proposal type")
 
 
-def cpnest_proposal_factory(jump_proposal, **kwargs):
+def cpnest_proposal_factory(jump_proposal):
     class CPNestEnsembleProposal(cpnest.proposal.EnsembleProposal):
 
-        def __init__(self):
-            self.log_J = kwargs.get('log_j', 0)
-            if 'log_j' in kwargs:
-                del kwargs['log_j']
-            self.kwargs = kwargs
-
-        def get_sample(self, old):
-            return jump_proposal(sample=old, coordinates=self.ensemble, **kwargs)
+        def get_sample(self, old, **kwargs):
+            kwargs['log_l_min'] = kwargs.get('logLmin')
+            sample = jump_proposal(sample=old, coordinates=self.ensemble, **kwargs)
+            self.log_J = jump_proposal.__getattribute__('log_j', 0)
+            return sample
 
         def set_ensemble(self, ensemble):
             self.ensemble = ensemble
@@ -252,14 +249,14 @@ def cpnest_proposal_factory(jump_proposal, **kwargs):
     return CPNestEnsembleProposal
 
 
-def cpnest_proposal_cycle_factory(jump_proposals, **kwargs):
+def cpnest_proposal_cycle_factory(jump_proposals):
 
     class CPNestProposalCycle(cpnest.proposal.ProposalCycle):
 
         def __init__(self):
             super().__init__(proposals=jump_proposals.proposal_functions,
                              weights=jump_proposals.weights,
-                             cyclelength=jump_proposals.cycle_length, **kwargs)
+                             cyclelength=jump_proposals.cycle_length)
 
         def get_sample(self, old, **kwargs):
             return jump_proposals(sample=old, coordinates=self.ensemble, **kwargs)
