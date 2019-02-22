@@ -43,7 +43,7 @@ class Emcee(MCMCSampler):
     """
 
     default_kwargs = dict(nwalkers=500, a=2, args=[], kwargs={},
-                          postargs=None, pool=None, live_dangerously=False,
+                          postargs=None, pool=None, moves=None, live_dangerously=False,
                           runtime_sortingfn=None, lnprob0=None, rstate0=None,
                           blobs0=None, iterations=100, thin=1, storechain=True,
                           mh_proposal=None)
@@ -277,16 +277,15 @@ class Emcee(MCMCSampler):
 
 # def emcee_proposal_factory(jump_proposal):
 #
-#     def emcee_proposal(jump_proposal):
-#     proposal_generator = MHMove(proposal_function=jump_proposal)
 #
-#     class EmceeProposal(object):
-#         def __init__(self):
-#             self.proposal_function = jump_proposal
-#             self.proposal_generator = MHMove(proposal_function=jump_proposal)
+#     def emcee_proposal(coordinates, rng)
+#             proposal_function = jump_proposal
+#             self.proposal_generator =
 #
 #         def __call__(self, coordinates):
 #             return self.proposal_generator(coordinates)
+#
+#     MHMove(proposal_function=emcee_proposal)
 #
 #     return EmceeProposal
 #

@@ -9,15 +9,43 @@ from inspect import isclass
 class JumpProposalWrapper(object):
 
     def __init__(self, proposal_function):
+        """ A generic wrapper class for jump proposals
+
+        Parameters
+        ----------
+        proposal_function: callable
+        A callable object or function that returns the proposal
+        """
         self.proposal_function = proposal_function
 
     def __call__(self, *args, **kwargs):
+        """ A generic wrapper for the jump proposal function
+
+        Parameters
+        ----------
+        args: Arguments that are going to be passed into the proposal function
+        kwargs: Keyword arguments that are going to be passed into the proposal function
+
+        Returns
+        -------
+
+        """
         return self.proposal_function(*args, **kwargs)
 
 
 class JumpProposalCycleWrapper(object):
 
     def __init__(self, proposal_functions, weights, cycle_length=100):
+        """ A generic wrapper class for proposal cycles
+
+        Parameters
+        ----------
+        proposal_functions: list
+        A list of callable proposal functions/objects
+        weights: list
+
+        cycle_length
+        """
         self.proposal_functions = proposal_functions
         self.weights = weights
         self.cycle_length = cycle_length
@@ -64,16 +92,11 @@ class JumpProposalCycleWrapper(object):
 
 class UniformJump(object):
 
-    def __init__(self, pmin, pmax):
-        """Draw random parameters from pmin, pmax"""
+    def __init__(self, pmin=0, pmax=1):
         self.pmin = pmin
         self.pmax = pmax
 
-    def __call__(self, sample, coordinates, *args, **kwargs):
-        """
-        Function prototype must read in parameter vector x,
-        sampler iteration number it, and inverse temperature beta
-        """
+    def __call__(self, sample, *args, **kwargs):
         return np.random.uniform(self.pmin, self.pmax, len(sample))
 
 
@@ -81,7 +104,7 @@ class NormJump(object):
     def __init__(self, step_size):
         self.step_size = step_size
 
-    def __call__(self, sample, coordinates, *args, **kwargs):
+    def __call__(self, sample, *args, **kwargs):
         q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
         return q[0]
 
@@ -102,51 +125,70 @@ class EnsembleWalk(object):
         return out
 
 
-class EnsembleWalkDegeneracy(EnsembleWalk):
+class GWEnsembleWalkPrototype(EnsembleWalk):
+
+    def _get_sky_keys(self, sample):
+        return self._get_keys(['ra', 'dec'], sample)
+
+    def _get_cyclical_keys(self, sample):
+        return self._get_keys(['phase', 'psi'], sample)
+
+    @staticmethod
+    def _get_keys(keys, sample):
+        return list(set(keys) & set(sample.keys()))
 
     def __call__(self, sample, coordinates, **kwargs):
         subset = random_sample(coordinates, self.npoints)
         center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
         out = sample
         for x in subset:
-            out['mass_1'] += (x['mass_1'] - center_of_mass['mass_1']) * self.random_number_generator()
-            out['phase'] += (x['phase'] - center_of_mass['phase']) * self.random_number_generator()
-            if self.random_number_generator() > 0.5:
-                if out['phase'] > np.pi:
-                    out['phase'] -= np.pi
-                else:
-                    out['phase'] += np.pi
+            out += (x - center_of_mass) * self.random_number_generator()
+
+            self._move_phase_psi(out)
+            self._move_ra_dec(out)
+
         return out
+
+    def _move_phase_psi(self, out):
+        for key in self._get_cyclical_keys(out):
+            if self.random_number_generator() > 0.5:
+                self._reflect_by_pi(key, out)
+
+    @staticmethod
+    def _reflect_by_pi(key, out):
+        if out[key] > np.pi:
+            out[key] -= np.pi
+        else:
+            out[key] += np.pi
+
+    def _move_ra_dec(self, out):
+        keys = self._get_sky_keys(out)
+        if self.random_number_generator() > 0.5:
+            if 'ra' in keys:
+                self._reflect_by_pi('ra', out)
+            if 'dec' in keys:
+                out['dec'] = -out['dec']
 
 
 class EnsembleStretch(object):
 
+    def __init__(self, scale=2.0):
+        self.scale = scale
+
     def __call__(self, sample, coordinates, **kwargs):
-        scale = 2.0
-        a = choice(coordinates)
-        x = uniform(-1, 1) * np.log(scale)
-        Z = np.exp(x)
-        out = a + (sample - a) * Z
-        self.log_j = out.dimension * x
+        second_sample = choice(coordinates)
+        random_number = uniform(-1, 1) * np.log(self.scale)
+        out = second_sample + (sample - second_sample) * np.exp(random_number)
+        self.log_j = out.dimension * random_number
         return out
 
 
 class DifferentialEvolution(object):
 
     def __call__(self, sample, coordinates, **kwargs):
-        """
-        Parameters
-        ----------
-        old : :obj:`cpnest.parameter.LivePoint`
-
-        Returns
-        ----------
-        out: :obj:`cpnest.parameter.LivePoint`
-        """
         a, b = random_sample(coordinates, 2)
-        sigma = 1e-4  # scatter around difference vector by this factor
-        out = sample + (b - a) * gauss(1.0, sigma)
-        return out
+        sigma = 1e-4
+        return sample + (b - a) * gauss(1.0, sigma)
 
 
 class EnsembleEigenVector(object):
