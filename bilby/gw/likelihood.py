@@ -9,7 +9,7 @@ except ImportError:
 from scipy.special import i0e
 
 from ..core import likelihood
-from ..core.utils import logger, UnsortedInterp2d, det_frame_to_equatorial
+from ..core.utils import logger, UnsortedInterp2d
 from ..core.prior import Prior, Uniform
 from .detector import InterferometerList
 from .prior import BBHPriorDict
@@ -157,13 +157,6 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         return log_l.real
 
     def log_likelihood_ratio(self):
-
-        # if 'theta' in self.parameters:
-        #     det = self.interferometers[0].vertex + self.interferometers[1].vertex
-        #     self.parameters['ra'], self.parameters['dec'] = \
-        #         det_frame_to_equatorial(
-        #             det, self.parameters['theta'], self.parameters['phi'],
-        #             self.parameters['geocent_time'])
 
         waveform_polarizations =\
             self.waveform_generator.frequency_domain_strain(self.parameters)
