@@ -1,7 +1,6 @@
 from __future__ import absolute_import, print_function
 
 import glob
-import shutil
 
 import numpy as np
 
@@ -55,7 +54,7 @@ class PTMCMCSampler(MCMCSampler):
     def __init__(self, likelihood, priors, outdir='outdir', label='label',
                  use_ratio=False, plot=False, skip_import_verification=False,
                  pos0=None, burn_in_fraction=0.25, **kwargs):
-
+        self.save_blobs = False
         MCMCSampler.__init__(self, likelihood=likelihood, priors=priors,
                              outdir=outdir, label=label, use_ratio=use_ratio,
                              plot=plot,
@@ -77,14 +76,7 @@ class PTMCMCSampler(MCMCSampler):
                 "Sampler {} is not installed on this system".format(external_sampler_name))
 
     def _translate_kwargs(self, kwargs):
-        if 'Niter' not in kwargs:
-            for equiv in self.nsteps_equiv_kwargs:
-                if equiv in kwargs:
-                    kwargs['Niter'] = kwargs.pop(equiv)
-        if 'burn' not in kwargs:
-            for equiv in self.nburn_equiv_kwargs:
-                if equiv in kwargs:
-                    kwargs['burn'] = kwargs.pop(equiv)
+        pass
 
     @property
     def custom_proposals(self):
@@ -92,15 +84,8 @@ class PTMCMCSampler(MCMCSampler):
 
     @property
     def sampler_init_kwargs(self):
-        keys = ['groups',
-                'loglargs',
-                'logp_grad',
-                'logpkwargs',
-                'loglkwargs',
-                'logl_grad',
-                'logpargs',
-                'outDir',
-                'verbose']
+        keys = ['groups', 'loglargs', 'logp_grad', 'logpkwargs', 'loglkwargs',
+                'logl_grad', 'logpargs', 'outDir', 'verbose']
         init_kwargs = {key: self.kwargs[key] for key in keys}
         if init_kwargs['outDir'] is None:
             init_kwargs['outDir'] = '{}/ptmcmc_temp_{}/'.format(self.outdir, self.label)
@@ -108,44 +93,35 @@ class PTMCMCSampler(MCMCSampler):
 
     @property
     def sampler_function_kwargs(self):
-        keys = ['Niter',
-                'neff',
-                'Tmin',
-                'HMCweight',
-                'covUpdate',
-                'SCAMweight',
-                'ladder',
-                'burn',
-                'NUTSweight',
-                'AMweight',
-                'MALAweight',
-                'thin',
-                'HMCstepsize',
-                'isave',
-                'Tskip',
-                'HMCsteps',
-                'Tmax',
+        keys = ['Niter', 'neff', 'Tmin', 'HMCweight', 'covUpdate', 'SCAMweight',
+                'ladder', 'burn', 'NUTSweight', 'AMweight', 'MALAweight',
+                'thin', 'HMCstepsize', 'isave', 'Tskip', 'HMCsteps', 'Tmax',
                 'DEweight']
         sampler_kwargs = {key: self.kwargs[key] for key in keys}
         return sampler_kwargs
 
-    @staticmethod
-    def _import_external_sampler():
-        from PTMCMCSampler import PTMCMCSampler
-        return PTMCMCSampler
+    def log_likelihood(self, theta):
+        log_l = super(PTMCMCSampler, self).log_likelihood(theta)
+        if self.save_blobs:
+            self.blobs = np.hstack([
+                self.blobs, list(self.likelihood.derived.values())])
+        return log_l
 
     def run_sampler(self):
-        PTMCMCSampler = self._import_external_sampler()
-        sampler = PTMCMCSampler.PTSampler(ndim=self.ndim, logp=self.log_prior,
-                                          logl=self.log_likelihood, cov=np.eye(self.ndim),
-                                          **self.sampler_init_kwargs)
+        from PTMCMCSampler import PTMCMCSampler
+        sampler = PTMCMCSampler.PTSampler(
+            ndim=self.ndim, logp=self.log_prior, logl=self.log_likelihood,
+            cov=np.eye(self.ndim), **self.sampler_init_kwargs)
         if self.custom_proposals is not None:
             for proposal in self.custom_proposals:
                 logger.info('Adding {} to proposals with weight {}'.format(
                     proposal, self.custom_proposals[proposal][1]))
                 sampler.addProposalToCycle(self.custom_proposals[proposal][0],
                                            self.custom_proposals[proposal][1])
+        self.save_blobs = True
+        self.blobs = np.array([])
         sampler.sample(p0=self.p0, **self.sampler_function_kwargs)
+        self.save_blobs = False
         samples, meta, loglike = self.__read_in_data()
 
         self.result.nburn = self.sampler_function_kwargs['burn']
@@ -174,12 +150,10 @@ class PTMCMCSampler(MCMCSampler):
         PT_swap = {'swap_accept': data[-1]}
         tot_accept = {'tot_accept': data[-2]}
         log_post = {'log_post': data[:, -4]}
-        meta = {}
+        meta = dict()
         meta['tot_accept'] = tot_accept
         meta['PT_swap'] = PT_swap
         meta['proposals'] = jump_accept
         meta['log_post'] = log_post
-
-        shutil.rmtree(temp_outDir)
 
         return samples, meta, loglike
