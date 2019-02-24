@@ -61,7 +61,10 @@ class Cpnest(NestedSampler):
             @staticmethod
             def log_likelihood(x, **kwargs):
                 theta = [x[n] for n in self.search_parameter_keys]
-                return self.log_likelihood(theta)
+                log_l = self.log_likelihood(theta)
+                for key in self.likelihood.derived:
+                    x[key] = self.likelihood.derived[key]
+                return log_l
 
             @staticmethod
             def log_prior(x, **kwargs):
@@ -76,7 +79,9 @@ class Cpnest(NestedSampler):
 
         bounds = [[self.priors[key].minimum, self.priors[key].maximum]
                   for key in self.search_parameter_keys]
-        model = Model(self.search_parameter_keys, bounds)
+        bounds += [[0, 1] for _ in self.likelihood.derived]
+        keys = self.search_parameter_keys + list(self.likelihood.derived)
+        model = Model(keys, bounds)
         out = CPNest(model, **self.kwargs)
         out.run()
 

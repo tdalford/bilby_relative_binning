@@ -17,6 +17,7 @@ class Likelihood(object):
         parameters:
         """
         self.parameters = parameters
+        self.derived = dict()
 
     def __repr__(self):
         return self.__class__.__name__ + '(parameters={})'.format(self.parameters)

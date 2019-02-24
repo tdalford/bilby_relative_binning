@@ -9,7 +9,7 @@ except ImportError:
 from scipy.special import i0e
 
 from ..core import likelihood
-from ..core.utils import logger, UnsortedInterp2d
+from ..core.utils import logger, UnsortedInterp2d, det_frame_to_equatorial
 from ..core.prior import Prior, Uniform
 from .detector import InterferometerList
 from .prior import BBHPriorDict
@@ -157,6 +157,14 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         return log_l.real
 
     def log_likelihood_ratio(self):
+
+        # if 'theta' in self.parameters:
+        #     det = self.interferometers[0].vertex + self.interferometers[1].vertex
+        #     self.parameters['ra'], self.parameters['dec'] = \
+        #         det_frame_to_equatorial(
+        #             det, self.parameters['theta'], self.parameters['phi'],
+        #             self.parameters['geocent_time'])
+
         waveform_polarizations =\
             self.waveform_generator.frequency_domain_strain(self.parameters)
 
@@ -169,17 +177,25 @@ class GravitationalWaveTransient(likelihood.Likelihood):
             self.interferometers.frequency_array[0:-1].shape,
             dtype=np.complex128)
         for interferometer in self.interferometers:
+            name = interferometer.name
             signal_ifo = interferometer.get_detector_response(
                 waveform_polarizations, self.parameters)
 
-            d_inner_h += interferometer.inner_product(signal=signal_ifo)
-            optimal_snr_squared += interferometer.optimal_snr_squared(signal=signal_ifo)
+            d_inner_h_ifo = interferometer.inner_product(signal=signal_ifo)
+            d_inner_h += d_inner_h_ifo
+            rho_opt_ifo = interferometer.optimal_snr_squared(signal=signal_ifo)
+            optimal_snr_squared += rho_opt_ifo
             if self.time_marginalization:
                 d_inner_h_squared_tc_array +=\
                     4 / self.waveform_generator.duration * np.fft.fft(
                         signal_ifo[0:-1] *
                         interferometer.frequency_domain_strain.conjugate()[0:-1] /
                         interferometer.power_spectral_density_array[0:-1])
+
+            rho_mf_ifo = d_inner_h_ifo / rho_opt_ifo**0.5
+            self.derived[name + '_matched_filter_snr_amp'] = abs(rho_mf_ifo)
+            self.derived[name + '_matched_filter_snr_phase'] = np.angle(rho_mf_ifo)
+            self.derived[name + '_optimal_snr'] = rho_opt_ifo.real**0.5
 
         if self.time_marginalization:
 
@@ -450,6 +466,7 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
             return np.nan_to_num(-np.inf)
 
         for ifo in self.interferometers:
+            name = ifo.name
 
             f_plus = ifo.antenna_response(
                 self.parameters['ra'], self.parameters['dec'],
@@ -475,15 +492,22 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
 
             d_inner_h_tc_array = np.einsum(
                 'i,ji->j', np.conjugate(h_plus_linear + h_cross_linear),
-                self.weights[ifo.name + '_linear'][indices])
+                self.weights[name + '_linear'][indices])
 
-            d_inner_h += interp1d(
+            d_inner_h_ifo = interp1d(
                 self.time_samples[indices],
                 d_inner_h_tc_array, kind='quadratic')(ifo_time)
+            d_inner_h += d_inner_h_ifo
 
-            optimal_snr_squared += \
-                np.vdot(np.abs(h_plus_quadratic + h_cross_quadratic)**2,
-                        self.weights[ifo.name + '_quadratic'])
+            rho_opt_ifo = np.vdot(
+                np.abs(h_plus_quadratic + h_cross_quadratic)**2,
+                self.weights[name + '_quadratic'])
+            optimal_snr_squared += rho_opt_ifo
+
+            rho_mf_ifo = d_inner_h_ifo / rho_opt_ifo**0.5
+            self.derived[name + '_matched_filter_snr_amp'] = abs(rho_mf_ifo)
+            self.derived[name + '_matched_filter_snr_phase'] = np.angle(rho_mf_ifo)
+            self.derived[name + '_optimal_snr'] = rho_opt_ifo.real**0.5
 
         if self.distance_marginalization:
             rho_mf_ref, rho_opt_ref = self._setup_rho(d_inner_h, optimal_snr_squared)
