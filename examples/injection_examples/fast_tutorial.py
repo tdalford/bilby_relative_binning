@@ -69,8 +69,8 @@ priors['geocent_time'] = bilby.core.prior.Uniform(
     minimum=injection_parameters['geocent_time'] - 1,
     maximum=injection_parameters['geocent_time'] + 1,
     name='geocent_time', latex_label='$t_c$', unit='$s$')
-for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl', 'psi', 'ra',
-            'dec', 'geocent_time', 'mass_2', 'luminosity_distance', 'iota']:
+for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl',
+            'geocent_time', 'mass_1', 'mass_2', 'luminosity_distance', 'iota']:
     priors[key] = injection_parameters[key]
 
 # Initialise the likelihood by passing in the interferometer data (ifos) and
@@ -87,13 +87,13 @@ from bilby.core.sampler.proposal import *
 #                                       DifferentialEvolution(), EnsembleEigenVector()],
 #                            weights=[2, 2, 5, 1])
 
-test = JumpProposalCycleWrapper([EnsembleWalk(), EnsembleStretch(),
-                                 DifferentialEvolution(), EnsembleEigenVector()], weights=[2, 5, 2, 5, 4])
+test = JumpProposalCycleWrapper([GWEnsembleWalkPrototype(), EnsembleStretch(),
+                                 DifferentialEvolution(), EnsembleEigenVector()], weights=[2, 5, 2, 5])
 
 
-proposals = dict(mhs=test, hmc=test)
+proposals = None#dict(mhs=test, hmc=test)
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='cpnest', npoints=100, nthreads=1,
+    likelihood=likelihood, priors=priors, sampler='cpnest', npoints=400, nthreads=2,
     injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals)
 # Make a corner plot.
 result.plot_corner()

@@ -205,7 +205,7 @@ def ptmcmc_proposal_factory(jump_proposal, proposal_name=None):
             inverse_temperature = args[2]
             jump = self.proposal_function(sample=sample, iteration=iteration,
                                           inverse_temperature=inverse_temperature, coordinates=0)
-            qxy = getattr(self.proposal_function, 'qxy', 0)
+            qxy = getattr(self.proposal_function, 'log_j', 0)
             return jump, qxy
 
     return PTMCMCProposal(jp=jump_proposal, pn=proposal_name)

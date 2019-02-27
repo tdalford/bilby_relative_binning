@@ -1,6 +1,4 @@
 import random
-from random import sample as random_sample
-from random import choice, uniform, gauss, randrange
 from functools import reduce
 import numpy as np
 from inspect import isclass
@@ -43,8 +41,9 @@ class JumpProposalCycleWrapper(object):
         proposal_functions: list
         A list of callable proposal functions/objects
         weights: list
-
-        cycle_length
+        A list of integer weights for the respective proposal functions
+        cycle_length: int, optional
+        Length of the proposal cycle
         """
         self.proposal_functions = proposal_functions
         self.weights = weights
@@ -53,10 +52,10 @@ class JumpProposalCycleWrapper(object):
         self._cycle = np.random.choice(self.proposal_functions, size=self.cycle_length,
                                        p=self.weights, replace=True)
 
-    def __call__(self, coordinates, **kwargs):
+    def __call__(self, **kwargs):
         proposal = self._cycle[self.index]
         self._index = (self.index + 1) % self.cycle_length
-        return proposal(coordinates=coordinates, **kwargs)
+        return proposal(**kwargs)
 
     def __len__(self):
         return len(self.proposal_functions)
@@ -78,6 +77,13 @@ class JumpProposalCycleWrapper(object):
 
     @property
     def weights(self):
+        """
+
+        Returns
+        -------
+        Normalised proposal weights
+
+        """
         return np.array(self._weights) / np.sum(np.array(self._weights))
 
     @weights.setter
@@ -92,32 +98,83 @@ class JumpProposalCycleWrapper(object):
 
 class UniformJump(object):
 
-    def __init__(self, pmin=0, pmax=1):
+    def __init__(self, pmin=0, pmax=1, prior=None, log_likelihood=None):
+        """
+        A primitive uniform jump
+        Parameters
+        ----------
+        pmin: float, optional
+        The minimum boundary of the uniform jump
+        pmax: float, optional
+        The maximum boundary of the uniform jump
+        """
         self.pmin = pmin
         self.pmax = pmax
+        self.prior = prior
+        self.log_likelihood = log_likelihood
 
     def __call__(self, sample, *args, **kwargs):
-        return np.random.uniform(self.pmin, self.pmax, len(sample))
+        new = np.random.uniform(self.pmin, self.pmax, len(sample))
+        self.proposal_probability = 0
+        return new
 
 
 class NormJump(object):
     def __init__(self, step_size):
+        """
+        A normal distributed step centered around the old sample
+
+        Parameters
+        ----------
+        step_size: float
+        The scalable step size
+        """
         self.step_size = step_size
 
     def __call__(self, sample, *args, **kwargs):
         q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
+        self.proposal_probability = 0
         return q[0]
+
+
+class ArbitraryJump(object):
+    def __init__(self, random_number_generator, **random_number_generator_kwargs):
+        """
+
+        Parameters
+        ----------
+        random_number_generator: func
+        A random number generator that needs to wrapped so that the first element is the old sample
+        random_number_generator_kwargs:
+        Additional keyword arguments that go into the random number generator
+        """
+        self.random_number_generator = random_number_generator
+        self.random_number_generator_kwargs = random_number_generator_kwargs
+
+    def __call__(self, sample, *args, **kwargs):
+        return self.random_number_generator(sample, **self.random_number_generator_kwargs)
 
 
 class EnsembleWalk(object):
 
     def __init__(self, random_number_generator=random.random, npoints=3, **random_number_generator_args):
+        """
+        An ensemble walk
+        Parameters
+        ----------
+        random_number_generator: func, optional
+        A random number generator. Default is random.random
+        npoints: int, optional
+        Number of points in the ensemble to average over. Default is 3.
+        random_number_generator_args:
+        Additional keyword arguments for the random number generator
+        """
         self.random_number_generator = random_number_generator
         self.npoints = npoints
         self.random_number_generator_args = random_number_generator_args
 
     def __call__(self, sample, coordinates, *args, **kwargs):
-        subset = random_sample(coordinates, self.npoints)
+        subset = random.sample(coordinates, self.npoints)
         center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
         out = sample
         for x in subset:
@@ -126,19 +183,13 @@ class EnsembleWalk(object):
 
 
 class GWEnsembleWalkPrototype(EnsembleWalk):
-
-    def _get_sky_keys(self, sample):
-        return self._get_keys(['ra', 'dec'], sample)
-
-    def _get_cyclical_keys(self, sample):
-        return self._get_keys(['phase', 'psi'], sample)
-
-    @staticmethod
-    def _get_keys(keys, sample):
-        return list(set(keys) & set(sample.keys()))
+    """
+    A prototype implementation to demonstrate how a random ensemble walk could be modified for
+    gravitational wave signals.
+    """
 
     def __call__(self, sample, coordinates, **kwargs):
-        subset = random_sample(coordinates, self.npoints)
+        subset = random.sample(coordinates, self.npoints)
         center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
         out = sample
         for x in subset:
@@ -153,6 +204,9 @@ class GWEnsembleWalkPrototype(EnsembleWalk):
         for key in self._get_cyclical_keys(out):
             if self.random_number_generator() > 0.5:
                 self._reflect_by_pi(key, out)
+                out[key] %= 2 * np.pi
+                if out[key] < 0:
+                    out[key] += 2*np.pi
 
     @staticmethod
     def _reflect_by_pi(key, out):
@@ -169,31 +223,66 @@ class GWEnsembleWalkPrototype(EnsembleWalk):
             if 'dec' in keys:
                 out['dec'] = -out['dec']
 
+    def _get_sky_keys(self, sample):
+        return self._get_keys(['ra', 'dec'], sample)
+
+    def _get_cyclical_keys(self, sample):
+        return self._get_keys(['phase', 'psi'], sample)
+
+    @staticmethod
+    def _get_keys(keys, sample):
+        return list(set(keys) & set(sample.keys()))
+
 
 class EnsembleStretch(object):
 
     def __init__(self, scale=2.0):
+        """
+        Stretch move. Calculates the log Jacobian which can be used in cpnest to bias future moves.
+
+        Parameters
+        ----------
+        scale: float, optional
+        Stretching scale. Default is 2.0.
+        """
         self.scale = scale
 
     def __call__(self, sample, coordinates, **kwargs):
-        second_sample = choice(coordinates)
-        random_number = uniform(-1, 1) * np.log(self.scale)
-        out = second_sample + (sample - second_sample) * np.exp(random_number)
-        self.log_j = out.dimension * random_number
+        second_sample = random.choice(coordinates)
+        step = random.uniform(-1, 1) * np.log(self.scale)
+        out = second_sample + (sample - second_sample) * np.exp(step)
+        self.log_j = out.dimension * step
         return out
 
 
 class DifferentialEvolution(object):
 
+    def __init__(self, sigma=1e-4, mu=1.0):
+        """
+        Differential evolution step. Takes two elements from the existing coordinates and differentially evolves the
+        old sample based on them using some Gaussian randomisation in the step.
+
+        Parameters
+        ----------
+        sigma: float, optional
+        Random spread in the evolution step. Default is 1e-4
+        mu: float, optional
+        Scale of the randomization. Default is 1.0
+        """
+        self.sigma = sigma
+        self.mu = mu
+
     def __call__(self, sample, coordinates, **kwargs):
-        a, b = random_sample(coordinates, 2)
-        sigma = 1e-4
-        return sample + (b - a) * gauss(1.0, sigma)
+        a, b = random.sample(coordinates, 2)
+        return sample + (b - a) * random.gauss(self.mu, self.sigma)
 
 
 class EnsembleEigenVector(object):
 
     def __init__(self):
+        """
+        Ensemble step based on the ensemble eigen vectors.
+        """
         self.eigen_values = None
         self.eigen_vectors = None
         self.covariance = None
@@ -209,15 +298,16 @@ class EnsembleEigenVector(object):
             self.eigen_vectors = np.eye(1)
         else:
             for i, name in enumerate(coordinates[0].names):
-                for j in range(n): cov_array[i, j] = coordinates[j][name]
+                for j in range(n):
+                    cov_array[i, j] = coordinates[j][name]
             self.covariance = np.cov(cov_array)
             self.eigen_values, self.eigen_vectors = np.linalg.eigh(self.covariance)
 
     def __call__(self, sample, coordinates, **kwargs):
         self.update_eigenvectors(coordinates)
         out = sample
-        i = randrange(sample.dimension)
-        jumpsize = np.sqrt(np.fabs(self.eigen_values[i])) * gauss(0, 1)
+        i = random.randrange(sample.dimension)
+        jumpsize = np.sqrt(np.fabs(self.eigen_values[i])) * random.gauss(0, 1)
         for k, n in enumerate(out.names):
             out[n] += jumpsize * self.eigen_vectors[k, i]
         return out
