@@ -8,6 +8,7 @@ import numpy as np
 import deepdish
 import pandas as pd
 import corner
+import json
 import scipy.stats
 import matplotlib
 import matplotlib.pyplot as plt
@@ -19,7 +20,7 @@ from .utils import (logger, infer_parameters_from_function,
 from .prior import Prior, PriorDict, DeltaFunction
 
 
-def result_file_name(outdir, label):
+def result_file_name(outdir, label, extension='json'):
     """ Returns the standard filename used for a result file
 
     Parameters
@@ -28,17 +29,55 @@ def result_file_name(outdir, label):
         Name of the output directory
     label: str
         Naming scheme of the output file
+    extension: str, optional
+        Whether to save as `hdf5` or `json`
 
     Returns
     -------
     str: File name of the output file
     """
-    return '{}/{}_result.h5'.format(outdir, label)
+    if extension in ['json', 'hdf5']:
+        return '{}/{}_result.{}'.format(outdir, label, extension)
+    else:
+        raise ValueError("Extension type {} not understood".format(extension))
 
 
-def read_in_result(filename=None, outdir=None, label=None):
-    """ Wrapper to bilby.core.result.Result.from_hdf5 """
-    return Result.from_hdf5(filename=filename, outdir=outdir, label=label)
+def _determine_file_name(filename, outdir, label, extension):
+    """ Helper method to determine the filename """
+    if filename is not None:
+        return filename
+    else:
+        if (outdir is None) and (label is None):
+            raise ValueError("No information given to load file")
+        else:
+            return result_file_name(outdir, label, extension)
+
+
+def read_in_result(filename=None, outdir=None, label=None, extension='json'):
+    """ Reads in a stored bilby result object
+
+    Parameters
+    ----------
+    filename: str
+        Path to the file to be read (alternative to giving the outdir and label)
+    outdir, label, extension: str
+        Name of the output directory, label and extension used for the default
+        naming scheme.
+
+    """
+    filename = _determine_file_name(filename, outdir, label, extension)
+
+    # Get the actual extension (may differ from the default extension if the filename is given)
+    extension = os.path.splitext(filename)[1].lstrip('.')
+    if 'json' in extension:
+        result = Result.from_json(filename=filename)
+    elif ('hdf5' in extension) or ('h5' in extension):
+        result = Result.from_hdf5(filename=filename)
+    elif extension is None:
+        raise ValueError("No filetype extension provided")
+    else:
+        raise ValueError("Filetype {} not understood".format(extension))
+    return result
 
 
 class Result(object):
@@ -151,17 +190,53 @@ class Result(object):
                     If no bilby.core.result.Result is found in the path
 
         """
-        if filename is None:
-            if (outdir is None) and (label is None):
-                raise ValueError("No information given to load file")
-            else:
-                filename = result_file_name(outdir, label)
+        filename = _determine_file_name(filename, outdir, label, 'hdf5')
+
         if os.path.isfile(filename):
             dictionary = deepdish.io.load(filename)
             # Some versions of deepdish/pytables return the dictionanary as
-            # a dictionary with a kay 'data'
+            # a dictionary with a key 'data'
             if len(dictionary) == 1 and 'data' in dictionary:
                 dictionary = dictionary['data']
+            try:
+                return cls(**dictionary)
+            except TypeError as e:
+                raise IOError("Unable to load dictionary, error={}".format(e))
+        else:
+            raise IOError("No result '{}' found".format(filename))
+
+    @classmethod
+    def from_json(cls, filename=None, outdir=None, label=None):
+        """ Read in a saved .json data file
+
+        Parameters
+        ----------
+        filename: str
+            If given, try to load from this filename
+        outdir, label: str
+            If given, use the default naming convention for saved results file
+
+        Returns
+        -------
+        result: bilby.core.result.Result
+
+        Raises
+        -------
+        ValueError: If no filename is given and either outdir or label is None
+                    If no bilby.core.result.Result is found in the path
+
+        """
+        filename = _determine_file_name(filename, outdir, label, 'json')
+
+        if os.path.isfile(filename):
+            with open(filename, 'r') as file:
+                dictionary = json.load(file, object_hook=decode_bilby_json_result)
+            for key in dictionary.keys():
+                # Convert the loaded priors to bilby prior type
+                if key == 'priors':
+                    for param in dictionary[key].keys():
+                        dictionary[key][param] = str(dictionary[key][param])
+                    dictionary[key] = PriorDict(dictionary[key])
             try:
                 return cls(**dictionary)
             except TypeError as e:
@@ -303,9 +378,9 @@ class Result(object):
                 pass
         return dictionary
 
-    def save_to_file(self, overwrite=False, outdir=None):
+    def save_to_file(self, overwrite=False, outdir=None, extension='json'):
         """
-        Writes the Result to a deepdish h5 file
+        Writes the Result to a json or deepdish h5 file
 
         Parameters
         ----------
@@ -314,9 +389,11 @@ class Result(object):
             default=False
         outdir: str, optional
             Path to the outdir. Default is the one stored in the result object.
+        extension: str, optional {json, hdf5}
+            Determines the method to use to store the data
         """
         outdir = self._safe_outdir_creation(outdir, self.save_to_file)
-        file_name = result_file_name(outdir, self.label)
+        file_name = result_file_name(outdir, self.label, extension)
 
         if os.path.isfile(file_name):
             if overwrite:
@@ -335,14 +412,20 @@ class Result(object):
         if dictionary.get('priors', False):
             dictionary['priors'] = {key: str(self.priors[key]) for key in self.priors}
 
-        # Convert callable sampler_kwargs to strings to avoid pickling issues
+        # Convert callable sampler_kwargs to strings
         if dictionary.get('sampler_kwargs', None) is not None:
             for key in dictionary['sampler_kwargs']:
                 if hasattr(dictionary['sampler_kwargs'][key], '__call__'):
                     dictionary['sampler_kwargs'][key] = str(dictionary['sampler_kwargs'])
 
         try:
-            deepdish.io.save(file_name, dictionary)
+            if extension == 'json':
+                with open(file_name, 'w') as file:
+                    json.dump(dictionary, file, indent=2, cls=BilbyResultJsonEncoder)
+            elif extension == 'hdf5':
+                deepdish.io.save(file_name, dictionary)
+            else:
+                raise ValueError("Extension type {} not understood".format(extension))
         except Exception as e:
             logger.error("\n\n Saving the data has failed with the "
                          "following message:\n {} \n\n".format(e))
@@ -1037,6 +1120,27 @@ class Result(object):
                                  "Try calling " + caller_func.__name__ + " with the 'outdir' "
                                  "keyword argument, e.g. " + caller_func.__name__ + "(outdir='.')")
         return outdir
+
+
+class BilbyResultJsonEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return {'__array__': True, 'content': obj.tolist()}
+        if isinstance(obj, complex):
+            return {'__complex__': True, 'real': obj.real, 'imag': obj.imag}
+        if isinstance(obj, pd.core.frame.DataFrame):
+            return {'__dataframe__': True, 'content': obj.to_dict(orient='list')}
+        return json.JSONEncoder.default(self, obj)
+
+
+def decode_bilby_json_result(dct):
+    if dct.get("__array__", False):
+        return np.asarray(dct["content"])
+    if dct.get("__complex__", False):
+        return complex(dct["real"], dct["imag"])
+    if dct.get("__dataframe__", False):
+        return pd.DataFrame(dct['content'])
+    return dct
 
 
 def plot_multiple(results, filename=None, labels=None, colours=None,

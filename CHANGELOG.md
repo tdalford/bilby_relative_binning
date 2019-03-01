@@ -3,10 +3,18 @@
 ## Unreleased
 
 ### Added
--
+- Support for JSON result files
+- Before sampling a test is performed for redundant priors
 
 ### Changed
--
+- Fixed the definition of iota to theta_jn. WARNING: this breaks backward compatibility. Previously, the CBC parameter iota was used in prior files, but was ill-defined. This fixes that, requiring all scripts to use `theta_jn` in place of `iota`
+- Changed the default result file store to JSON rather than hdf5. Reading/writing of hdf5 files is still intact. The read_in_result function will still read in hdf5 files for backward compatibility
+- Minor fixes to the way PSDs are calculated
+- Fixed a bug in the CBC result where the frequency_domain model was pickled
+- Use pickling to store the dynesty resume file and add a write-to-resume on SIGINT/SIGKILL
+- Bug fix in ROQ likelihood
+- Distance and phase marginalisation work with ROQ likelihood
+- Cpnest now creates checkpoints (resume files) by default
 
 ### Removed
 -
@@ -14,6 +22,7 @@
 ## [0.4.0] 2019-02-15
 
 ### Changed
+- Changed the logic around redundancy tests in the `PriorDict` classes
 - Fixed an accidental addition of astropy as a first-class dependency and added a check for missing dependencies to the C.I.
 - Fixed a bug in the "create-your-own-time-domain-model" example
 - Added citation guide to the readme
@@ -33,7 +42,7 @@
 - Improve the load_data_from_cache_file method
 
 ### Removed
--
+- Removed deprecated `PriorSet` classes. Use `PriorDict` instead.
 
 ## [0.3.5] 2019-01-25
 
