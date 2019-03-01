@@ -4,9 +4,9 @@ import numpy as np
 from inspect import isclass
 
 
-class JumpProposalWrapper(object):
+class JumpProposal(object):
 
-    def __init__(self, proposal_function):
+    def __init__(self, prior=None, log_likelihood=None):
         """ A generic wrapper class for jump proposals
 
         Parameters
@@ -14,7 +14,8 @@ class JumpProposalWrapper(object):
         proposal_function: callable
         A callable object or function that returns the proposal
         """
-        self.proposal_function = proposal_function
+        self.prior = prior
+        self.log_likelihood = log_likelihood
 
     def __call__(self, *args, **kwargs):
         """ A generic wrapper for the jump proposal function
@@ -28,7 +29,7 @@ class JumpProposalWrapper(object):
         -------
 
         """
-        return self.proposal_function(*args, **kwargs)
+        pass
 
 
 class JumpProposalCycleWrapper(object):
@@ -96,7 +97,7 @@ class JumpProposalCycleWrapper(object):
         return self._weights
 
 
-class UniformJump(object):
+class UniformJump(JumpProposal):
 
     def __init__(self, pmin=0, pmax=1, prior=None, log_likelihood=None):
         """
@@ -108,6 +109,7 @@ class UniformJump(object):
         pmax: float, optional
         The maximum boundary of the uniform jump
         """
+        super().__init__(prior, log_likelihood)
         self.pmin = pmin
         self.pmax = pmax
         self.prior = prior
@@ -119,8 +121,8 @@ class UniformJump(object):
         return new
 
 
-class NormJump(object):
-    def __init__(self, step_size):
+class NormJump(JumpProposal):
+    def __init__(self, step_size, prior=None, log_likelihood=None):
         """
         A normal distributed step centered around the old sample
 
@@ -129,6 +131,7 @@ class NormJump(object):
         step_size: float
         The scalable step size
         """
+        super().__init__(prior, log_likelihood)
         self.step_size = step_size
 
     def __call__(self, sample, *args, **kwargs):
@@ -137,27 +140,28 @@ class NormJump(object):
         return q[0]
 
 
-class ArbitraryJump(object):
-    def __init__(self, random_number_generator, **random_number_generator_kwargs):
-        """
+# class ArbitraryJump(object):
+#     def __init__(self, random_number_generator, **random_number_generator_kwargs):
+#         """
+#
+#         Parameters
+#         ----------
+#         random_number_generator: func
+#         A random number generator that needs to wrapped so that the first element is the old sample
+#         random_number_generator_kwargs:
+#         Additional keyword arguments that go into the random number generator
+#         """
+#         self.random_number_generator = random_number_generator
+#         self.random_number_generator_kwargs = random_number_generator_kwargs
+#
+#     def __call__(self, sample, *args, **kwargs):
+#         return self.random_number_generator(sample, **self.random_number_generator_kwargs)
+#
 
-        Parameters
-        ----------
-        random_number_generator: func
-        A random number generator that needs to wrapped so that the first element is the old sample
-        random_number_generator_kwargs:
-        Additional keyword arguments that go into the random number generator
-        """
-        self.random_number_generator = random_number_generator
-        self.random_number_generator_kwargs = random_number_generator_kwargs
+class EnsembleWalk(JumpProposal):
 
-    def __call__(self, sample, *args, **kwargs):
-        return self.random_number_generator(sample, **self.random_number_generator_kwargs)
-
-
-class EnsembleWalk(object):
-
-    def __init__(self, random_number_generator=random.random, npoints=3, **random_number_generator_args):
+    def __init__(self, random_number_generator=random.random, npoints=3, prior=None, log_likelihood=None,
+                 **random_number_generator_args):
         """
         An ensemble walk
         Parameters
@@ -169,6 +173,7 @@ class EnsembleWalk(object):
         random_number_generator_args:
         Additional keyword arguments for the random number generator
         """
+        super().__init__(prior, log_likelihood)
         self.random_number_generator = random_number_generator
         self.npoints = npoints
         self.random_number_generator_args = random_number_generator_args
@@ -188,32 +193,33 @@ class GWEnsembleWalkPrototype(EnsembleWalk):
     gravitational wave signals.
     """
 
-    def __call__(self, sample, coordinates, **kwargs):
+    def __call__(self, sample, coordinates, prior=None, log_likelihood=None, **kwargs):
         subset = random.sample(coordinates, self.npoints)
         center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
         out = sample
         for x in subset:
             out += (x - center_of_mass) * self.random_number_generator()
 
-            self._move_phase_psi(out)
-            self._move_ra_dec(out)
+            out = self._move_degenerate_keys(out)
+            out = self._move_ra_dec(out)
+            out = self._move_periodic_keys(out)
 
         return out
 
-    def _move_phase_psi(self, out):
-        for key in self._get_cyclical_keys(out):
+    def _move_degenerate_keys(self, out):
+        for key in self._get_degenerate_keys(out):
             if self.random_number_generator() > 0.5:
-                self._reflect_by_pi(key, out)
-                out[key] %= 2 * np.pi
-                if out[key] < 0:
-                    out[key] += 2*np.pi
+                out = self._reflect_by_pi(key, out)
+        return out
 
-    @staticmethod
-    def _reflect_by_pi(key, out):
-        if out[key] > np.pi:
-            out[key] -= np.pi
-        else:
-            out[key] += np.pi
+    def _move_periodic_keys(self, out):
+        for key in self._get_periodic_keys(out):
+            # periodic move, maybe we should use while loops instead???
+            if out[key] > self.prior[key].maximum:
+                out[key] = self.prior[key].minimum + out[key] - self.prior[key].maximum
+            elif out[key] < self.prior[key].minimum:
+                out[key] = self.prior[key].maximum - out[key] + self.prior[key].minimum
+        return out
 
     def _move_ra_dec(self, out):
         keys = self._get_sky_keys(out)
@@ -222,11 +228,23 @@ class GWEnsembleWalkPrototype(EnsembleWalk):
                 self._reflect_by_pi('ra', out)
             if 'dec' in keys:
                 out['dec'] = -out['dec']
+        return out
+
+    @staticmethod
+    def _reflect_by_pi(key, out):
+        if out[key] > np.pi:
+            out[key] -= np.pi
+        else:
+            out[key] += np.pi
+        return out
 
     def _get_sky_keys(self, sample):
         return self._get_keys(['ra', 'dec'], sample)
 
-    def _get_cyclical_keys(self, sample):
+    def _get_periodic_keys(self, sample):
+        return self._get_keys(['ra', 'phase', 'psi'], sample)
+
+    def _get_degenerate_keys(self, sample):
         return self._get_keys(['phase', 'psi'], sample)
 
     @staticmethod
@@ -234,9 +252,9 @@ class GWEnsembleWalkPrototype(EnsembleWalk):
         return list(set(keys) & set(sample.keys()))
 
 
-class EnsembleStretch(object):
+class EnsembleStretch(JumpProposal):
 
-    def __init__(self, scale=2.0):
+    def __init__(self, scale=2.0, prior=None, log_likelihood=None):
         """
         Stretch move. Calculates the log Jacobian which can be used in cpnest to bias future moves.
 
@@ -245,6 +263,7 @@ class EnsembleStretch(object):
         scale: float, optional
         Stretching scale. Default is 2.0.
         """
+        super().__init__(prior, log_likelihood)
         self.scale = scale
 
     def __call__(self, sample, coordinates, **kwargs):
@@ -255,9 +274,9 @@ class EnsembleStretch(object):
         return out
 
 
-class DifferentialEvolution(object):
+class DifferentialEvolution(JumpProposal):
 
-    def __init__(self, sigma=1e-4, mu=1.0):
+    def __init__(self, sigma=1e-4, mu=1.0, prior=None, log_likelihood=None):
         """
         Differential evolution step. Takes two elements from the existing coordinates and differentially evolves the
         old sample based on them using some Gaussian randomisation in the step.
@@ -269,6 +288,7 @@ class DifferentialEvolution(object):
         mu: float, optional
         Scale of the randomization. Default is 1.0
         """
+        super().__init__(prior, log_likelihood)
         self.sigma = sigma
         self.mu = mu
 
@@ -277,12 +297,13 @@ class DifferentialEvolution(object):
         return sample + (b - a) * random.gauss(self.mu, self.sigma)
 
 
-class EnsembleEigenVector(object):
+class EnsembleEigenVector(JumpProposal):
 
-    def __init__(self):
+    def __init__(self, prior=None, log_likelihood=None):
         """
         Ensemble step based on the ensemble eigen vectors.
         """
+        super().__init__(prior, log_likelihood)
         self.eigen_values = None
         self.eigen_vectors = None
         self.covariance = None
