@@ -53,116 +53,6 @@ class Cpnest(NestedSampler):
 
     def run_sampler(self):
         from cpnest import model as cpmodel, CPNest
-        from cpnest.cpnest import RunManager
-        from cpnest.sampler import MetropolisHastingsSampler, HamiltonianMonteCarloSampler
-        from cpnest.proposal import DefaultProposalCycle, HamiltonianProposalCycle
-        from cpnest.NestedSampling import NestedSampler
-        import multiprocessing as mp
-
-        class GWCPNest(CPNest):
-
-            def __init__(self,
-                         usermodel,
-                         nlive=100,
-                         poolsize=100,
-                         output='./',
-                         verbose=0,
-                         seed=None,
-                         maxmcmc=100,
-                         nthreads=None,
-                         nhamiltonian=0,
-                         resume=False,
-                         proposals=None):
-
-                if proposals is None:
-                    proposals = dict(mhs=DefaultProposalCycle,
-                                     hmc=HamiltonianProposalCycle)
-
-                # super(GWCPNest, self).__init__(usermodel=usermodel,
-                #                                nlive=nlive,
-                #                                poolsize=poolsize,
-                #                                output=output,
-                #                                verbose=verbose,
-                #                                seed=seed,
-                #                                maxmcmc=maxmcmc,
-                #                                nthreads=nthreads,
-                #                                nhamiltonian=nhamiltonian,
-                #                                resume=resume)
-                if nthreads is None:
-                    self.nthreads = mp.cpu_count()
-                else:
-                    self.nthreads = nthreads
-                print('Running with {0} parallel threads'.format(self.nthreads))
-                self.user = usermodel
-                self.nlive = nlive
-                self.verbose = verbose
-                self.output = output
-                self.poolsize = poolsize
-                self.posterior_samples = None
-                self.resume = resume
-
-                if seed is None:
-                    self.seed = 1234
-                else:
-                    self.seed = seed
-
-                self.manager = RunManager(nthreads=self.nthreads)
-                self.manager.start()
-
-                self.process_pool = []
-
-                resume_file = os.path.join(output, "nested_sampler_resume.pkl")
-                if not os.path.exists(resume_file) or resume is False:
-                    self.NS = NestedSampler(self.user,
-                                            nlive=nlive,
-                                            output=output,
-                                            verbose=verbose,
-                                            seed=self.seed,
-                                            prior_sampling=False,
-                                            manager=self.manager)
-                else:
-                    self.NS = NestedSampler.resume(resume_file, self.manager, self.user)
-
-                for i in range(self.nthreads - nhamiltonian):
-                    resume_file = os.path.join(output, "sampler_{0:d}.pkl".format(i))
-                    if not os.path.exists(resume_file) or resume is False:
-                        sampler = MetropolisHastingsSampler(self.user,
-                                                            maxmcmc,
-                                                            verbose=verbose,
-                                                            output=output,
-                                                            poolsize=poolsize,
-                                                            seed=self.seed + i,
-                                                            proposal=proposals['mhs'](),
-                                                            resume_file=resume_file,
-                                                            manager=self.manager
-                                                            )
-                    else:
-                        sampler = MetropolisHastingsSampler.resume(resume_file,
-                                                                   self.manager,
-                                                                   self.user)
-
-                    p = mp.Process(target=sampler.produce_sample)
-                    self.process_pool.append(p)
-
-                for i in range(self.nthreads - nhamiltonian, self.nthreads):
-                    resume_file = os.path.join(output, "sampler_{0:d}.pkl".format(i))
-                    if not os.path.exists(resume_file) or resume is False:
-                        sampler = HamiltonianMonteCarloSampler(self.user,
-                                                               maxmcmc,
-                                                               verbose=verbose,
-                                                               output=output,
-                                                               poolsize=poolsize,
-                                                               seed=self.seed + i,
-                                                               proposal=proposals['hmc'](self.user),
-                                                               resume_file=resume_file,
-                                                               manager=self.manager
-                                                               )
-                    else:
-                        sampler = HamiltonianMonteCarloSampler.resume(resume_file,
-                                                                      self.manager,
-                                                                      self.user)
-                    p = mp.Process(target=sampler.produce_sample)
-                    self.process_pool.append(p)
 
         class Model(cpmodel.Model):
             """ A wrapper class to pass our log_likelihood into cpnest """
@@ -193,7 +83,7 @@ class Cpnest(NestedSampler):
         self._resolve_proposal_functions()
 
         model = Model(self.search_parameter_keys, bounds)
-        out = GWCPNest(model, **self.kwargs)
+        out = CPNest(model, **self.kwargs)
         out.run()
 
         if self.plot:
