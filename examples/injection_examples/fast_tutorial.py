@@ -31,7 +31,7 @@ np.random.seed(88170235)
 # spins of both black holes (a, tilt, phi), etc.
 injection_parameters = dict(
     mass_1=36., mass_2=29., a_1=0.4, a_2=0.3, tilt_1=0.5, tilt_2=1.0,
-    phi_12=1.7, phi_jl=0.3, luminosity_distance=6000., iota=0.4, psi=2.659,
+    phi_12=1.7, phi_jl=0.3, luminosity_distance=6000., theta_jn=0.4, psi=2.659,
     phase=1, geocent_time=1126259642.413, ra=1.375, dec=-1.2108)
 
 # Fixed arguments passed into the source model
@@ -70,7 +70,7 @@ priors['geocent_time'] = bilby.core.prior.Uniform(
     maximum=injection_parameters['geocent_time'] + 1,
     name='geocent_time', latex_label='$t_c$', unit='$s$')
 for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl',
-            'geocent_time', 'mass_1', 'mass_2', 'luminosity_distance', 'iota']:
+            'geocent_time', 'mass_1', 'mass_2', 'luminosity_distance', 'theta_jn']:
     priors[key] = injection_parameters[key]
 
 # Initialise the likelihood by passing in the interferometer data (ifos) and
@@ -93,7 +93,7 @@ test = JumpProposalCycleWrapper([GWEnsembleWalkPrototype(), EnsembleStretch(),
 
 proposals = None#dict(mhs=test, hmc=test)
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='cpnest', npoints=400, nthreads=2,
+    likelihood=likelihood, priors=priors, sampler='cpnest', npoints=400, nthreads=1,
     injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals)
 # Make a corner plot.
 result.plot_corner()
