@@ -318,9 +318,7 @@ class PolarisationPhaseJump(JumpProposal):
 class DrawFlatPrior(JumpProposal):
 
     def __call__(self, sample, *args, **kwargs):
-        flat_priors = {key: Uniform(prior.minimum, prior.maximum, prior.name) for
-                       key, prior in self.priors.items()}
-        out = {key: flat_priors[key].sample for key in self.priors}
+        out = _draw_from_flat_priors(self.priors)
         return super(DrawFlatPrior, self).__call__(out)
 
 
@@ -332,14 +330,19 @@ class DrawApproxPrior(JumpProposal):
 
     def __call__(self, sample, *args, **kwargs):
         if self.analytic_test:
-            flat_priors = {key: Uniform(prior.minimum, prior.maximum, prior.name)
-                           for key, prior in self.priors.items()}
-            out = {key: flat_priors[key].sample for key in self.priors}
+            out = _draw_from_flat_priors(self.priors)
         else:
             out = self.priors.sample()
             log_backward_jump = approx_log_prior(sample)
             self.log_j = log_backward_jump - approx_log_prior(out)
         return super(DrawApproxPrior, self).__call__(out)
+
+
+def _draw_from_flat_priors(priors):
+    flat_priors = {key: Uniform(prior.minimum, prior.maximum, prior.name) for
+                   key, prior in priors.items()}
+    out = {key: flat_priors[key].sample for key in priors}
+    return out
 
 
 def approx_log_prior(sample):
