@@ -97,7 +97,7 @@ test = proposal.JumpProposalCycle(
     weights=[2, 2, 5, 1, 1, 1, 1, 1, 1])
 
 
-proposals = None#dict(mhs=test, hmc=test)
+proposals = dict(mhs=test, hmc=test)
 result = bilby.run_sampler(
     likelihood=likelihood, priors=priors, sampler='cpnest', npoints=400, nthreads=3,
     injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals)
