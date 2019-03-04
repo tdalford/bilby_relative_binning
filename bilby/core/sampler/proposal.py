@@ -7,17 +7,17 @@ from inspect import isclass
 
 class JumpProposal(object):
 
-    def __init__(self, prior=None, log_likelihood=None):
+    def __init__(self, prior=None, likelihood=None):
         """ A generic wrapper class for jump proposals
 
         Parameters
         ----------
         prior:
-        log_likelihood:
+        likelihood:
         A callable object or function that returns the proposal
         """
         self.prior = prior
-        self.log_likelihood = log_likelihood
+        self.likelihood = likelihood
         self.log_j = 0
 
     def __call__(self, *args, **kwargs):
@@ -125,7 +125,7 @@ class JumpProposalCycleWrapper(object):
 
 class UniformJump(JumpProposal):
 
-    def __init__(self, pmin=0, pmax=1, prior=None, log_likelihood=None):
+    def __init__(self, pmin=0, pmax=1, prior=None, likelihood=None):
         """
         A primitive uniform jump
         Parameters
@@ -135,11 +135,11 @@ class UniformJump(JumpProposal):
         pmax: float, optional
         The maximum boundary of the uniform jump
         """
-        super().__init__(prior, log_likelihood)
+        super().__init__(prior, likelihood)
         self.pmin = pmin
         self.pmax = pmax
         self.prior = prior
-        self.log_likelihood = log_likelihood
+        self.log_likelihood = likelihood
 
     def __call__(self, sample, *args, **kwargs):
         out = np.random.uniform(self.pmin, self.pmax, len(sample))
@@ -148,7 +148,7 @@ class UniformJump(JumpProposal):
 
 
 class NormJump(JumpProposal):
-    def __init__(self, step_size, prior=None, log_likelihood=None):
+    def __init__(self, step_size, prior=None, likelihood=None):
         """
         A normal distributed step centered around the old sample
 
@@ -157,7 +157,7 @@ class NormJump(JumpProposal):
         step_size: float
         The scalable step size
         """
-        super().__init__(prior, log_likelihood)
+        super().__init__(prior, likelihood)
         self.step_size = step_size
 
     def __call__(self, sample, *args, **kwargs):
@@ -168,7 +168,7 @@ class NormJump(JumpProposal):
 
 class EnsembleWalk(JumpProposal):
 
-    def __init__(self, random_number_generator=random.random, npoints=3, prior=None, log_likelihood=None,
+    def __init__(self, random_number_generator=random.random, npoints=3, prior=None, likelihood=None,
                  **random_number_generator_args):
         """
         An ensemble walk
@@ -181,7 +181,7 @@ class EnsembleWalk(JumpProposal):
         random_number_generator_args:
         Additional keyword arguments for the random number generator
         """
-        super(EnsembleWalk, self).__init__(prior, log_likelihood)
+        super(EnsembleWalk, self).__init__(prior, likelihood)
         self.random_number_generator = random_number_generator
         self.npoints = npoints
         self.random_number_generator_args = random_number_generator_args
@@ -197,7 +197,7 @@ class EnsembleWalk(JumpProposal):
 
 class EnsembleStretch(JumpProposal):
 
-    def __init__(self, scale=2.0, prior=None, log_likelihood=None):
+    def __init__(self, scale=2.0, prior=None, likelihood=None):
         """
         Stretch move. Calculates the log Jacobian which can be used in cpnest to bias future moves.
 
@@ -206,7 +206,7 @@ class EnsembleStretch(JumpProposal):
         scale: float, optional
         Stretching scale. Default is 2.0.
         """
-        super(EnsembleStretch, self).__init__(prior, log_likelihood)
+        super(EnsembleStretch, self).__init__(prior, likelihood)
         self.scale = scale
 
     def __call__(self, sample, coordinates, **kwargs):
@@ -219,7 +219,7 @@ class EnsembleStretch(JumpProposal):
 
 class DifferentialEvolution(JumpProposal):
 
-    def __init__(self, sigma=1e-4, mu=1.0, prior=None, log_likelihood=None):
+    def __init__(self, sigma=1e-4, mu=1.0, prior=None, likelihood=None):
         """
         Differential evolution step. Takes two elements from the existing coordinates and differentially evolves the
         old sample based on them using some Gaussian randomisation in the step.
@@ -231,7 +231,7 @@ class DifferentialEvolution(JumpProposal):
         mu: float, optional
         Scale of the randomization. Default is 1.0
         """
-        super(DifferentialEvolution, self).__init__(prior, log_likelihood)
+        super(DifferentialEvolution, self).__init__(prior, likelihood)
         self.sigma = sigma
         self.mu = mu
 
@@ -243,11 +243,11 @@ class DifferentialEvolution(JumpProposal):
 
 class EnsembleEigenVector(JumpProposal):
 
-    def __init__(self, prior=None, log_likelihood=None):
+    def __init__(self, prior=None, likelihood=None):
         """
         Ensemble step based on the ensemble eigen vectors.
         """
-        super(EnsembleEigenVector, self).__init__(prior, log_likelihood)
+        super(EnsembleEigenVector, self).__init__(prior, likelihood)
         self.eigen_values = None
         self.eigen_vectors = None
         self.covariance = None
@@ -283,9 +283,56 @@ class SkyLocationWanderJump(JumpProposal):
     def __init__(self, prior, likelihood):
         super(SkyLocationWanderJump, self).__init__(prior, likelihood)
 
-    def __call__(self, sample, coordinates, **kwargs):
+    def __call__(self, sample, **kwargs):
+        temperature = 1 / kwargs['inverse_temperature']
         out = copy.copy(sample)
-        sigma = np.sqrt(kwargs['temperature']) / 2 / np.pi
+        sigma = np.sqrt(temperature) / 2 / np.pi
         out['ra'] += random.gauss(sigma)
         out['dec'] += random.gauss(sigma)
-        return out
+        return self.apply_boundaries(out)
+
+
+class DrawFlatPrior(JumpProposal):
+
+    def __init__(self, prior, likelihood):
+        super(DrawFlatPrior, self).__init__(prior, likelihood)
+
+    def __call__(self, *args, **kwargs):
+        self.log_j = 0
+        tmp = 0
+        # Unclear what this is doing in LALInference
+
+
+class CorrelatedPolarizationPhaseJump(JumpProposal):
+
+    def __init__(self, prior, likelihood):
+        super(CorrelatedPolarizationPhaseJump, self).__init__(prior, likelihood)
+
+    def __call__(self, sample, coordinates, **kwargs):
+        self.log_j = 0.0
+        out = copy.copy(sample)
+        alpha = out['psi'] + out['phi']
+        beta = out['psi'] - out['phi']
+
+        draw = random.random()
+        if draw < 0.5:
+            alpha = 3.0 * np.pi * random.random()
+        else:
+            beta = 3.0 * np.pi * random.random() - 2 * np.pi
+        out['psi'] = (alpha + beta) * 0.5
+        out['phi'] = (alpha - beta) * 0.5
+
+        return self.apply_boundaries(out)
+
+
+class PolarisationPhaseJump(JumpProposal):
+
+    def __init__(self, prior, likelihood):
+        super(PolarisationPhaseJump, self).__init__(prior, likelihood)
+
+    def __call__(self, sample, coordinates, **kwargs):
+        self.log_j = 0
+        out = copy.copy(sample)
+        out['phi'] += np.pi
+        out['psi'] += np.pi / 2
+        return self.apply_boundaries(out)
