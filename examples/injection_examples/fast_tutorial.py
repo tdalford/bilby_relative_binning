@@ -87,8 +87,12 @@ from bilby.core.sampler.proposal import *
 #                                       DifferentialEvolution(), EnsembleEigenVector()],
 #                            weights=[2, 2, 5, 1])
 
-test = JumpProposalCycleWrapper([GWEnsembleWalk(), GWEnsembleStretch(),
-                                 GWDifferentialEvolution(), GWEnsembleEigenVector()], weights=[2, 2, 5, 1])
+test = JumpProposalCycleWrapper([EnsembleWalk(priors=priors), EnsembleStretch(priors=priors),
+                                 DifferentialEvolution(priors=priors), EnsembleEigenVector(priors=priors),
+                                 SkyLocationWanderJump(priors=priors), CorrelatedPolarizationPhaseJump(priors=priors),
+                                 PolarisationPhaseJump(priors=priors), DrawFlatPrior(priors=priors),
+                                 DrawApproxPrior(analytic_test=True, priors=priors)],
+                                weights=[2, 2, 5, 1, 1, 1, 1, 1, 1])
 
 
 proposals = None#dict(mhs=test, hmc=test)
