@@ -35,7 +35,7 @@ class JumpProposal(object):
         return self.apply_boundaries(copy.copy(args[0]))
 
     def _move_reflecting_keys(self, out):
-        keys = [key for key in self.priors.keys() if self.priors[key].boundary == 'periodic']
+        keys = [key for key in self.priors.keys() if self.priors[key].boundary == 'reflecting']
         for key in keys:
             if out[key] > self.priors[key].maximum:
                 out[key] = 2 * self.priors[key].maximum + out[key]
@@ -44,7 +44,7 @@ class JumpProposal(object):
         return out
 
     def _move_periodic_keys(self, out):
-        keys = [key for key in self.priors.keys() if self.priors[key].boundary == 'reflecting']
+        keys = [key for key in self.priors.keys() if self.priors[key].boundary == 'periodic']
         for key in keys:
             if out[key] > self.priors[key].maximum:
                 out[key] = self.priors[key].minimum + out[key] - self.priors[key].maximum
@@ -283,8 +283,8 @@ class SkyLocationWanderJump(JumpProposal):
         temperature = 1 / kwargs.get('inverse_temperature', 1.0)
         out = copy.copy(sample)
         sigma = np.sqrt(temperature) / 2 / np.pi
-        out['ra'] += random.gauss(sigma)
-        out['dec'] += random.gauss(sigma)
+        out['ra'] += random.gauss(0, sigma)
+        out['dec'] += random.gauss(0, sigma)
         return super(SkyLocationWanderJump, self).__call__(out)
 
 
@@ -317,7 +317,8 @@ class PolarisationPhaseJump(JumpProposal):
 class DrawFlatPrior(JumpProposal):
 
     def __call__(self, sample, *args, **kwargs):
-        out = _draw_from_flat_priors(self.priors)
+        out = copy.copy(sample)
+        out = _draw_from_flat_priors(out, self.priors)
         return super(DrawFlatPrior, self).__call__(out)
 
 
@@ -328,8 +329,9 @@ class DrawApproxPrior(JumpProposal):
         self.analytic_test = analytic_test
 
     def __call__(self, sample, *args, **kwargs):
+        out = copy.copy(sample)
         if self.analytic_test:
-            out = _draw_from_flat_priors(self.priors)
+            out = _draw_from_flat_priors(out, self.priors)
         else:
             out = self.priors.sample()
             log_backward_jump = approx_log_prior(sample)
@@ -337,10 +339,12 @@ class DrawApproxPrior(JumpProposal):
         return super(DrawApproxPrior, self).__call__(out)
 
 
-def _draw_from_flat_priors(priors):
+def _draw_from_flat_priors(sample, priors):
+    out = copy.copy(sample)
     flat_priors = {key: Uniform(prior.minimum, prior.maximum, prior.name) for
                    key, prior in priors.items()}
-    out = {key: flat_priors[key].sample for key in priors}
+    for key, prior in flat_priors.items():
+        out[key] = prior.sample()
     return out
 
 

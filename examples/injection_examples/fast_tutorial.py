@@ -100,6 +100,7 @@ test = proposal.JumpProposalCycle(
 proposals = dict(mhs=test, hmc=test)
 result = bilby.run_sampler(
     likelihood=likelihood, priors=priors, sampler='cpnest', npoints=400, nthreads=3,
-    injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals)
+    injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals,
+    resume=False)
 # Make a corner plot.
 result.plot_corner()
