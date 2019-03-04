@@ -31,6 +31,29 @@ class JumpProposal(object):
         """
         pass
 
+    def _move_periodic_keys(self, out):
+        keys = [key for key in self.prior if self.prior.boundary == 'periodic']
+        for key in keys:
+            if out[key] > self.prior[key].maximum:
+                out[key] = 2 * self.prior[key].maximum + out[key]
+            elif out[key] < self.prior[key].minimum:
+                out[key] = 2 * self.prior[key].minimum - out[key]
+        return out
+
+    def _move_reflecting_keys(self, out):
+        keys = [key for key in self.prior if self.prior.boundary == 'reflecting']
+        for key in keys:
+            if out[key] > self.prior[key].maximum:
+                out[key] = self.prior[key].maximum + out[key] - self.prior[key].maximum
+            elif out[key] < self.prior[key].minimum:
+                out[key] = self.prior[key].maximum - out[key] + self.prior[key].minimum
+        return out
+
+    def apply_boundaries(self, out):
+        out = self._move_periodic_keys(out)
+        out = self._move_reflecting_keys(out)
+        return out
+
 
 class JumpProposalCycleWrapper(object):
 
@@ -97,60 +120,6 @@ class JumpProposalCycleWrapper(object):
         return self._weights
 
 
-class _GWJumpProposalMixin(object):
-
-    def _move_gw(self, out):
-        out = self._move_degenerate_keys(out)
-        out = self._move_ra_dec(out)
-        out = self._move_periodic_keys(out)
-        return out
-
-    def _move_degenerate_keys(self, out):
-        for key in self._get_degenerate_keys(out):
-            if random.random() > 0.5:
-                out = self._reflect_by_pi(key, out)
-        return out
-
-    def _move_periodic_keys(self, out):
-        for key in self._get_periodic_keys(out):
-            # periodic move, maybe we should use while loops instead???
-            if out[key] > self.prior[key].maximum:
-                out[key] = self.prior[key].minimum + out[key] - self.prior[key].maximum
-            elif out[key] < self.prior[key].minimum:
-                out[key] = self.prior[key].maximum - out[key] + self.prior[key].minimum
-        return out
-
-    def _move_ra_dec(self, out):
-        keys = self._get_sky_keys(out)
-        if random.random() > 0.5:
-            if 'ra' in keys:
-                self._reflect_by_pi('ra', out)
-            if 'dec' in keys:
-                out['dec'] = -out['dec']
-        return out
-
-    @staticmethod
-    def _reflect_by_pi(key, out):
-        if out[key] > np.pi:
-            out[key] -= np.pi
-        else:
-            out[key] += np.pi
-        return out
-
-    def _get_sky_keys(self, sample):
-        return self._get_keys(['ra', 'dec'], sample)
-
-    def _get_periodic_keys(self, sample):
-        return self._get_keys(['ra', 'phase', 'psi'], sample)
-
-    def _get_degenerate_keys(self, sample):
-        return self._get_keys(['phase', 'psi'], sample)
-
-    @staticmethod
-    def _get_keys(keys, sample):
-        return list(set(keys) & set(sample.keys()))
-
-
 class UniformJump(JumpProposal):
 
     def __init__(self, pmin=0, pmax=1, prior=None, log_likelihood=None):
@@ -170,9 +139,9 @@ class UniformJump(JumpProposal):
         self.log_likelihood = log_likelihood
 
     def __call__(self, sample, *args, **kwargs):
-        new = np.random.uniform(self.pmin, self.pmax, len(sample))
+        out = np.random.uniform(self.pmin, self.pmax, len(sample))
         self.proposal_probability = 0
-        return new
+        return self.apply_boundaries(out)
 
 
 class NormJump(JumpProposal):
@@ -190,8 +159,8 @@ class NormJump(JumpProposal):
 
     def __call__(self, sample, *args, **kwargs):
         q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
-        self.proposal_probability = 0
-        return q[0]
+        out = q[0]
+        return self.apply_boundaries(out)
 
 
 # class ArbitraryJump(object):
@@ -238,18 +207,7 @@ class EnsembleWalk(JumpProposal):
         out = sample
         for x in subset:
             out += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
-        return out
-
-
-class GWEnsembleWalk(EnsembleWalk, _GWJumpProposalMixin):
-    """
-    A prototype implementation to demonstrate how a random ensemble walk could be modified for
-    gravitational wave signals.
-    """
-
-    def __call__(self, sample, coordinates, **kwargs):
-        out = super(GWEnsembleWalk, self).__call__(sample, coordinates, **kwargs)
-        return self._move_gw(out)
+        return self.apply_boundaries(out)
 
 
 class EnsembleStretch(JumpProposal):
@@ -271,14 +229,7 @@ class EnsembleStretch(JumpProposal):
         step = random.uniform(-1, 1) * np.log(self.scale)
         out = second_sample + (sample - second_sample) * np.exp(step)
         self.log_j = out.dimension * step
-        return out
-
-
-class GWEnsembleStretch(EnsembleStretch, _GWJumpProposalMixin):
-
-    def __call__(self, sample, coordinates, **kwargs):
-        out = super(GWEnsembleStretch, self).__call__(sample, coordinates, **kwargs)
-        return self._move_gw(out)
+        return self.apply_boundaries(out)
 
 
 class DifferentialEvolution(JumpProposal):
@@ -302,14 +253,7 @@ class DifferentialEvolution(JumpProposal):
     def __call__(self, sample, coordinates, **kwargs):
         a, b = random.sample(coordinates, 2)
         out = sample + (b - a) * random.gauss(self.mu, self.sigma)
-        return out
-
-
-class GWDifferentialEvolution(DifferentialEvolution, _GWJumpProposalMixin):
-
-    def __call__(self, sample, coordinates, **kwargs):
-        out = super(GWDifferentialEvolution, self).__call__(sample, coordinates, **kwargs)
-        return self._move_gw(out)
+        return self.apply_boundaries(out)
 
 
 class EnsembleEigenVector(JumpProposal):
@@ -346,11 +290,4 @@ class EnsembleEigenVector(JumpProposal):
         jumpsize = np.sqrt(np.fabs(self.eigen_values[i])) * random.gauss(0, 1)
         for k, n in enumerate(out.names):
             out[n] += jumpsize * self.eigen_vectors[k, i]
-        return out
-
-
-class GWEnsembleEigenVector(EnsembleEigenVector, _GWJumpProposalMixin):
-
-    def __call__(self, sample, coordinates, **kwargs):
-        out = super(GWEnsembleEigenVector, self).__call__(sample, coordinates, **kwargs)
-        return self._move_gw(out)
+        return self.apply_boundaries(out)
