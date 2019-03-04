@@ -334,12 +334,10 @@ class Prior(object):
             Minimum of the domain, default=-np.inf
         maximum: float, optional
             Maximum of the domain, default=np.inf
-        boundary: str, optional
+        boundary: str, None, optional
             'reflecting', 'periodic', or None. Determines how samplers deal with
             proposed jumps outside of the prior range. Not implemented for all
-            samplers yet.
-
-
+            samplers.
         """
         self.name = name
         self.latex_label = latex_label
