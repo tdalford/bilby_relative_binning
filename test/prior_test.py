@@ -61,6 +61,9 @@ class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
         self.assertFalse(self.prior.is_in_prior_range(val_below))
         self.assertFalse(self.prior.is_in_prior_range(val_above))
 
+    def test_boundary_is_none(self):
+        self.assertIsNone(self.prior.boundary)
+
 
 class TestPriorName(unittest.TestCase):
 
@@ -106,7 +109,7 @@ class TestPriorIsFixed(unittest.TestCase):
         pass
 
     def tearDown(self):
-        pass
+        del self.prior
 
     def test_is_fixed_parent_class(self):
         self.prior = bilby.core.prior.Prior()
@@ -120,6 +123,24 @@ class TestPriorIsFixed(unittest.TestCase):
         self.prior = bilby.core.prior.Uniform(minimum=0, maximum=10)
         self.assertFalse(self.prior.is_fixed)
 
+
+class TestPriorBoundary(unittest.TestCase):
+
+    def setUp(self):
+        self.prior = bilby.core.prior.Prior(boundary=None)
+
+    def tearDown(self):
+        del self.prior
+
+    def test_set_boundary_valid(self):
+        self.prior.boundary = 'periodic'
+        self.assertEqual('periodic', self.prior.boundary)
+        self.prior.boundary = 'reflecting'
+        self.assertEqual('reflecting', self.prior.boundary)
+
+    def test_set_boundary_invalid(self):
+        with self.assertRaises(ValueError):
+            self.prior.boundary = 'else'
 
 class TestPriorClasses(unittest.TestCase):
 
