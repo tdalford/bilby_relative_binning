@@ -1062,7 +1062,7 @@ class TruncatedNormal(TruncatedGaussian):
 
 
 class HalfGaussian(TruncatedGaussian):
-    def __init__(self, sigma, name=None, latex_label=None, unit=None, boundary=boundary):
+    def __init__(self, sigma, name=None, latex_label=None, unit=None, boundary=None):
         """A Gaussian with its mode at zero, and truncated to only be positive.
 
         Parameters
