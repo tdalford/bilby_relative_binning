@@ -341,10 +341,9 @@ class DrawApproxPrior(JumpProposal):
 
 def _draw_from_flat_priors(sample, priors):
     out = copy.copy(sample)
-    flat_priors = {key: Uniform(prior.minimum, prior.maximum, prior.name) for
-                   key, prior in priors.items()}
-    for key, prior in flat_priors.items():
-        out[key] = prior.sample()
+    for key in out.keys():
+        flat_prior = Uniform(priors[key].minimum, priors[key].maximum, priors[key].name)
+        out[key] = flat_prior.sample()
     return out
 
 
