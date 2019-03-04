@@ -4,20 +4,20 @@ import numpy as np
 import copy
 from inspect import isclass
 
+from bilby.core.prior import Uniform
+
 
 class JumpProposal(object):
 
-    def __init__(self, prior=None, likelihood=None):
+    def __init__(self, priors=None):
         """ A generic wrapper class for jump proposals
 
         Parameters
         ----------
-        prior:
-        likelihood:
-        A callable object or function that returns the proposal
+        priors: bilby.core.prior.PriorDict
+            Dictionary of priors used in this sampling run
         """
-        self.prior = prior
-        self.likelihood = likelihood
+        self.priors = priors
         self.log_j = 0
 
     def __call__(self, *args, **kwargs):
@@ -32,27 +32,28 @@ class JumpProposal(object):
         -------
 
         """
-        pass
-
-    def _move_periodic_keys(self, out):
-        keys = [key for key in self.prior if self.prior.boundary == 'periodic']
-        for key in keys:
-            if out[key] > self.prior[key].maximum:
-                out[key] = 2 * self.prior[key].maximum + out[key]
-            elif out[key] < self.prior[key].minimum:
-                out[key] = 2 * self.prior[key].minimum - out[key]
-        return out
+        return self.apply_boundaries(copy.copy(args[0]))
 
     def _move_reflecting_keys(self, out):
-        keys = [key for key in self.prior if self.prior.boundary == 'reflecting']
+        keys = [key for key in self.priors.keys() if self.priors[key].boundary == 'periodic']
         for key in keys:
-            if out[key] > self.prior[key].maximum:
-                out[key] = self.prior[key].maximum + out[key] - self.prior[key].maximum
-            elif out[key] < self.prior[key].minimum:
-                out[key] = self.prior[key].maximum - out[key] + self.prior[key].minimum
+            if out[key] > self.priors[key].maximum:
+                out[key] = 2 * self.priors[key].maximum + out[key]
+            elif out[key] < self.priors[key].minimum:
+                out[key] = 2 * self.priors[key].minimum - out[key]
         return out
 
-    def apply_boundaries(self, out):
+    def _move_periodic_keys(self, out):
+        keys = [key for key in self.priors.keys() if self.priors[key].boundary == 'reflecting']
+        for key in keys:
+            if out[key] > self.priors[key].maximum:
+                out[key] = self.priors[key].minimum + out[key] - self.priors[key].maximum
+            elif out[key] < self.priors[key].minimum:
+                out[key] = self.priors[key].maximum + self.priors[key].minimum - out[key]
+        return out
+
+    def apply_boundaries(self, sample):
+        out = copy.copy(sample)
         out = self._move_periodic_keys(out)
         out = self._move_reflecting_keys(out)
         return out
@@ -125,30 +126,29 @@ class JumpProposalCycleWrapper(object):
 
 class UniformJump(JumpProposal):
 
-    def __init__(self, pmin=0, pmax=1, prior=None, likelihood=None):
+    def __init__(self, p_min=0, p_max=1, priors=None):
         """
         A primitive uniform jump
         Parameters
         ----------
-        pmin: float, optional
+        p_min: float, optional
         The minimum boundary of the uniform jump
-        pmax: float, optional
+        p_max: float, optional
         The maximum boundary of the uniform jump
         """
-        super().__init__(prior, likelihood)
-        self.pmin = pmin
-        self.pmax = pmax
-        self.prior = prior
-        self.log_likelihood = likelihood
+        super().__init__(priors)
+        self.p_min = p_min
+        self.p_max = p_max
+        self.prior = priors
 
     def __call__(self, sample, *args, **kwargs):
-        out = np.random.uniform(self.pmin, self.pmax, len(sample))
+        out = np.random.uniform(self.p_min, self.p_max, len(sample))
         self.proposal_probability = 0
-        return self.apply_boundaries(out)
+        return super(UniformJump, self).__call__(out)
 
 
 class NormJump(JumpProposal):
-    def __init__(self, step_size, prior=None, likelihood=None):
+    def __init__(self, step_size, priors=None):
         """
         A normal distributed step centered around the old sample
 
@@ -157,18 +157,18 @@ class NormJump(JumpProposal):
         step_size: float
         The scalable step size
         """
-        super().__init__(prior, likelihood)
+        super().__init__(priors)
         self.step_size = step_size
 
     def __call__(self, sample, *args, **kwargs):
         q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
         out = q[0]
-        return self.apply_boundaries(out)
+        return super(NormJump, self).__call__(out)
 
 
 class EnsembleWalk(JumpProposal):
 
-    def __init__(self, random_number_generator=random.random, npoints=3, prior=None, likelihood=None,
+    def __init__(self, random_number_generator=random.random, npoints=3, priors=None,
                  **random_number_generator_args):
         """
         An ensemble walk
@@ -181,7 +181,7 @@ class EnsembleWalk(JumpProposal):
         random_number_generator_args:
         Additional keyword arguments for the random number generator
         """
-        super(EnsembleWalk, self).__init__(prior, likelihood)
+        super(EnsembleWalk, self).__init__(priors)
         self.random_number_generator = random_number_generator
         self.npoints = npoints
         self.random_number_generator_args = random_number_generator_args
@@ -192,12 +192,12 @@ class EnsembleWalk(JumpProposal):
         out = sample
         for x in subset:
             out += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
-        return self.apply_boundaries(out)
+        return super(EnsembleWalk, self).__call__(out)
 
 
 class EnsembleStretch(JumpProposal):
 
-    def __init__(self, scale=2.0, prior=None, likelihood=None):
+    def __init__(self, scale=2.0, priors=None):
         """
         Stretch move. Calculates the log Jacobian which can be used in cpnest to bias future moves.
 
@@ -206,7 +206,7 @@ class EnsembleStretch(JumpProposal):
         scale: float, optional
         Stretching scale. Default is 2.0.
         """
-        super(EnsembleStretch, self).__init__(prior, likelihood)
+        super(EnsembleStretch, self).__init__(priors)
         self.scale = scale
 
     def __call__(self, sample, coordinates, **kwargs):
@@ -214,12 +214,12 @@ class EnsembleStretch(JumpProposal):
         step = random.uniform(-1, 1) * np.log(self.scale)
         out = second_sample + (sample - second_sample) * np.exp(step)
         self.log_j = out.dimension * step
-        return self.apply_boundaries(out)
+        return super(EnsembleStretch, self).__call__(out)
 
 
 class DifferentialEvolution(JumpProposal):
 
-    def __init__(self, sigma=1e-4, mu=1.0, prior=None, likelihood=None):
+    def __init__(self, sigma=1e-4, mu=1.0, priors=None):
         """
         Differential evolution step. Takes two elements from the existing coordinates and differentially evolves the
         old sample based on them using some Gaussian randomisation in the step.
@@ -227,27 +227,27 @@ class DifferentialEvolution(JumpProposal):
         Parameters
         ----------
         sigma: float, optional
-        Random spread in the evolution step. Default is 1e-4
+            Random spread in the evolution step. Default is 1e-4
         mu: float, optional
-        Scale of the randomization. Default is 1.0
+            Scale of the randomization. Default is 1.0
         """
-        super(DifferentialEvolution, self).__init__(prior, likelihood)
+        super(DifferentialEvolution, self).__init__(priors)
         self.sigma = sigma
         self.mu = mu
 
     def __call__(self, sample, coordinates, **kwargs):
         a, b = random.sample(coordinates, 2)
         out = sample + (b - a) * random.gauss(self.mu, self.sigma)
-        return self.apply_boundaries(out)
+        return super(DifferentialEvolution, self).__call__(out)
 
 
 class EnsembleEigenVector(JumpProposal):
 
-    def __init__(self, prior=None, likelihood=None):
+    def __init__(self, priors=None):
         """
-        Ensemble step based on the ensemble eigen vectors.
+        Ensemble step based on the ensemble eigenvectors.
         """
-        super(EnsembleEigenVector, self).__init__(prior, likelihood)
+        super(EnsembleEigenVector, self).__init__(priors)
         self.eigen_values = None
         self.eigen_vectors = None
         self.covariance = None
@@ -275,44 +275,26 @@ class EnsembleEigenVector(JumpProposal):
         jumpsize = np.sqrt(np.fabs(self.eigen_values[i])) * random.gauss(0, 1)
         for k, n in enumerate(out.names):
             out[n] += jumpsize * self.eigen_vectors[k, i]
-        return self.apply_boundaries(out)
+        return super(EnsembleEigenVector, self).__call__(out)
 
 
 class SkyLocationWanderJump(JumpProposal):
 
-    def __init__(self, prior, likelihood):
-        super(SkyLocationWanderJump, self).__init__(prior, likelihood)
-
     def __call__(self, sample, **kwargs):
-        temperature = 1 / kwargs['inverse_temperature']
+        temperature = 1 / kwargs.get('inverse_temperature', 1.0)
         out = copy.copy(sample)
         sigma = np.sqrt(temperature) / 2 / np.pi
         out['ra'] += random.gauss(sigma)
         out['dec'] += random.gauss(sigma)
-        return self.apply_boundaries(out)
-
-
-class DrawFlatPrior(JumpProposal):
-
-    def __init__(self, prior, likelihood):
-        super(DrawFlatPrior, self).__init__(prior, likelihood)
-
-    def __call__(self, *args, **kwargs):
-        self.log_j = 0
-        tmp = 0
-        # Unclear what this is doing in LALInference
+        return super(SkyLocationWanderJump, self).__call__(out)
 
 
 class CorrelatedPolarizationPhaseJump(JumpProposal):
 
-    def __init__(self, prior, likelihood):
-        super(CorrelatedPolarizationPhaseJump, self).__init__(prior, likelihood)
-
     def __call__(self, sample, coordinates, **kwargs):
-        self.log_j = 0.0
         out = copy.copy(sample)
-        alpha = out['psi'] + out['phi']
-        beta = out['psi'] - out['phi']
+        alpha = out['psi'] + out['phase']
+        beta = out['psi'] - out['phase']
 
         draw = random.random()
         if draw < 0.5:
@@ -320,19 +302,62 @@ class CorrelatedPolarizationPhaseJump(JumpProposal):
         else:
             beta = 3.0 * np.pi * random.random() - 2 * np.pi
         out['psi'] = (alpha + beta) * 0.5
-        out['phi'] = (alpha - beta) * 0.5
-
-        return self.apply_boundaries(out)
+        out['phase'] = (alpha - beta) * 0.5
+        return super(CorrelatedPolarizationPhaseJump, self).__call__(out)
 
 
 class PolarisationPhaseJump(JumpProposal):
 
-    def __init__(self, prior, likelihood):
-        super(PolarisationPhaseJump, self).__init__(prior, likelihood)
-
     def __call__(self, sample, coordinates, **kwargs):
-        self.log_j = 0
         out = copy.copy(sample)
-        out['phi'] += np.pi
+        out['phase'] += np.pi
         out['psi'] += np.pi / 2
-        return self.apply_boundaries(out)
+        return super(PolarisationPhaseJump, self).__call__(out)
+
+
+class DrawFlatPrior(JumpProposal):
+
+    def __call__(self, sample, *args, **kwargs):
+        flat_priors = {key: Uniform(prior.minimum, prior.maximum, prior.name) for
+                       key, prior in self.priors.items()}
+        out = {key: flat_priors[key].sample for key in self.priors}
+        return super(DrawFlatPrior, self).__call__(out)
+
+
+class DrawApproxPrior(JumpProposal):
+
+    def __init__(self, priors, analytic_test=True):
+        super(DrawApproxPrior, self).__init__(priors)
+        self.analytic_test = analytic_test
+
+    def __call__(self, sample, *args, **kwargs):
+        if self.analytic_test:
+            flat_priors = {key: Uniform(prior.minimum, prior.maximum, prior.name)
+                           for key, prior in self.priors.items()}
+            out = {key: flat_priors[key].sample for key in self.priors}
+        else:
+            out = self.priors.sample()
+            log_backward_jump = approx_log_prior(sample)
+            self.log_j = log_backward_jump - approx_log_prior(out)
+        return super(DrawApproxPrior, self).__call__(out)
+
+
+def approx_log_prior(sample):
+
+    log_p = 0
+    if 'chirp_mass' in sample.keys():
+        log_p += -11.0 / 6.0 * np.log(sample['chirp_mass'])
+
+    if 'luminosity_distance' in sample.keys():
+        log_p += 2 * np.log(sample['luminosity_distance'])
+
+    if 'dec' in sample.keys():
+        log_p += np.log(np.cos(sample['dec']))
+
+    if 'tilt_1' in sample.keys():
+        log_p += np.log(np.abs(np.sin(sample['tilt_1'])))
+
+    if 'tilt_2' in sample.keys():
+        log_p += np.log(np.abs(np.sin(sample['tilt_2'])))
+
+    return log_p
