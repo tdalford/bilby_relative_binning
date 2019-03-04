@@ -136,10 +136,9 @@ class UniformJump(JumpProposal):
         p_max: float, optional
         The maximum boundary of the uniform jump
         """
-        super().__init__(priors)
+        super(UniformJump, self).__init__(priors)
         self.p_min = p_min
         self.p_max = p_max
-        self.prior = priors
 
     def __call__(self, sample, *args, **kwargs):
         out = np.random.uniform(self.p_min, self.p_max, len(sample))
@@ -157,7 +156,7 @@ class NormJump(JumpProposal):
         step_size: float
         The scalable step size
         """
-        super().__init__(priors)
+        super(NormJump, self).__init__(priors)
         self.step_size = step_size
 
     def __call__(self, sample, *args, **kwargs):
