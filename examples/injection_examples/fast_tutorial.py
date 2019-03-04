@@ -11,6 +11,8 @@ from __future__ import division, print_function
 
 import numpy as np
 import bilby
+from bilby.core.sampler import proposal
+
 
 # Set the duration and sampling frequency of the data segment that we're
 # going to inject the signal into
@@ -31,7 +33,7 @@ np.random.seed(88170235)
 # spins of both black holes (a, tilt, phi), etc.
 injection_parameters = dict(
     mass_1=12., mass_2=12., a_1=0.0, a_2=0.0, tilt_1=0.0, tilt_2=0.0,
-    phi_12=0.0, phi_jl=0.0, luminosity_distance=400., theta_jn=0.4, psi=2*np.pi,
+    phi_12=0.0, phi_jl=0.0, luminosity_distance=400., theta_jn=0.4, psi=2 * np.pi,
     phase=0, geocent_time=1126259642.413, ra=0, dec=-1.2108)
 
 # Fixed arguments passed into the source model
@@ -70,7 +72,7 @@ priors['geocent_time'] = bilby.core.prior.Uniform(
     maximum=injection_parameters['geocent_time'] + 1,
     name='geocent_time', latex_label='$t_c$', unit='$s$')
 for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl',
-            'geocent_time', 'mass_1', 'mass_2', 'luminosity_distance', 'theta_jn', 'ra', 'dec']:
+            'geocent_time', 'mass_1', 'mass_2', 'luminosity_distance', 'theta_jn']:
     priors[key] = injection_parameters[key]
 
 # Initialise the likelihood by passing in the interferometer data (ifos) and
@@ -80,19 +82,19 @@ likelihood = bilby.gw.GravitationalWaveTransient(
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 # from cpnest.proposal import *
-from bilby.core.sampler.proposal import *
 
 
 # test_cycle = ProposalCycle(proposals=[EnsembleDegenerateWalk(), EnsembleStretch(),
 #                                       DifferentialEvolution(), EnsembleEigenVector()],
 #                            weights=[2, 2, 5, 1])
 
-test = JumpProposalCycleWrapper([EnsembleWalk(priors=priors), EnsembleStretch(priors=priors),
-                                 DifferentialEvolution(priors=priors), EnsembleEigenVector(priors=priors),
-                                 SkyLocationWanderJump(priors=priors), CorrelatedPolarizationPhaseJump(priors=priors),
-                                 PolarisationPhaseJump(priors=priors), DrawFlatPrior(priors=priors),
-                                 DrawApproxPrior(analytic_test=True, priors=priors)],
-                                weights=[2, 2, 5, 1, 1, 1, 1, 1, 1])
+test = proposal.JumpProposalCycle(
+    [proposal.EnsembleWalk(priors=priors), proposal.EnsembleStretch(priors=priors),
+     proposal.DifferentialEvolution(priors=priors), proposal.EnsembleEigenVector(priors=priors),
+     proposal.SkyLocationWanderJump(priors=priors), proposal.CorrelatedPolarizationPhaseJump(priors=priors),
+     proposal.PolarisationPhaseJump(priors=priors), proposal.DrawFlatPrior(priors=priors),
+     proposal.DrawApproxPrior(analytic_test=True, priors=priors)],
+    weights=[2, 2, 5, 1, 1, 1, 1, 1, 1])
 
 
 proposals = None#dict(mhs=test, hmc=test)

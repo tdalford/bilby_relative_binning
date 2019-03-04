@@ -154,7 +154,7 @@ class UniformComovingVolume(Cosmological):
 class AlignedSpin(Interped):
 
     def __init__(self, a_prior=Uniform(0, 1), z_prior=Uniform(-1, 1),
-                 name=None, latex_label=None, unit=None):
+                 name=None, latex_label=None, unit=None, boundary='reflecting'):
         """
         Prior distribution for the aligned (z) component of the spin.
 

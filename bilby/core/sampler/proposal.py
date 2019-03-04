@@ -59,7 +59,7 @@ class JumpProposal(object):
         return out
 
 
-class JumpProposalCycleWrapper(object):
+class JumpProposalCycle(object):
 
     def __init__(self, proposal_functions, weights, cycle_length=100):
         """ A generic wrapper class for proposal cycles
@@ -132,9 +132,9 @@ class UniformJump(JumpProposal):
         Parameters
         ----------
         p_min: float, optional
-        The minimum boundary of the uniform jump
+            The minimum boundary of the uniform jump
         p_max: float, optional
-        The maximum boundary of the uniform jump
+            The maximum boundary of the uniform jump
         """
         super(UniformJump, self).__init__(priors)
         self.p_min = p_min

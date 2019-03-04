@@ -1,14 +1,12 @@
 from __future__ import absolute_import
 
-import os
-
 import cpnest.proposal
 import numpy as np
 from pandas import DataFrame
 
 from .base_sampler import NestedSampler
-from .proposal import JumpProposal, JumpProposalCycleWrapper
-from ..utils import logger, check_directory_exists_and_if_not_mkdir, infer_parameters_from_function
+from .proposal import JumpProposal, JumpProposalCycle
+from ..utils import logger, check_directory_exists_and_if_not_mkdir
 
 
 class Cpnest(NestedSampler):
@@ -116,7 +114,7 @@ class Cpnest(NestedSampler):
             for key, proposal in self.kwargs['proposals'].items():
                 if isinstance(proposal, JumpProposal):
                     self.kwargs['proposals'][key] = cpnest_proposal_factory(proposal)
-                elif isinstance(proposal, JumpProposalCycleWrapper):
+                elif isinstance(proposal, JumpProposalCycle):
                     self.kwargs['proposals'][key] = cpnest_proposal_cycle_factory(proposal)
                 elif isinstance(proposal, Proposal):
                     pass

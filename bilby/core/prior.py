@@ -94,7 +94,7 @@ class PriorDict(OrderedDict):
                 except (NameError, SyntaxError, TypeError):
                     logger.debug(
                         "Failed to load dictionary value {} correctlty"
-                            .format(key))
+                        .format(key))
                     pass
             self[key] = val
 
@@ -149,7 +149,7 @@ class PriorDict(OrderedDict):
                     logger.warning(
                         "Parameter {} has no default prior and is set to {}, this"
                         " will not be sampled and may cause an error."
-                            .format(missing_key, set_val))
+                        .format(missing_key, set_val))
                 else:
                     self[missing_key] = default_prior
 
@@ -1027,8 +1027,8 @@ class TruncatedGaussian(Prior):
         -------
         float: Prior probability of val
         """
-        return np.exp(-(self.mu - val) ** 2 / (2 * self.sigma ** 2)) / (
-                2 * np.pi) ** 0.5 / self.sigma / self.normalisation * self.is_in_prior_range(val)
+        return np.exp(-(self.mu - val) ** 2 / (2 * self.sigma ** 2)) / \
+               (2 * np.pi) ** 0.5 / self.sigma / self.normalisation * self.is_in_prior_range(val)
 
 
 class TruncatedNormal(TruncatedGaussian):
@@ -1188,7 +1188,7 @@ class LogGaussian(LogNormal):
 
 
 class Exponential(Prior):
-    def __init__(self, mu, name=None, latex_label=None, unit=None):
+    def __init__(self, mu, name=None, latex_label=None, unit=None, boundary=None):
         """Exponential prior with mean mu
 
         Parameters
@@ -1205,7 +1205,7 @@ class Exponential(Prior):
             See superclass
         """
         Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
-                       unit=unit)
+                       unit=unit, boundary=boundary)
         self.mu = mu
 
     def rescale(self, val):
