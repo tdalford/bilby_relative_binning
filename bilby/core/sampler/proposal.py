@@ -39,13 +39,13 @@ class JumpProposal(object):
         dict: A dictionary with the new samples. Boundary conditions are applied.
 
         """
-        return self.apply_boundaries(copy.copy(args[0]))
+        return self._apply_boundaries(copy.copy(args[0]))
 
     def _move_reflecting_keys(self, out):
         keys = [key for key in self.priors.keys() if self.priors[key].boundary == 'reflecting']
         for key in keys:
             if out[key] > self.priors[key].maximum:
-                out[key] = 2 * self.priors[key].maximum + out[key]
+                out[key] = 2 * self.priors[key].maximum - out[key]
             elif out[key] < self.priors[key].minimum:
                 out[key] = 2 * self.priors[key].minimum - out[key]
         return out
@@ -56,10 +56,10 @@ class JumpProposal(object):
             if out[key] > self.priors[key].maximum:
                 out[key] = self.priors[key].minimum + out[key] - self.priors[key].maximum
             elif out[key] < self.priors[key].minimum:
-                out[key] = self.priors[key].maximum + self.priors[key].minimum - out[key]
+                out[key] = self.priors[key].maximum + out[key] - self.priors[key].minimum
         return out
 
-    def apply_boundaries(self, sample):
+    def _apply_boundaries(self, sample):
         out = copy.copy(sample)
         out = self._move_periodic_keys(out)
         out = self._move_reflecting_keys(out)
@@ -131,28 +131,6 @@ class JumpProposalCycle(object):
         return self._weights
 
 
-class UniformJump(JumpProposal):
-
-    def __init__(self, p_min=0, p_max=1, priors=None):
-        """
-        A primitive uniform jump
-        Parameters
-        ----------
-        p_min: float, optional
-            The minimum boundary of the uniform jump
-        p_max: float, optional
-            The maximum boundary of the uniform jump
-        priors: see superclass
-        """
-        super(UniformJump, self).__init__(priors)
-        self.p_min = p_min
-        self.p_max = p_max
-
-    def __call__(self, sample, *args, **kwargs):
-        out = np.random.uniform(self.p_min, self.p_max, len(sample))
-        return super(UniformJump, self).__call__(out)
-
-
 class NormJump(JumpProposal):
     def __init__(self, step_size, priors=None):
         """
@@ -169,8 +147,10 @@ class NormJump(JumpProposal):
         self.step_size = step_size
 
     def __call__(self, sample, *args, **kwargs):
-        q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
-        return super(NormJump, self).__call__(q[0])
+        out = copy.copy(sample)
+        for key in out.keys():
+            out[key] = np.random.normal(sample[key], self.step_size)
+        return super(NormJump, self).__call__(out)
 
 
 class EnsembleWalk(JumpProposal):
@@ -196,12 +176,16 @@ class EnsembleWalk(JumpProposal):
         self.random_number_generator_args = random_number_generator_args
 
     def __call__(self, sample, coordinates, *args, **kwargs):
+        out = copy.copy(sample)
         subset = random.sample(coordinates, self.n_points)
-        center_of_mass = reduce(type(sample).__add__, subset) / float(self.n_points)
-        out = sample
+        center_of_mass = self.get_center_of_mass(subset)
         for x in subset:
             out += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
         return super(EnsembleWalk, self).__call__(out)
+
+    @staticmethod
+    def get_center_of_mass(subset):
+        return {key: np.mean([c[key] for c in subset]) for key in subset[0].keys()}
 
 
 class EnsembleStretch(JumpProposal):
