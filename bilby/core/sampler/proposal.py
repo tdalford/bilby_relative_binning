@@ -1,6 +1,7 @@
 import random
 from functools import reduce
 import numpy as np
+import copy
 from inspect import isclass
 
 
@@ -11,11 +12,13 @@ class JumpProposal(object):
 
         Parameters
         ----------
-        proposal_function: callable
+        prior:
+        log_likelihood:
         A callable object or function that returns the proposal
         """
         self.prior = prior
         self.log_likelihood = log_likelihood
+        self.log_j = 0
 
     def __call__(self, *args, **kwargs):
         """ A generic wrapper for the jump proposal function
@@ -163,24 +166,6 @@ class NormJump(JumpProposal):
         return self.apply_boundaries(out)
 
 
-# class ArbitraryJump(object):
-#     def __init__(self, random_number_generator, **random_number_generator_kwargs):
-#         """
-#
-#         Parameters
-#         ----------
-#         random_number_generator: func
-#         A random number generator that needs to wrapped so that the first element is the old sample
-#         random_number_generator_kwargs:
-#         Additional keyword arguments that go into the random number generator
-#         """
-#         self.random_number_generator = random_number_generator
-#         self.random_number_generator_kwargs = random_number_generator_kwargs
-#
-#     def __call__(self, sample, *args, **kwargs):
-#         return self.random_number_generator(sample, **self.random_number_generator_kwargs)
-#
-
 class EnsembleWalk(JumpProposal):
 
     def __init__(self, random_number_generator=random.random, npoints=3, prior=None, log_likelihood=None,
@@ -196,7 +181,7 @@ class EnsembleWalk(JumpProposal):
         random_number_generator_args:
         Additional keyword arguments for the random number generator
         """
-        super().__init__(prior, log_likelihood)
+        super(EnsembleWalk, self).__init__(prior, log_likelihood)
         self.random_number_generator = random_number_generator
         self.npoints = npoints
         self.random_number_generator_args = random_number_generator_args
@@ -221,7 +206,7 @@ class EnsembleStretch(JumpProposal):
         scale: float, optional
         Stretching scale. Default is 2.0.
         """
-        super().__init__(prior, log_likelihood)
+        super(EnsembleStretch, self).__init__(prior, log_likelihood)
         self.scale = scale
 
     def __call__(self, sample, coordinates, **kwargs):
@@ -246,7 +231,7 @@ class DifferentialEvolution(JumpProposal):
         mu: float, optional
         Scale of the randomization. Default is 1.0
         """
-        super().__init__(prior, log_likelihood)
+        super(DifferentialEvolution, self).__init__(prior, log_likelihood)
         self.sigma = sigma
         self.mu = mu
 
@@ -262,7 +247,7 @@ class EnsembleEigenVector(JumpProposal):
         """
         Ensemble step based on the ensemble eigen vectors.
         """
-        super().__init__(prior, log_likelihood)
+        super(EnsembleEigenVector, self).__init__(prior, log_likelihood)
         self.eigen_values = None
         self.eigen_vectors = None
         self.covariance = None
@@ -291,3 +276,16 @@ class EnsembleEigenVector(JumpProposal):
         for k, n in enumerate(out.names):
             out[n] += jumpsize * self.eigen_vectors[k, i]
         return self.apply_boundaries(out)
+
+
+class SkyLocationWanderJump(JumpProposal):
+
+    def __init__(self, prior, likelihood):
+        super(SkyLocationWanderJump, self).__init__(prior, likelihood)
+
+    def __call__(self, sample, coordinates, **kwargs):
+        out = copy.copy(sample)
+        sigma = np.sqrt(kwargs['temperature']) / 2 / np.pi
+        out['ra'] += random.gauss(sigma)
+        out['dec'] += random.gauss(sigma)
+        return out
