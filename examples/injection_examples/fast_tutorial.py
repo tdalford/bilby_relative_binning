@@ -91,7 +91,7 @@ likelihood = bilby.gw.GravitationalWaveTransient(
 test = proposal.JumpProposalCycle(
     [proposal.EnsembleWalk(priors=priors), proposal.EnsembleStretch(priors=priors),
      proposal.DifferentialEvolution(priors=priors), proposal.EnsembleEigenVector(priors=priors),
-     proposal.SkyLocationWanderJump(priors=priors), proposal.CorrelatedPolarizationPhaseJump(priors=priors),
+     proposal.SkyLocationWanderJump(priors=priors), proposal.CorrelatedPolarisationPhaseJump(priors=priors),
      proposal.PolarisationPhaseJump(priors=priors), proposal.DrawFlatPrior(priors=priors),
      proposal.DrawApproxPrior(analytic_test=True, priors=priors)],
     weights=[2, 2, 5, 1, 1, 1, 1, 1, 1])

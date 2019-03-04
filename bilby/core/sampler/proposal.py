@@ -10,15 +10,21 @@ from bilby.core.prior import Uniform
 class JumpProposal(object):
 
     def __init__(self, priors=None):
-        """ A generic wrapper class for jump proposals
+        """ A generic class for jump proposals
 
         Parameters
         ----------
         priors: bilby.core.prior.PriorDict
             Dictionary of priors used in this sampling run
+
+        Attributes
+        ----------
+        log_j: float
+            Log Jacobian of the proposal. Characterises whether or not detailed balance
+            is preserved. If not, log_j needs to be adjusted accordingly.
         """
         self.priors = priors
-        self.log_j = 0
+        self.log_j = 0.0
 
     def __call__(self, *args, **kwargs):
         """ A generic wrapper for the jump proposal function
@@ -30,6 +36,7 @@ class JumpProposal(object):
 
         Returns
         -------
+        dict: A dictionary with the new samples. Boundary conditions are applied.
 
         """
         return self.apply_boundaries(copy.copy(args[0]))
@@ -67,11 +74,11 @@ class JumpProposalCycle(object):
         Parameters
         ----------
         proposal_functions: list
-        A list of callable proposal functions/objects
+            A list of callable proposal functions/objects
         weights: list
-        A list of integer weights for the respective proposal functions
+            A list of integer weights for the respective proposal functions
         cycle_length: int, optional
-        Length of the proposal cycle
+            Length of the proposal cycle
         """
         self.proposal_functions = proposal_functions
         self.weights = weights
@@ -135,6 +142,7 @@ class UniformJump(JumpProposal):
             The minimum boundary of the uniform jump
         p_max: float, optional
             The maximum boundary of the uniform jump
+        priors: see superclass
         """
         super(UniformJump, self).__init__(priors)
         self.p_min = p_min
@@ -142,7 +150,6 @@ class UniformJump(JumpProposal):
 
     def __call__(self, sample, *args, **kwargs):
         out = np.random.uniform(self.p_min, self.p_max, len(sample))
-        self.proposal_probability = 0
         return super(UniformJump, self).__call__(out)
 
 
@@ -154,40 +161,43 @@ class NormJump(JumpProposal):
         Parameters
         ----------
         step_size: float
-        The scalable step size
+            The scalable step size
+        priors:
+            See superclass
         """
         super(NormJump, self).__init__(priors)
         self.step_size = step_size
 
     def __call__(self, sample, *args, **kwargs):
         q = np.random.multivariate_normal(sample, self.step_size * np.eye(len(sample)), 1)
-        out = q[0]
-        return super(NormJump, self).__call__(out)
+        return super(NormJump, self).__call__(q[0])
 
 
 class EnsembleWalk(JumpProposal):
 
-    def __init__(self, random_number_generator=random.random, npoints=3, priors=None,
+    def __init__(self, random_number_generator=random.random, n_points=3, priors=None,
                  **random_number_generator_args):
         """
         An ensemble walk
         Parameters
         ----------
         random_number_generator: func, optional
-        A random number generator. Default is random.random
-        npoints: int, optional
-        Number of points in the ensemble to average over. Default is 3.
+            A random number generator. Default is random.random
+        n_points: int, optional
+            Number of points in the ensemble to average over. Default is 3.
+        priors:
+            See superclass
         random_number_generator_args:
-        Additional keyword arguments for the random number generator
+            Additional keyword arguments for the random number generator
         """
         super(EnsembleWalk, self).__init__(priors)
         self.random_number_generator = random_number_generator
-        self.npoints = npoints
+        self.n_points = n_points
         self.random_number_generator_args = random_number_generator_args
 
     def __call__(self, sample, coordinates, *args, **kwargs):
-        subset = random.sample(coordinates, self.npoints)
-        center_of_mass = reduce(type(sample).__add__, subset) / float(self.npoints)
+        subset = random.sample(coordinates, self.n_points)
+        center_of_mass = reduce(type(sample).__add__, subset) / float(self.n_points)
         out = sample
         for x in subset:
             out += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
@@ -203,7 +213,7 @@ class EnsembleStretch(JumpProposal):
         Parameters
         ----------
         scale: float, optional
-        Stretching scale. Default is 2.0.
+            Stretching scale. Default is 2.0.
         """
         super(EnsembleStretch, self).__init__(priors)
         self.scale = scale
@@ -245,6 +255,11 @@ class EnsembleEigenVector(JumpProposal):
     def __init__(self, priors=None):
         """
         Ensemble step based on the ensemble eigenvectors.
+
+        Parameters
+        ----------
+        priors:
+            See superclass
         """
         super(EnsembleEigenVector, self).__init__(priors)
         self.eigen_values = None
@@ -271,13 +286,17 @@ class EnsembleEigenVector(JumpProposal):
         self.update_eigenvectors(coordinates)
         out = sample
         i = random.randrange(sample.dimension)
-        jumpsize = np.sqrt(np.fabs(self.eigen_values[i])) * random.gauss(0, 1)
+        jump_size = np.sqrt(np.fabs(self.eigen_values[i])) * random.gauss(0, 1)
         for k, n in enumerate(out.names):
-            out[n] += jumpsize * self.eigen_vectors[k, i]
+            out[n] += jump_size * self.eigen_vectors[k, i]
         return super(EnsembleEigenVector, self).__call__(out)
 
 
 class SkyLocationWanderJump(JumpProposal):
+    """
+    Jump proposal for wandering over the sky location. Does a Gaussian step in
+    RA and DEC depending on the temperature.
+    """
 
     def __call__(self, sample, **kwargs):
         temperature = 1 / kwargs.get('inverse_temperature', 1.0)
@@ -288,7 +307,10 @@ class SkyLocationWanderJump(JumpProposal):
         return super(SkyLocationWanderJump, self).__call__(out)
 
 
-class CorrelatedPolarizationPhaseJump(JumpProposal):
+class CorrelatedPolarisationPhaseJump(JumpProposal):
+    """
+    Correlated polarisation/phase jump proposal. Jumps between degenerate phi/psi regions.
+    """
 
     def __call__(self, sample, coordinates, **kwargs):
         out = copy.copy(sample)
@@ -302,10 +324,13 @@ class CorrelatedPolarizationPhaseJump(JumpProposal):
             beta = 3.0 * np.pi * random.random() - 2 * np.pi
         out['psi'] = (alpha + beta) * 0.5
         out['phase'] = (alpha - beta) * 0.5
-        return super(CorrelatedPolarizationPhaseJump, self).__call__(out)
+        return super(CorrelatedPolarisationPhaseJump, self).__call__(out)
 
 
 class PolarisationPhaseJump(JumpProposal):
+    """
+    Correlated polarisation/phase jump proposal. Jumps between degenerate phi/psi regions.
+    """
 
     def __call__(self, sample, coordinates, **kwargs):
         out = copy.copy(sample)
@@ -315,6 +340,9 @@ class PolarisationPhaseJump(JumpProposal):
 
 
 class DrawFlatPrior(JumpProposal):
+    """
+    Draws a proposal from the flattened prior distribution.
+    """
 
     def __call__(self, sample, *args, **kwargs):
         out = copy.copy(sample)
@@ -325,6 +353,15 @@ class DrawFlatPrior(JumpProposal):
 class DrawApproxPrior(JumpProposal):
 
     def __init__(self, priors, analytic_test=True):
+        """ Draws new sample from the prior distribution.
+
+        Parameters
+        ----------
+        priors:
+            See superclass
+        analytic_test: bool, optional
+            Draw from flat priors if True; Draw from defined priors if false
+        """
         super(DrawApproxPrior, self).__init__(priors)
         self.analytic_test = analytic_test
 
@@ -348,7 +385,16 @@ def _draw_from_flat_priors(sample, priors):
 
 
 def approx_log_prior(sample):
+    """ TODO: Make sure this was correctly translated from LALInference
 
+    Parameters
+    ----------
+    sample: dict
+
+    Returns
+    -------
+    An approximation for the log prior
+    """
     log_p = 0
     if 'chirp_mass' in sample.keys():
         log_p += -11.0 / 6.0 * np.log(sample['chirp_mass'])
