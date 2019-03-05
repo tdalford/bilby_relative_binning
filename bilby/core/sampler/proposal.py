@@ -84,8 +84,8 @@ class JumpProposalCycle(object):
         self.weights = weights
         self.cycle_length = cycle_length
         self._index = 0
-        self._cycle = np.random.choice(self.proposal_functions, size=self.cycle_length,
-                                       p=self.weights, replace=True)
+        self._cycle = np.array([])
+        self.update_cycle()
 
     def __call__(self, **kwargs):
         proposal = self._cycle[self.index]
@@ -94,6 +94,10 @@ class JumpProposalCycle(object):
 
     def __len__(self):
         return len(self.proposal_functions)
+
+    def update_cycle(self):
+        self._cycle = np.random.choice(self.proposal_functions, size=self.cycle_length,
+                                       p=self.weights, replace=True)
 
     @property
     def proposal_functions(self):
@@ -180,7 +184,9 @@ class EnsembleWalk(JumpProposal):
         subset = random.sample(coordinates, self.n_points)
         center_of_mass = self.get_center_of_mass(subset)
         for x in subset:
-            out += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
+            random_number = self.random_number_generator(**self.random_number_generator_args)
+            for key in out:
+                out[key] += (x[key] - center_of_mass[key]) * random_number
         return super(EnsembleWalk, self).__call__(out)
 
     @staticmethod
@@ -203,9 +209,11 @@ class EnsembleStretch(JumpProposal):
         self.scale = scale
 
     def __call__(self, sample, coordinates, **kwargs):
+        out = copy.copy(sample)
         second_sample = random.choice(coordinates)
         step = random.uniform(-1, 1) * np.log(self.scale)
-        out = second_sample + (sample - second_sample) * np.exp(step)
+        for key in out.keys():
+            out[key] = second_sample[key] + (sample[key] - second_sample[key]) * np.exp(step)
         self.log_j = out.dimension * step
         return super(EnsembleStretch, self).__call__(out)
 
@@ -251,6 +259,8 @@ class EnsembleEigenVector(JumpProposal):
         self.covariance = None
 
     def update_eigenvectors(self, coordinates):
+        if coordinates is None:
+            return
         n = len(coordinates)
         dim = coordinates[0].dimension
         cov_array = np.zeros((dim, n))
@@ -269,7 +279,7 @@ class EnsembleEigenVector(JumpProposal):
     def __call__(self, sample, coordinates, **kwargs):
         self.update_eigenvectors(coordinates)
         out = sample
-        i = random.randrange(sample.dimension)
+        i = random.randrange(len(sample))
         jump_size = np.sqrt(np.fabs(self.eigen_values[i])) * random.gauss(0, 1)
         for k, n in enumerate(out.names):
             out[n] += jump_size * self.eigen_vectors[k, i]

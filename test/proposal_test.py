@@ -112,14 +112,44 @@ class TestEnsembleWalk(unittest.TestCase):
         for key in samples[0].keys():
             self.assertAlmostEqual(expected[key], actual[key])
 
-    # def test_jump_proposal_call(self):
-    #     with mock.patch('random.random') as m1:
-    #         with mock.patch('functools.reduce') as m2:
-    #             with mock.patch('random.sample') as m3:
-    #                 m1.return_value = 2.0
-    #                 m2.return_value = 0.0
-    #                 m3.return_value = np.array([0.1, 0.1, 0.1])
-    #                 sample = np.array([0.1, 0.1, 0.1])
-    #                 new_sample = self.jump_proposal(sample, coordinates=None)
-    #                 expected = np.array([0.2, 0.2, 0.2])
-    #                 self.assertTrue(np.allclose(expected, new_sample))
+    def test_jump_proposal_call(self):
+        with mock.patch('random.sample') as m:
+            self.jump_proposal.random_number_generator = lambda: 2
+            m.return_value = [dict(periodic=0.3, reflecting=0.3, default=0.3),
+                              dict(periodic=0.1, reflecting=0.1, default=0.1)]
+            sample = dict(periodic=0.1, reflecting=0.1, default=0.1)
+            new_sample = self.jump_proposal(sample, coordinates=None)
+            expected = dict(periodic=0.1, reflecting=0.1, default=0.1)
+            for key, value in new_sample.items():
+                self.assertAlmostEqual(expected[key], value)
+
+
+class TestEnsembleEnsembleStretch(unittest.TestCase):
+
+    def setUp(self):
+        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, boundary='reflecting'),
+                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, boundary='periodic'),
+                                           default=prior.Uniform(minimum=-0.5, maximum=1)))
+        self.jump_proposal = proposal.EnsembleStretch(scale=3.0, priors=self.priors)
+
+    def tearDown(self):
+        del self.priors
+        del self.jump_proposal
+
+    def test_scale_init(self):
+        self.assertEqual(3.0, self.jump_proposal.scale)
+
+    def set_get_scale(self):
+        self.jump_proposal.scale = 5.0
+        self.assertEqual(5.0, self.jump_proposal.scale)
+
+    def test_jump_proposal_call(self):
+        pass
+
+    def test_log_j_after_call(self):
+        coordinates = [dict(periodic=0.3, reflecting=0.3, default=0.3),
+                       dict(periodic=0.1, reflecting=0.1, default=0.1)]
+        sample = dict(periodic=0.2, reflecting=0.2, default=0.2)
+        self.jump_proposal(sample=sample,
+                           coordinates=coordinates)
+        self.assertEqual(9.0, self.jump_proposal.log_j)
