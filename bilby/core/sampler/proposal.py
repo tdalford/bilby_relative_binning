@@ -178,7 +178,7 @@ class EnsembleWalk(JumpProposal):
     def __call__(self, sample, coordinates, *args, **kwargs):
         out = copy.copy(sample)
         subset = random.sample(coordinates, self.n_points)
-        center_of_mass = self.get_center_of_mass(subset)
+        center_of_mass = reduce(type(sample).__add__, subset) / float(self.n_points)
         for x in subset:
             out += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
         return super(EnsembleWalk, self).__call__(out)
