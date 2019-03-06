@@ -1,11 +1,13 @@
 from __future__ import absolute_import
 
-import cpnest.proposal
+from collections import OrderedDict
+import copy
+
 import numpy as np
 from pandas import DataFrame
 
 from .base_sampler import NestedSampler
-from .proposal import JumpProposal, JumpProposalCycle
+from .proposal import Sample, JumpProposal, JumpProposalCycle
 from ..utils import logger, check_directory_exists_and_if_not_mkdir
 
 
@@ -123,31 +125,49 @@ class Cpnest(NestedSampler):
 
 
 def cpnest_proposal_factory(jump_proposal):
+    import cpnest.proposal
+
     class CPNestEnsembleProposal(cpnest.proposal.EnsembleProposal):
 
-        def get_sample(self, old, **kwargs):
-            kwargs['log_l_min'] = kwargs.get('logLmin')
-            sample = jump_proposal(sample=old, coordinates=self.ensemble, **kwargs)
-            self.log_J = jump_proposal.__getattribute__('log_j', 0)
-            return sample
+        def __init__(self, jp):
+            self.jump_proposal = jp
+            self.ensemble = None
 
-        def set_ensemble(self, ensemble):
-            self.ensemble = ensemble
+        def __call__(self, sample, **kwargs):
+            return self.get_sample(sample, **kwargs)
 
-    return CPNestEnsembleProposal
+        def get_sample(self, cpnest_sample, **kwargs):
+            sample = Sample.from_cpnest_live_point(cpnest_sample)
+            self.ensemble = kwargs.get('coordinates', self.ensemble)
+            sample = self.jump_proposal(sample=sample, sampler_name='cpnest', **kwargs)
+            self.log_J = self.jump_proposal.log_j
+            return self._update_cpnest_sample(cpnest_sample, sample)
+
+        @staticmethod
+        def _update_cpnest_sample(cpnest_sample, sample):
+            cpnest_sample.names = list(sample.keys())
+            for i, value in enumerate(sample.values()):
+                cpnest_sample.values[i] = value
+            return cpnest_sample
+
+    return CPNestEnsembleProposal(jump_proposal)
 
 
 def cpnest_proposal_cycle_factory(jump_proposals):
+    import cpnest.proposal
 
     class CPNestProposalCycle(cpnest.proposal.ProposalCycle):
-
         def __init__(self):
-            super().__init__(proposals=jump_proposals.proposal_functions,
-                             weights=jump_proposals.weights,
-                             cyclelength=jump_proposals.cycle_length)
+            self.jump_proposals = copy.deepcopy(jump_proposals)
+            for i, prop in enumerate(self.jump_proposals.proposal_functions):
+                self.jump_proposals.proposal_functions[i] = cpnest_proposal_factory(prop)
+            self.jump_proposals.update_cycle()
+            super(CPNestProposalCycle, self).__init__(proposals=self.jump_proposals.proposal_functions,
+                                                      weights=self.jump_proposals.weights,
+                                                      cyclelength=self.jump_proposals.cycle_length)
 
         def get_sample(self, old, **kwargs):
-            return jump_proposals(sample=old, coordinates=self.ensemble, **kwargs)
+            return self.jump_proposals(sample=old, coordinates=self.ensemble, **kwargs)
 
         def set_ensemble(self, ensemble):
             self.ensemble = ensemble
