@@ -1,10 +1,22 @@
-import random
-from functools import reduce
-import numpy as np
+from collections import OrderedDict
 import copy
 from inspect import isclass
+import numpy as np
+import random
 
 from bilby.core.prior import Uniform
+
+
+class Sample(OrderedDict):
+
+    def __add__(self, other):
+        return Sample({key: self[key] + other[key] for key in self.keys()})
+
+    def __sub__(self, other):
+        return Sample({key: self[key] - other[key] for key in self.keys()})
+
+    def __mul__(self, other):
+        return Sample({key: self[key] * other for key in self.keys()})
 
 
 class JumpProposal(object):
@@ -184,9 +196,7 @@ class EnsembleWalk(JumpProposal):
         subset = random.sample(coordinates, self.n_points)
         center_of_mass = self.get_center_of_mass(subset)
         for x in subset:
-            random_number = self.random_number_generator(**self.random_number_generator_args)
-            for key in out:
-                out[key] += (x[key] - center_of_mass[key]) * random_number
+            out += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
         return super(EnsembleWalk, self).__call__(out)
 
     @staticmethod
@@ -209,12 +219,10 @@ class EnsembleStretch(JumpProposal):
         self.scale = scale
 
     def __call__(self, sample, coordinates, **kwargs):
-        out = copy.copy(sample)
         second_sample = random.choice(coordinates)
         step = random.uniform(-1, 1) * np.log(self.scale)
-        for key in out.keys():
-            out[key] = second_sample[key] + (sample[key] - second_sample[key]) * np.exp(step)
-        self.log_j = out.dimension * step
+        out = second_sample + (sample - second_sample) * np.exp(step)
+        self.log_j = len(out) * step
         return super(EnsembleStretch, self).__call__(out)
 
 
@@ -261,28 +269,36 @@ class EnsembleEigenVector(JumpProposal):
     def update_eigenvectors(self, coordinates):
         if coordinates is None:
             return
-        n = len(coordinates)
-        dim = coordinates[0].dimension
-        cov_array = np.zeros((dim, n))
-        if dim == 1:
-            name = coordinates[0].names[0]
-            self.eigen_values = np.atleast_1d(np.var([coordinates[j][name] for j in range(n)]))
-            self.covariance = self.eigen_values
-            self.eigen_vectors = np.eye(1)
+        elif len(coordinates[0]) == 1:
+            self._set_1_d_eigenvectors(coordinates)
         else:
-            for i, name in enumerate(coordinates[0].names):
-                for j in range(n):
-                    cov_array[i, j] = coordinates[j][name]
-            self.covariance = np.cov(cov_array)
-            self.eigen_values, self.eigen_vectors = np.linalg.eigh(self.covariance)
+            self._set_n_d_eigenvectors(coordinates)
+
+    def _set_1_d_eigenvectors(self, coordinates):
+        n_samples = len(coordinates)
+        key = coordinates[0].keys()[0]
+        variance = np.var([coordinates[j][key] for j in range(n_samples)])
+        self.eigen_values = np.atleast_1d(variance)
+        self.covariance = self.eigen_values
+        self.eigen_vectors = np.eye(1)
+
+    def _set_n_d_eigenvectors(self, coordinates):
+        n_samples = len(coordinates)
+        dim = len(coordinates[0])
+        cov_array = np.zeros((dim, n_samples))
+        for i, key in enumerate(coordinates[0].keys()):
+            for j in range(n_samples):
+                cov_array[i, j] = coordinates[j][key]
+        self.covariance = np.cov(cov_array)
+        self.eigen_values, self.eigen_vectors = np.linalg.eigh(self.covariance)
 
     def __call__(self, sample, coordinates, **kwargs):
         self.update_eigenvectors(coordinates)
-        out = sample
+        out = copy.deepcopy(sample)
         i = random.randrange(len(sample))
         jump_size = np.sqrt(np.fabs(self.eigen_values[i])) * random.gauss(0, 1)
-        for k, n in enumerate(out.names):
-            out[n] += jump_size * self.eigen_vectors[k, i]
+        for j, key in enumerate(out.keys()):
+            out[key] += jump_size * self.eigen_vectors[j, i]
         return super(EnsembleEigenVector, self).__call__(out)
 
 
@@ -293,8 +309,8 @@ class SkyLocationWanderJump(JumpProposal):
     """
 
     def __call__(self, sample, **kwargs):
+        out = copy.deepcopy(sample)
         temperature = 1 / kwargs.get('inverse_temperature', 1.0)
-        out = copy.copy(sample)
         sigma = np.sqrt(temperature) / 2 / np.pi
         out['ra'] += random.gauss(0, sigma)
         out['dec'] += random.gauss(0, sigma)
@@ -306,8 +322,8 @@ class CorrelatedPolarisationPhaseJump(JumpProposal):
     Correlated polarisation/phase jump proposal. Jumps between degenerate phi/psi regions.
     """
 
-    def __call__(self, sample, coordinates, **kwargs):
-        out = copy.copy(sample)
+    def __call__(self, sample, **kwargs):
+        out = copy.deepcopy(sample)
         alpha = out['psi'] + out['phase']
         beta = out['psi'] - out['phase']
 
@@ -326,8 +342,8 @@ class PolarisationPhaseJump(JumpProposal):
     Correlated polarisation/phase jump proposal. Jumps between degenerate phi/psi regions.
     """
 
-    def __call__(self, sample, coordinates, **kwargs):
-        out = copy.copy(sample)
+    def __call__(self, sample, **kwargs):
+        out = copy.deepcopy(sample)
         out['phase'] += np.pi
         out['psi'] += np.pi / 2
         return super(PolarisationPhaseJump, self).__call__(out)
@@ -338,8 +354,8 @@ class DrawFlatPrior(JumpProposal):
     Draws a proposal from the flattened prior distribution.
     """
 
-    def __call__(self, sample, *args, **kwargs):
-        out = copy.copy(sample)
+    def __call__(self, sample, **kwargs):
+        out = copy.deepcopy(sample)
         out = _draw_from_flat_priors(out, self.priors)
         return super(DrawFlatPrior, self).__call__(out)
 
@@ -360,18 +376,18 @@ class DrawApproxPrior(JumpProposal):
         self.analytic_test = analytic_test
 
     def __call__(self, sample, *args, **kwargs):
-        out = copy.copy(sample)
+        out = copy.deepcopy(sample)
         if self.analytic_test:
             out = _draw_from_flat_priors(out, self.priors)
         else:
-            out = self.priors.sample()
+            out = Sample({key: self.priors[key].sample() for key in self.priors.keys()})
             log_backward_jump = approx_log_prior(sample)
             self.log_j = log_backward_jump - approx_log_prior(out)
         return super(DrawApproxPrior, self).__call__(out)
 
 
 def _draw_from_flat_priors(sample, priors):
-    out = copy.copy(sample)
+    out = copy.deepcopy(sample)
     for key in out.keys():
         flat_prior = Uniform(priors[key].minimum, priors[key].maximum, priors[key].name)
         out[key] = flat_prior.sample()
