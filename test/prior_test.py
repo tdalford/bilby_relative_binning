@@ -1,10 +1,9 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 import bilby
 import unittest
 from mock import Mock
 import numpy as np
 import os
-import copy
 from collections import OrderedDict
 
 
@@ -61,6 +60,9 @@ class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
         self.assertFalse(self.prior.is_in_prior_range(val_below))
         self.assertFalse(self.prior.is_in_prior_range(val_above))
 
+    def test_boundary_is_none(self):
+        self.assertIsNone(self.prior.boundary)
+
 
 class TestPriorName(unittest.TestCase):
 
@@ -106,7 +108,7 @@ class TestPriorIsFixed(unittest.TestCase):
         pass
 
     def tearDown(self):
-        pass
+        del self.prior
 
     def test_is_fixed_parent_class(self):
         self.prior = bilby.core.prior.Prior()
@@ -120,6 +122,24 @@ class TestPriorIsFixed(unittest.TestCase):
         self.prior = bilby.core.prior.Uniform(minimum=0, maximum=10)
         self.assertFalse(self.prior.is_fixed)
 
+
+class TestPriorBoundary(unittest.TestCase):
+
+    def setUp(self):
+        self.prior = bilby.core.prior.Prior(boundary=None)
+
+    def tearDown(self):
+        del self.prior
+
+    def test_set_boundary_valid(self):
+        self.prior.boundary = 'periodic'
+        self.assertEqual('periodic', self.prior.boundary)
+        self.prior.boundary = 'reflecting'
+        self.assertEqual('reflecting', self.prior.boundary)
+
+    def test_set_boundary_invalid(self):
+        with self.assertRaises(ValueError):
+            self.prior.boundary = 'else'
 
 class TestPriorClasses(unittest.TestCase):
 
@@ -311,12 +331,38 @@ class TestPriorClasses(unittest.TestCase):
         for prior in self.priors:
             if isinstance(prior, bilby.core.prior.Interped):
                 continue  # we cannot test this because of the numpy arrays
+            if isinstance(prior, bilby.core.prior.Beta):
+                continue  # We cannot test this as it has a frozen scipy dist
             elif isinstance(prior, bilby.gw.prior.UniformComovingVolume):
                 repr_prior_string = 'bilby.gw.prior.' + repr(prior)
             else:
                 repr_prior_string = 'bilby.core.prior.' + repr(prior)
             repr_prior = eval(repr_prior_string)
             self.assertEqual(prior, repr_prior)
+
+    def test_set_maximum_setting(self):
+        for prior in self.priors:
+            if isinstance(prior, (
+                    bilby.core.prior.DeltaFunction, bilby.core.prior.Gaussian,
+                    bilby.core.prior.HalfGaussian, bilby.core.prior.LogNormal,
+                    bilby.core.prior.Exponential, bilby.core.prior.StudentT,
+                    bilby.core.prior.Logistic, bilby.core.prior.Cauchy,
+                    bilby.core.prior.Gamma)):
+                continue
+            prior.maximum = (prior.maximum + prior.minimum) / 2
+            self.assertTrue(max(prior.sample(10000)) < prior.maximum)
+
+    def test_set_minimum_setting(self):
+        for prior in self.priors:
+            if isinstance(prior, (
+                    bilby.core.prior.DeltaFunction, bilby.core.prior.Gaussian,
+                    bilby.core.prior.HalfGaussian, bilby.core.prior.LogNormal,
+                    bilby.core.prior.Exponential, bilby.core.prior.StudentT,
+                    bilby.core.prior.Logistic, bilby.core.prior.Cauchy,
+                    bilby.core.prior.Gamma)):
+                continue
+            prior.minimum = (prior.maximum + prior.minimum) / 2
+            self.assertTrue(min(prior.sample(10000)) > prior.minimum)
 
 
 class TestPriorDict(unittest.TestCase):

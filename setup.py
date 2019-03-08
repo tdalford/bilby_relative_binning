@@ -57,7 +57,7 @@ def readfile(filename):
     return filecontents
 
 
-VERSION = '0.4.0'
+VERSION = '0.4.1'
 version_file = write_version_file(VERSION)
 long_description = get_long_description()
 
@@ -81,11 +81,11 @@ setup(name='bilby',
           'corner',
           'numpy>=1.9',
           'matplotlib>=2.0',
-          'deepdish',
           'pandas',
           'scipy'],
       entry_points={'console_scripts':
-                    ['bilby_plot=cli_bilby.plot_multiple_posteriors:main']
+                    ['bilby_plot=cli_bilby.plot_multiple_posteriors:main',
+                     'bilby_result=cli_bilby.bilby_result:main']
                     },
       classifiers=[
           "Programming Language :: Python :: 2.7",

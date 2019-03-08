@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal.windows import tukey
 from scipy.interpolate import interp1d
-import deepdish as dd
 
 from . import utils as gwutils
 from ..core import utils
@@ -66,7 +65,7 @@ class InterferometerList(list):
                 raise ValueError("The {} of all interferometers are not the same".format(attribute))
 
     def set_strain_data_from_power_spectral_densities(self, sampling_frequency, duration, start_time=0):
-        """ Set the `Interferometer.strain_data` from the power spectal densities of the detectors
+        """ Set the `Interferometer.strain_data` from the power spectral densities of the detectors
 
         This uses the `interferometer.power_spectral_density` object to set
         the `strain_data` to a noise realization. See
@@ -86,6 +85,28 @@ class InterferometerList(list):
             interferometer.set_strain_data_from_power_spectral_density(sampling_frequency=sampling_frequency,
                                                                        duration=duration,
                                                                        start_time=start_time)
+
+    def set_strain_data_from_zero_noise(self, sampling_frequency, duration, start_time=0):
+        """ Set the `Interferometer.strain_data` from the power spectral densities of the detectors
+
+        This uses the `interferometer.power_spectral_density` object to set
+        the `strain_data` to zero noise. See
+        `bilby.gw.detector.InterferometerStrainData` for further information.
+
+        Parameters
+        ----------
+        sampling_frequency: float
+            The sampling frequency (in Hz)
+        duration: float
+            The data duration (in s)
+        start_time: float
+            The GPS start-time of the data
+
+        """
+        for interferometer in self:
+            interferometer.set_strain_data_from_zero_noise(sampling_frequency=sampling_frequency,
+                                                           duration=duration,
+                                                           start_time=start_time)
 
     def inject_signal(self, parameters=None, injection_polarizations=None, waveform_generator=None):
         """ Inject a signal into noise in each of the three detectors.
@@ -206,12 +227,13 @@ class InterferometerList(list):
             Output file name, is 'ifo_list' if not given otherwise. A list of
             the included interferometers will be appended.
         """
+        import deepdish
         if sys.version_info[0] < 3:
             raise NotImplementedError('Pickling of InterferometerList is not supported in Python 2.'
                                       'Use Python 3 instead.')
         label = label + '_' + ''.join(ifo.name for ifo in self)
         utils.check_directory_exists_and_if_not_mkdir(outdir)
-        dd.io.save(self._hdf5_filename_from_outdir_label(outdir, label), self)
+        deepdish.io.save(self._hdf5_filename_from_outdir_label(outdir, label), self)
 
     @classmethod
     def from_hdf5(cls, filename=None):
@@ -223,10 +245,11 @@ class InterferometerList(list):
             If given, try to load from this filename
 
         """
+        import deepdish
         if sys.version_info[0] < 3:
             raise NotImplementedError('Pickling of InterferometerList is not supported in Python 2.'
                                       'Use Python 3 instead.')
-        res = dd.io.load(filename)
+        res = deepdish.io.load(filename)
         if res.__class__ == list:
             res = cls(res)
         if res.__class__ != cls:
@@ -757,7 +780,7 @@ class InterferometerStrainData(object):
                                                       sampling_frequency=sampling_frequency,
                                                       start_time=start_time)
 
-        logger.info('Reading data from frame')
+        logger.info('Reading data from frame file {}'.format(frame_file))
         strain = gwutils.read_frame_file(
             frame_file, start_time=start_time, end_time=start_time + duration,
             buffer_time=buffer_time, channel=channel,
@@ -1591,7 +1614,7 @@ class Interferometer(object):
                                                    df=(self.frequency_array[1] - self.frequency_array[0])),
                       color='C2',
                       label='Signal')
-        ax.grid('on')
+        ax.grid(True)
         ax.set_ylabel(r'strain [strain/$\sqrt{\rm Hz}$]')
         ax.set_xlabel(r'frequency [Hz]')
         ax.set_xlim(20, 2000)
@@ -1685,6 +1708,7 @@ class Interferometer(object):
         label: str, optional
             Output file name, is self.name if not given otherwise.
         """
+        import deepdish
         if sys.version_info[0] < 3:
             raise NotImplementedError('Pickling of Interferometer is not supported in Python 2.'
                                       'Use Python 3 instead.')
@@ -1692,7 +1716,7 @@ class Interferometer(object):
             label = self.name
         utils.check_directory_exists_and_if_not_mkdir('outdir')
         filename = self._hdf5_filename_from_outdir_label(outdir, label)
-        dd.io.save(filename, self)
+        deepdish.io.save(filename, self)
 
     @classmethod
     def from_hdf5(cls, filename=None):
@@ -1704,11 +1728,12 @@ class Interferometer(object):
             If given, try to load from this filename
 
         """
+        import deepdish
         if sys.version_info[0] < 3:
             raise NotImplementedError('Pickling of Interferometer is not supported in Python 2.'
                                       'Use Python 3 instead.')
 
-        res = dd.io.load(filename)
+        res = deepdish.io.load(filename)
         if res.__class__ != cls:
             raise TypeError('The loaded object is not an Interferometer')
         return res

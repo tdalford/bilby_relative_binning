@@ -11,6 +11,8 @@ from __future__ import division, print_function
 
 import numpy as np
 import bilby
+from bilby.core.sampler import proposal
+
 
 # Set the duration and sampling frequency of the data segment that we're
 # going to inject the signal into
@@ -30,9 +32,9 @@ np.random.seed(88170235)
 # parameters, including masses of the two black holes (mass_1, mass_2),
 # spins of both black holes (a, tilt, phi), etc.
 injection_parameters = dict(
-    mass_1=36., mass_2=29., a_1=0.4, a_2=0.3, tilt_1=0.5, tilt_2=1.0,
-    phi_12=1.7, phi_jl=0.3, luminosity_distance=6000., theta_jn=0.4, psi=2.659,
-    phase=1, geocent_time=1126259642.413, ra=1.375, dec=-1.2108)
+    mass_1=12., mass_2=12., a_1=0.0, a_2=0.0, tilt_1=0.0, tilt_2=0.0,
+    phi_12=0.0, phi_jl=0.0, luminosity_distance=400., theta_jn=0.4, psi=2 * np.pi,
+    phase=0, geocent_time=1126259642.413, ra=0, dec=-1.2108)
 
 # Fixed arguments passed into the source model
 waveform_arguments = dict(waveform_approximant='IMRPhenomPv2',
@@ -79,21 +81,26 @@ likelihood = bilby.gw.GravitationalWaveTransient(
     interferometers=ifos, waveform_generator=waveform_generator)
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
-from cpnest.proposal import *
-from bilby.core.sampler.proposal import *
+# from cpnest.proposal import *
 
 
 # test_cycle = ProposalCycle(proposals=[EnsembleDegenerateWalk(), EnsembleStretch(),
 #                                       DifferentialEvolution(), EnsembleEigenVector()],
 #                            weights=[2, 2, 5, 1])
 
-test = JumpProposalCycleWrapper([GWEnsembleWalkPrototype(), EnsembleStretch(),
-                                 DifferentialEvolution(), EnsembleEigenVector()], weights=[2, 5, 2, 5])
+test = proposal.JumpProposalCycle(
+    [proposal.EnsembleWalk(priors=priors), proposal.EnsembleStretch(priors=priors),
+     proposal.DifferentialEvolution(priors=priors), proposal.EnsembleEigenVector(priors=priors),
+     proposal.SkyLocationWanderJump(priors=priors), proposal.CorrelatedPolarisationPhaseJump(priors=priors),
+     proposal.PolarisationPhaseJump(priors=priors), proposal.DrawFlatPrior(priors=priors),
+     proposal.DrawApproxPrior(analytic_test=True, priors=priors)],
+    weights=[2, 2, 5, 1, 1, 1, 1, 1, 1])
 
 
-proposals = None#dict(mhs=test, hmc=test)
+proposals = dict(mhs=test, hmc=test)
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='cpnest', npoints=400, nthreads=1,
-    injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals)
+    likelihood=likelihood, priors=priors, sampler='cpnest', npoints=100, nthreads=1,
+    injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals,
+    resume=False, dlogz=1000)
 # Make a corner plot.
 result.plot_corner()

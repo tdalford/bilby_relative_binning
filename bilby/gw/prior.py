@@ -27,7 +27,7 @@ class Cosmological(Interped):
                 name='comoving_distance', latex_label='$d_C$', unit=units.Mpc))
 
     def __init__(self, minimum, maximum, cosmology=None, name=None,
-                 latex_label=None, unit=None):
+                 latex_label=None, unit=None, boundary='reflecting'):
         self.cosmology = get_cosmology(cosmology)
         if name not in self._default_args_dict:
             raise ValueError(
@@ -55,7 +55,7 @@ class Cosmological(Interped):
         else:
             raise ValueError('Name {} not recognized.'.format(name))
         Interped.__init__(self, xx=xx, yy=yy, minimum=minimum, maximum=maximum,
-                          **label_args)
+                          boundary=boundary, **label_args)
 
     @property
     def minimum(self):
@@ -84,8 +84,10 @@ class Cosmological(Interped):
                 self._minimum['redshift'] = cosmo.z_at_value(
                     cosmology.comoving_distance, minimum * self.unit)
             self._minimum['luminosity_distance'] = self._minimum['redshift']
-        if getattr(self._maximum, self.name, np.inf) < np.inf:
-            self.__update_instance()
+        try:
+            self._update_instance()
+        except (AttributeError, KeyError):
+            pass
 
     @property
     def maximum(self):
@@ -108,8 +110,10 @@ class Cosmological(Interped):
             self._maximum['redshift'] = cosmo.z_at_value(
                 cosmology.comoving_distance, maximum * self.unit)
             self._maximum['luminosity_distance'] = self._maximum['redshift']
-        if getattr(self._minimum, self.name, np.inf) < np.inf:
-            self.__update_instance()
+        try:
+            self._update_instance()
+        except (AttributeError, KeyError):
+            pass
 
     def get_corresponding_prior(self, name=None, unit=None):
         subclass_args = infer_args_from_method(self.__init__)
@@ -154,7 +158,7 @@ class UniformComovingVolume(Cosmological):
 class AlignedSpin(Interped):
 
     def __init__(self, a_prior=Uniform(0, 1), z_prior=Uniform(-1, 1),
-                 name=None, latex_label=None, unit=None):
+                 name=None, latex_label=None, unit=None, boundary='reflecting'):
         """
         Prior distribution for the aligned (z) component of the spin.
 
@@ -185,11 +189,12 @@ class AlignedSpin(Interped):
         yy = [np.trapz(np.nan_to_num(a_prior.prob(aas) / aas *
                                      z_prior.prob(x / aas)), aas) for x in xx]
         Interped.__init__(self, xx=xx, yy=yy, name=name,
-                          latex_label=latex_label, unit=unit)
+                          latex_label=latex_label, unit=unit,
+                          boundary=boundary)
 
 
 class BBHPriorDict(PriorDict):
-    def __init__(self, dictionary=None, filename=None):
+    def __init__(self, dictionary=None, filename=None, aligned_spin=False):
         """ Initialises a Prior set for Binary Black holes
 
         Parameters
@@ -199,8 +204,13 @@ class BBHPriorDict(PriorDict):
         filename: str, optional
             See superclass
         """
+        basedir = os.path.join(os.path.dirname(__file__), 'prior_files')
         if dictionary is None and filename is None:
-            filename = os.path.join(os.path.dirname(__file__), 'prior_files', 'binary_black_holes.prior')
+            fname = 'binary_black_holes.prior'
+            if aligned_spin:
+                fname = 'aligned_spin_' + fname
+                logger.info('Using aligned spin prior')
+            filename = os.path.join(basedir, fname)
             logger.info('No prior given, using default BBH priors in {}.'.format(filename))
         elif filename is not None:
             if not os.path.isfile(filename):
@@ -253,7 +263,7 @@ class BBHPriorDict(PriorDict):
 
 class BNSPriorDict(PriorDict):
 
-    def __init__(self, dictionary=None, filename=None):
+    def __init__(self, dictionary=None, filename=None, aligned_spin=True):
         """ Initialises a Prior set for Binary Neutron Stars
 
         Parameters
@@ -263,6 +273,8 @@ class BNSPriorDict(PriorDict):
         filename: str, optional
             See superclass
         """
+        if not aligned_spin:
+            logger.warning('Non-aligned spins not yet supported for BNS.')
         if dictionary is None and filename is None:
             filename = os.path.join(os.path.dirname(__file__), 'prior_files', 'binary_neutron_stars.prior')
             logger.info('No prior given, using default BNS priors in {}.'.format(filename))
@@ -418,13 +430,15 @@ class CalibrationPriorDict(PriorDict):
             latex_label = "$A^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
-                                   name=name, latex_label=latex_label)
+                                   name=name, latex_label=latex_label,
+                                   boundary='reflecting')
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
-                                   name=name, latex_label=latex_label)
+                                   name=name, latex_label=latex_label,
+                                   boundary='reflecting')
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
@@ -477,13 +491,15 @@ class CalibrationPriorDict(PriorDict):
             latex_label = "$A^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
-                                   name=name, latex_label=latex_label)
+                                   name=name, latex_label=latex_label,
+                                   boundary='reflecting')
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
-                                   name=name, latex_label=latex_label)
+                                   name=name, latex_label=latex_label,
+                                   boundary='reflecting')
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
