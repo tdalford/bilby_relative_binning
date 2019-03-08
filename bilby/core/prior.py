@@ -1028,7 +1028,7 @@ class TruncatedGaussian(Prior):
         float: Prior probability of val
         """
         return np.exp(-(self.mu - val) ** 2 / (2 * self.sigma ** 2)) / \
-               (2 * np.pi) ** 0.5 / self.sigma / self.normalisation * self.is_in_prior_range(val)
+            (2 * np.pi) ** 0.5 / self.sigma / self.normalisation * self.is_in_prior_range(val)
 
 
 class TruncatedNormal(TruncatedGaussian):

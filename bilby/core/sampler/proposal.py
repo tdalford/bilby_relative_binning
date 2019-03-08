@@ -1,6 +1,6 @@
 from collections import OrderedDict
-import copy
 from inspect import isclass
+
 import numpy as np
 import random
 
