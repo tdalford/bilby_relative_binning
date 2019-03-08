@@ -205,7 +205,7 @@ class EnsembleWalk(JumpProposal):
     def __call__(self, sample, **kwargs):
         subset = random.sample(kwargs['coordinates'], self.n_points)
         for i in range(len(subset)):
-            subset[i] = Sample.from_external_type(subset[i], kwargs['sampler_name'])
+            subset[i] = Sample.from_external_type(subset[i], kwargs.get('sampler_name', None))
         center_of_mass = self.get_center_of_mass(subset)
         for x in subset:
             sample += (x - center_of_mass) * self.random_number_generator(**self.random_number_generator_args)
@@ -232,7 +232,7 @@ class EnsembleStretch(JumpProposal):
 
     def __call__(self, sample, **kwargs):
         second_sample = random.choice(kwargs['coordinates'])
-        second_sample = Sample.from_external_type(second_sample, kwargs['sampler_name'])
+        second_sample = Sample.from_external_type(second_sample, kwargs.get('sampler_name', None))
         step = random.uniform(-1, 1) * np.log(self.scale)
         sample = second_sample + (sample - second_sample) * np.exp(step)
         self.log_j = len(sample) * step
@@ -289,7 +289,7 @@ class EnsembleEigenVector(JumpProposal):
 
     def _set_1_d_eigenvectors(self, coordinates):
         n_samples = len(coordinates)
-        key = coordinates[0].keys()[0]
+        key = list(coordinates[0].keys())[0]
         variance = np.var([coordinates[j][key] for j in range(n_samples)])
         self.eigen_values = np.atleast_1d(variance)
         self.covariance = self.eigen_values

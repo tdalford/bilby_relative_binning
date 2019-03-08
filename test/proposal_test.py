@@ -183,12 +183,18 @@ class TestEnsembleEnsembleStretch(unittest.TestCase):
                     self.assertAlmostEqual(expected[key], value)
 
     def test_log_j_after_call(self):
-        coordinates = [dict(periodic=0.3, reflecting=0.3, default=0.3),
-                       dict(periodic=0.1, reflecting=0.1, default=0.1)]
-        sample = dict(periodic=0.2, reflecting=0.2, default=0.2)
-        self.jump_proposal(sample=sample,
-                           coordinates=coordinates)
-        self.assertEqual(9.0, self.jump_proposal.log_j)
+        with mock.patch('random.uniform') as m1:
+            with mock.patch('numpy.log') as m2:
+                with mock.patch('numpy.exp') as m3:
+                    m1.return_value = 1
+                    m2.return_value = 1
+                    m3.return_value = 1
+                    coordinates = [proposal.Sample(dict(periodic=0.3, reflecting=0.3, default=0.3)),
+                                   proposal.Sample(dict(periodic=0.3, reflecting=0.3, default=0.3))]
+                    sample = proposal.Sample(dict(periodic=0.2, reflecting=0.2, default=0.2))
+                    self.jump_proposal(sample=sample,
+                                       coordinates=coordinates)
+                    self.assertEqual(3, self.jump_proposal.log_j)
 
 
 class TestDifferentialEvolution(unittest.TestCase):
@@ -253,7 +259,7 @@ class TestEnsembleEigenVector(unittest.TestCase):
 
     def test_jump_proposal_update_eigenvectors_1_d(self):
         coordinates = [proposal.Sample(dict(periodic=0.3)), proposal.Sample(dict(periodic=0.1))]
-        with mock.patch('np.variance') as m:
+        with mock.patch('numpy.var') as m:
             m.return_value = 1
             self.jump_proposal.update_eigenvectors(coordinates)
             self.assertTrue(np.equal(np.array([1]), self.jump_proposal.eigen_values))
@@ -284,7 +290,7 @@ class TestEnsembleEigenVector(unittest.TestCase):
                 n.return_value = 1
                 expected = proposal.Sample(dict(periodic=0.2, reflecting=0.5, default=0.8))
                 sample = proposal.Sample(dict(periodic=0.1, reflecting=0.1, default=0.1))
-                new_sample = self.jump_proposal(sample, None)
+                new_sample = self.jump_proposal(sample, coordinates=None)
                 for key, value in new_sample.items():
                     self.assertAlmostEqual(expected[key], value)
 
