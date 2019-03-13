@@ -288,8 +288,14 @@ class TestEnsembleEigenVector(unittest.TestCase):
             with mock.patch('random.gauss') as n:
                 m.return_value = 0
                 n.return_value = 1
-                expected = proposal.Sample(dict(periodic=0.2, reflecting=0.5, default=0.8))
-                sample = proposal.Sample(dict(periodic=0.1, reflecting=0.1, default=0.1))
+                expected = proposal.Sample()
+                expected['periodic'] = 0.2
+                expected['reflecting'] = 0.5
+                expected['default'] = 0.8
+                sample = proposal.Sample()
+                sample['periodic'] = 0.1
+                sample['reflecting'] = 0.1
+                sample['default'] = 0.1
                 new_sample = self.jump_proposal(sample, coordinates=None)
                 for key, value in new_sample.items():
                     self.assertAlmostEqual(expected[key], value)

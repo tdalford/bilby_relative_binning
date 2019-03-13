@@ -9,7 +9,9 @@ from bilby.core.prior import Uniform
 
 class Sample(OrderedDict):
 
-    def __init__(self, dictionary):
+    def __init__(self, dictionary=None):
+        if dictionary is None:
+            dictionary = dict()
         super(Sample, self).__init__(dictionary)
 
     def __add__(self, other):
@@ -23,7 +25,10 @@ class Sample(OrderedDict):
 
     @classmethod
     def from_cpnest_live_point(cls, cpnest_live_point):
-        return cls({key: cpnest_live_point.values[i] for i, key in enumerate(cpnest_live_point.names)})
+        res = cls(dict())
+        for i, key in enumerate(cpnest_live_point.names):
+            res[key] = cpnest_live_point.values[i]
+        return res
 
     @classmethod
     def from_external_type(cls, external_sample, sampler_name):
