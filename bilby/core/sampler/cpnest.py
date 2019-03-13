@@ -82,7 +82,17 @@ class Cpnest(NestedSampler):
         self._resolve_proposal_functions()
 
         model = Model(self.search_parameter_keys, bounds)
-        out = CPNest(model, **self.kwargs)
+        try:
+            out = CPNest(model, **self.kwargs)
+        except TypeError as e:
+            if 'proposals' in self.kwargs.keys():
+                logger.warning('YOU ARE TRYING TO USE PROPOSALS IN A VERSION OF CPNEST THAT DOES'
+                               'NOT ACCEPT CUSTOM PROPOSALS. SAMPLING WILL COMMENCE WITH THE DEFAULT'
+                               'PROPOSALS.')
+                del self.kwargs['proposals']
+                out = CPNest(model, **self.kwargs)
+            else:
+                raise TypeError(e)
         out.run()
 
         if self.plot:
