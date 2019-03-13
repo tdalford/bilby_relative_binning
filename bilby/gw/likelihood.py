@@ -1,5 +1,6 @@
 from __future__ import division
 
+import os
 import json
 
 import numpy as np
@@ -21,6 +22,7 @@ from .prior import BBHPriorDict
 from .source import lal_binary_black_hole
 from .utils import noise_weighted_inner_product, build_roq_weights, blockwise_dot_product
 from .waveform_generator import WaveformGenerator
+from collections import namedtuple
 
 
 class GravitationalWaveTransient(likelihood.Likelihood):
@@ -124,6 +126,40 @@ class GravitationalWaveTransient(likelihood.Likelihood):
                     "waveform_generator.".format(attr))
             setattr(self.waveform_generator, attr, ifo_attr)
 
+    def calculate_snrs(self, waveform_polarizations, interferometer):
+        """
+        Compute the snrs
+
+        Parameters
+        ----------
+        waveform_polarizations: dict
+            A dictionary of waveform polarizations and the corresponding array
+        interferometer: bilby.gw.detector.Interferometer
+            The bilby interferometer object
+
+        """
+        signal = interferometer.get_detector_response(
+            waveform_polarizations, self.parameters)
+        d_inner_h = interferometer.inner_product(signal=signal)
+        optimal_snr_squared = interferometer.optimal_snr_squared(signal=signal)
+        complex_matched_filter_snr = d_inner_h / (optimal_snr_squared**0.5)
+        CalculatedSNRs = namedtuple(
+            'CalculatedSNRs', ['d_inner_h', 'optimal_snr_squared', 'complex_matched_filter_snr', 'd_inner_h_squared_tc_array'])
+
+        if self.time_marginalization:
+            d_inner_h_squared_tc_array =\
+                4 / self.waveform_generator.duration * np.fft.fft(
+                    signal[0:-1] *
+                    interferometer.frequency_domain_strain.conjugate()[0:-1] /
+                    interferometer.power_spectral_density_array[0:-1])
+        else:
+            d_inner_h_squared_tc_array = None
+
+        return CalculatedSNRs(
+            d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
+            complex_matched_filter_snr=complex_matched_filter_snr,
+            d_inner_h_squared_tc_array=d_inner_h_squared_tc_array)
+
     def _check_prior_is_set(self, key):
         if key not in self.priors or not isinstance(
                 self.priors[key], Prior):
@@ -167,23 +203,23 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         if waveform_polarizations is None:
             return np.nan_to_num(-np.inf)
 
-        d_inner_h = 0
-        optimal_snr_squared = 0
+        d_inner_h = 0.
+        optimal_snr_squared = 0.
+        complex_matched_filter_snr = 0.
         d_inner_h_squared_tc_array = np.zeros(
             self.interferometers.frequency_array[0:-1].shape,
             dtype=np.complex128)
-        for interferometer in self.interferometers:
-            signal_ifo = interferometer.get_detector_response(
-                waveform_polarizations, self.parameters)
 
-            d_inner_h += interferometer.inner_product(signal=signal_ifo)
-            optimal_snr_squared += interferometer.optimal_snr_squared(signal=signal_ifo)
+        for interferometer in self.interferometers:
+            per_detector_snr = self.calculate_snrs(
+                waveform_polarizations, interferometer)
+
+            d_inner_h += per_detector_snr.d_inner_h
+            optimal_snr_squared += per_detector_snr.optimal_snr_squared
+            complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
+
             if self.time_marginalization:
-                d_inner_h_squared_tc_array +=\
-                    4 / self.waveform_generator.duration * np.fft.fft(
-                        signal_ifo[0:-1] *
-                        interferometer.frequency_domain_strain.conjugate()[0:-1] /
-                        interferometer.power_spectral_density_array[0:-1])
+                d_inner_h_squared_tc_array += per_detector_snr.d_inner_h_squared_tc_array
 
         if self.time_marginalization:
 
@@ -262,10 +298,62 @@ class GravitationalWaveTransient(likelihood.Likelihood):
             self._rho_mf_ref_array, self._rho_opt_ref_array,
             self._dist_margd_loglikelihood_array)
 
+    @property
+    def cached_lookup_table_filename(self):
+        dmin = self._distance_array[0]
+        dmax = self._distance_array[-1]
+        n = len(self._distance_array)
+        cached_lookup_table_filename = (
+            '.distance_marginalization_lookup_dmin{}_dmax{}_n{}_v1.npy'
+            .format(dmin, dmax, n))
+        return cached_lookup_table_filename
+
+    @property
+    def cached_lookup_table(self):
+        """ Reads in the cached lookup table
+
+        Returns
+        -------
+        cached_lookup_table: np.ndarray
+            Columns are _distance_array, distance_prior_array,
+            dist_marged_log_l_tc_array. This is only returned if the file
+            exists and the first two columns match the equivalent values
+            stored on disk.
+
+        """
+
+        if os.path.exists(self.cached_lookup_table_filename):
+            loaded_file = np.load(self.cached_lookup_table_filename)
+            if self._test_cached_lookup_table(loaded_file):
+                return loaded_file
+        else:
+            return None
+
+    @cached_lookup_table.setter
+    def cached_lookup_table(self, lookup_table):
+        np.save(self.cached_lookup_table_filename, lookup_table)
+
+    def _test_cached_lookup_table(self, lookup_table):
+        cond_a = np.all(self._distance_array == lookup_table[0])
+        cond_b = np.all(self.distance_prior_array == lookup_table[1])
+        if cond_a and cond_b:
+            return True
+
     def _create_lookup_table(self):
         """ Make the lookup table """
-        self.distance_prior_array = np.array([self.priors['luminosity_distance'].prob(distance)
-                                              for distance in self._distance_array])
+
+        self.distance_prior_array = np.array(
+            [self.priors['luminosity_distance'].prob(distance)
+             for distance in self._distance_array])
+
+        # Check if a cached lookup table exists in file
+        cached_lookup_table = self.cached_lookup_table
+        if cached_lookup_table is not None:
+            self._dist_margd_loglikelihood_array = cached_lookup_table[-1]
+            logger.info("Using the cached lookup table {}"
+                        .format(os.path.abspath(self.cached_lookup_table_filename)))
+            return
+
         logger.info('Building lookup table for distance marginalisation.')
 
         self._dist_margd_loglikelihood_array = np.zeros((400, 800))
@@ -282,6 +370,10 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         log_norm = logsumexp(0. / self._distance_array - 0. / self._distance_array ** 2.,
                              b=self.distance_prior_array * self._delta_distance)
         self._dist_margd_loglikelihood_array -= log_norm
+        self.cached_lookup_table = np.array([
+            self._distance_array,
+            self.distance_prior_array,
+            self._dist_margd_loglikelihood_array])
 
     def _setup_phase_marginalization(self):
         self._bessel_function_interped = interp1d(
@@ -448,63 +540,65 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         self.frequency_nodes_linear =\
             waveform_generator.waveform_arguments['frequency_nodes_linear']
 
-    def log_likelihood_ratio(self):
-        optimal_snr_squared = 0.
-        d_inner_h = 0.
+    def calculate_snrs(self, signal, interferometer):
+        """
+        Compute the snrs for ROQ
 
-        waveform = self.waveform_generator.frequency_domain_strain(
-            self.parameters)
-        if waveform is None:
-            return np.nan_to_num(-np.inf)
+        Parameters
+        ----------
+        signal: waveform
 
-        for ifo in self.interferometers:
+        interferometer: interferometer object
 
-            f_plus = ifo.antenna_response(
-                self.parameters['ra'], self.parameters['dec'],
-                self.parameters['geocent_time'], self.parameters['psi'], 'plus')
-            f_cross = ifo.antenna_response(
-                self.parameters['ra'], self.parameters['dec'],
-                self.parameters['geocent_time'], self.parameters['psi'], 'cross')
+        """
 
-            dt = ifo.time_delay_from_geocenter(
-                self.parameters['ra'], self.parameters['dec'],
-                ifo.strain_data.start_time)
-            ifo_time = self.parameters['geocent_time'] + dt - \
-                ifo.strain_data.start_time
+        f_plus = interferometer.antenna_response(
+            self.parameters['ra'], self.parameters['dec'],
+            self.parameters['geocent_time'], self.parameters['psi'], 'plus')
+        f_cross = interferometer.antenna_response(
+            self.parameters['ra'], self.parameters['dec'],
+            self.parameters['geocent_time'], self.parameters['psi'], 'cross')
 
-            h_plus_linear = f_plus * waveform['linear']['plus']
-            h_cross_linear = f_cross * waveform['linear']['cross']
-            h_plus_quadratic = f_plus * waveform['quadratic']['plus']
-            h_cross_quadratic = f_cross * waveform['quadratic']['cross']
+        dt = interferometer.time_delay_from_geocenter(
+            self.parameters['ra'], self.parameters['dec'],
+            interferometer.strain_data.start_time)
+        ifo_time = self.parameters['geocent_time'] + dt - \
+            interferometer.strain_data.start_time
 
-            indices, in_bounds = self._closest_time_indices(
-                ifo_time, self.time_samples)
-            if not in_bounds:
-                return np.nan_to_num(-np.inf)
+        h_plus_linear = f_plus * signal['linear']['plus']
+        h_cross_linear = f_cross * signal['linear']['cross']
+        h_plus_quadratic = f_plus * signal['quadratic']['plus']
+        h_cross_quadratic = f_cross * signal['quadratic']['cross']
 
-            d_inner_h_tc_array = np.einsum(
-                'i,ji->j', np.conjugate(h_plus_linear + h_cross_linear),
-                self.weights[ifo.name + '_linear'][indices])
+        CalculatedSNRs = namedtuple(
+            'CalculatedSNRs', ['d_inner_h', 'optimal_snr_squared', 'complex_matched_filter_snr', 'd_inner_h_squared_tc_array'])
 
-            d_inner_h += interp1d(
-                self.time_samples[indices],
-                d_inner_h_tc_array, kind='cubic')(ifo_time)
+        indices, in_bounds = self._closest_time_indices(ifo_time, self.time_samples)
+        if not in_bounds:
+            return CalculatedSNRs(
+                d_inner_h=np.nan_to_num(-np.inf), optimal_snr_squared=0,
+                complex_matched_filter_snr=np.nan_to_num(-np.inf),
+                d_inner_h_squared_tc_array=None)
 
-            optimal_snr_squared += \
-                np.vdot(np.abs(h_plus_quadratic + h_cross_quadratic)**2,
-                        self.weights[ifo.name + '_quadratic'])
+        d_inner_h_tc_array = np.einsum(
+            'i,ji->j', np.conjugate(h_plus_linear + h_cross_linear),
+            self.weights[interferometer.name + '_linear'][indices])
 
-        if self.distance_marginalization:
-            rho_mf_ref, rho_opt_ref = self._setup_rho(d_inner_h, optimal_snr_squared)
-            if self.phase_marginalization:
-                rho_mf_ref = abs(rho_mf_ref)
-            log_l = self._interp_dist_margd_loglikelihood(rho_mf_ref.real, rho_opt_ref)[0]
-        else:
-            if self.phase_marginalization:
-                d_inner_h = self._bessel_function_interped(abs(d_inner_h))
-            log_l = d_inner_h - optimal_snr_squared / 2
+        d_inner_h = interp1d(
+            self.time_samples[indices],
+            d_inner_h_tc_array, kind='cubic')(ifo_time)
 
-        return log_l.real
+        optimal_snr_squared = \
+            np.vdot(np.abs(h_plus_quadratic + h_cross_quadratic)**2,
+                    self.weights[interferometer.name + '_quadratic'])
+
+        complex_matched_filter_snr = d_inner_h / (optimal_snr_squared**0.5)
+        d_inner_h_squared_tc_array = None
+
+        return CalculatedSNRs(
+            d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
+            complex_matched_filter_snr=complex_matched_filter_snr,
+            d_inner_h_squared_tc_array=d_inner_h_squared_tc_array)
 
     @staticmethod
     def _closest_time_indices(time, samples):
