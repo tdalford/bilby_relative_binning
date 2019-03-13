@@ -5,8 +5,9 @@ import shutil
 
 import numpy as np
 
-from .base_sampler import MCMCSampler, SamplerNotInstalledError
 from . import proposal
+from .base_sampler import MCMCSampler, SamplerNotInstalledError
+from ..prior import Prior
 from ..utils import logger
 
 
@@ -197,17 +198,15 @@ def ptmcmc_proposal_factory(jump_proposal, proposal_name=None):
 
         def __init__(self, jp, pn):
             self.__name__ = pn
-            self.jump_proposals = jp
+            self.jump_proposal = jp
 
         def __call__(self, *args):
-            sample = proposal.Sample(dict())
-            for i, key in enumerate(list(jump_proposal[0].keys())):
-                sample[key] = args[0][i]
+            sample = proposal.Sample.from_ptmcmc_walker(ptmcmc_sample=args[0], priors=jump_proposal.priors)
             iteration = args[1]
             inverse_temperature = args[2]
-            jump = self.jump_proposals(sample=sample, iteration=iteration,
-                                       inverse_temperature=inverse_temperature, coordinates=0)
-            qxy = getattr(self.jump_proposals, 'log_j', 0)
-            return jump, qxy
+            jump = self.jump_proposal(sample=sample, iteration=iteration,
+                                      inverse_temperature=inverse_temperature)
+            qxy = self.jump_proposal.log_j
+            return list(jump.values()), qxy
 
     return PTMCMCProposal(jp=jump_proposal, pn=proposal_name)

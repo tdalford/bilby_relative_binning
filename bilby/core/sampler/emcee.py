@@ -3,7 +3,6 @@ from __future__ import absolute_import, print_function
 import os
 
 import numpy as np
-from emcee.moves import MHMove
 from pandas import DataFrame
 from distutils.version import LooseVersion
 

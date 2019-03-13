@@ -1,10 +1,12 @@
+from __future__ import division
+
 from collections import OrderedDict
 from inspect import isclass
 
 import numpy as np
 import random
 
-from bilby.core.prior import Uniform
+from bilby.core.prior import DeltaFunction, Uniform
 
 
 class Sample(OrderedDict):
@@ -24,16 +26,26 @@ class Sample(OrderedDict):
         return Sample({key: self[key] * other for key in self.keys()})
 
     @classmethod
-    def from_cpnest_live_point(cls, cpnest_live_point):
-        res = cls(dict())
-        for i, key in enumerate(cpnest_live_point.names):
-            res[key] = cpnest_live_point.values[i]
+    def from_cpnest_live_point(cls, cpnest_sample):
+        res = cls()
+        for i, key in enumerate(cpnest_sample.names):
+            res[key] = cpnest_sample.values[i]
         return res
 
     @classmethod
-    def from_external_type(cls, external_sample, sampler_name):
+    def from_ptmcmc_walker(cls, ptmcmc_sample, priors):
+        res = cls()
+        for i, key in enumerate(list(priors.keys())):
+            if not isinstance(priors[key], DeltaFunction):
+                res[key] = ptmcmc_sample[i]
+        return res
+
+    @classmethod
+    def from_external_type(cls, external_sample, sampler_name, priors):
         if sampler_name == 'cpnest':
             return cls.from_cpnest_live_point(external_sample)
+        elif sampler_name == 'PTMCMC':
+            return cls.from_ptmcmc_walker(external_sample, priors)
         return external_sample
 
 
@@ -156,7 +168,6 @@ class JumpProposalCycle(object):
 
     @weights.setter
     def weights(self, weights):
-        assert len(weights) == len(self.proposal_functions)
         self._weights = weights
 
     @property
