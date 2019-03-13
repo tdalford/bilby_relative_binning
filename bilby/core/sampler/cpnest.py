@@ -82,7 +82,17 @@ class Cpnest(NestedSampler):
         self._resolve_proposal_functions()
 
         model = Model(self.search_parameter_keys, bounds)
-        out = CPNest(model, **self.kwargs)
+        try:
+            out = CPNest(model, **self.kwargs)
+        except TypeError as e:
+            if 'proposals' in self.kwargs.keys():
+                logger.warning('YOU ARE TRYING TO USE PROPOSALS IN A VERSION OF CPNEST THAT DOES'
+                               'NOT ACCEPT CUSTOM PROPOSALS. SAMPLING WILL COMMENCE WITH THE DEFAULT'
+                               'PROPOSALS.')
+                del self.kwargs['proposals']
+                out = CPNest(model, **self.kwargs)
+            else:
+                raise TypeError(e)
         out.run()
 
         if self.plot:
@@ -108,16 +118,14 @@ class Cpnest(NestedSampler):
         NestedSampler._verify_kwargs_against_default_kwargs(self)
 
     def _resolve_proposal_functions(self):
-        from cpnest.proposal import Proposal
+        from cpnest.proposal import ProposalCycle
         if 'proposals' in self.kwargs:
             if self.kwargs['proposals'] is None:
                 return
             for key, proposal in self.kwargs['proposals'].items():
-                if isinstance(proposal, JumpProposal):
-                    self.kwargs['proposals'][key] = cpnest_proposal_factory(proposal)
-                elif isinstance(proposal, JumpProposalCycle):
+                if isinstance(proposal, JumpProposalCycle):
                     self.kwargs['proposals'][key] = cpnest_proposal_cycle_factory(proposal)
-                elif isinstance(proposal, Proposal):
+                elif isinstance(proposal, ProposalCycle):
                     pass
                 else:
                     raise TypeError("Unknown proposal type")

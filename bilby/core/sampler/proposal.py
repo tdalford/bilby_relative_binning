@@ -9,7 +9,9 @@ from bilby.core.prior import Uniform
 
 class Sample(OrderedDict):
 
-    def __init__(self, dictionary):
+    def __init__(self, dictionary=None):
+        if dictionary is None:
+            dictionary = dict()
         super(Sample, self).__init__(dictionary)
 
     def __add__(self, other):
@@ -23,7 +25,10 @@ class Sample(OrderedDict):
 
     @classmethod
     def from_cpnest_live_point(cls, cpnest_live_point):
-        return cls({key: cpnest_live_point.values[i] for i, key in enumerate(cpnest_live_point.names)})
+        res = cls(dict())
+        for i, key in enumerate(cpnest_live_point.names):
+            res[key] = cpnest_live_point.values[i]
+        return res
 
     @classmethod
     def from_external_type(cls, external_sample, sampler_name):
@@ -388,8 +393,8 @@ class DrawApproxPrior(JumpProposal):
             sample = _draw_from_flat_priors(sample, self.priors)
         else:
             sample = Sample({key: self.priors[key].sample() for key in self.priors.keys()})
-            log_backward_jump = approx_log_prior(sample)
-            self.log_j = log_backward_jump - approx_log_prior(sample)
+            log_backward_jump = _approx_log_prior(sample)
+            self.log_j = log_backward_jump - _approx_log_prior(sample)
         return super(DrawApproxPrior, self).__call__(sample)
 
 
@@ -400,7 +405,7 @@ def _draw_from_flat_priors(sample, priors):
     return sample
 
 
-def approx_log_prior(sample):
+def _approx_log_prior(sample):
     """ TODO: Make sure this was correctly translated from LALInference
 
     Parameters

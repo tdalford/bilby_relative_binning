@@ -288,8 +288,14 @@ class TestEnsembleEigenVector(unittest.TestCase):
             with mock.patch('random.gauss') as n:
                 m.return_value = 0
                 n.return_value = 1
-                expected = proposal.Sample(dict(periodic=0.2, reflecting=0.5, default=0.8))
-                sample = proposal.Sample(dict(periodic=0.1, reflecting=0.1, default=0.1))
+                expected = proposal.Sample()
+                expected['periodic'] = 0.2
+                expected['reflecting'] = 0.5
+                expected['default'] = 0.8
+                sample = proposal.Sample()
+                sample['periodic'] = 0.1
+                sample['reflecting'] = 0.1
+                sample['default'] = 0.1
                 new_sample = self.jump_proposal(sample, coordinates=None)
                 for key, value in new_sample.items():
                     self.assertAlmostEqual(expected[key], value)
@@ -397,7 +403,7 @@ class TestApproxPrior(unittest.TestCase):
 
     def setUp(self):
         self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2*np.pi),
-                                           psi=prior.Cosine(minimum=0.0, maximum=np.pi)))
+                                           psi=prior.Uniform(minimum=0.0, maximum=np.pi)))
         self.jump_proposal = proposal.DrawApproxPrior(priors=self.priors)
 
     def tearDown(self):
@@ -421,7 +427,8 @@ class TestApproxPrior(unittest.TestCase):
     def test_jump_proposal_call_no_analytic_test(self):
         with mock.patch('bilby.core.prior.Uniform.sample') as m:
             m.return_value = 1
-            proposal.approx_log_prior = lambda x: 0.5
+            self.jump_proposal.analytic_test = False
+            proposal._approx_log_prior = lambda x: 0.5
             sample = proposal.Sample(dict(phase=0.2, psi=0.5))
             expected = proposal.Sample(dict(phase=1, psi=1))
             self.assertEqual(expected, self.jump_proposal(sample))
