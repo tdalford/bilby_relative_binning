@@ -397,7 +397,7 @@ class TestApproxPrior(unittest.TestCase):
 
     def setUp(self):
         self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2*np.pi),
-                                           psi=prior.Cosine(minimum=0.0, maximum=np.pi)))
+                                           psi=prior.Uniform(minimum=0.0, maximum=np.pi)))
         self.jump_proposal = proposal.DrawApproxPrior(priors=self.priors)
 
     def tearDown(self):
@@ -421,7 +421,8 @@ class TestApproxPrior(unittest.TestCase):
     def test_jump_proposal_call_no_analytic_test(self):
         with mock.patch('bilby.core.prior.Uniform.sample') as m:
             m.return_value = 1
-            proposal.approx_log_prior = lambda x: 0.5
+            self.jump_proposal.analytic_test = False
+            proposal._approx_log_prior = lambda x: 0.5
             sample = proposal.Sample(dict(phase=0.2, psi=0.5))
             expected = proposal.Sample(dict(phase=1, psi=1))
             self.assertEqual(expected, self.jump_proposal(sample))
