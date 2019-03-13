@@ -388,8 +388,8 @@ class DrawApproxPrior(JumpProposal):
             sample = _draw_from_flat_priors(sample, self.priors)
         else:
             sample = Sample({key: self.priors[key].sample() for key in self.priors.keys()})
-            log_backward_jump = approx_log_prior(sample)
-            self.log_j = log_backward_jump - approx_log_prior(sample)
+            log_backward_jump = _approx_log_prior(sample)
+            self.log_j = log_backward_jump - _approx_log_prior(sample)
         return super(DrawApproxPrior, self).__call__(sample)
 
 
@@ -400,7 +400,7 @@ def _draw_from_flat_priors(sample, priors):
     return sample
 
 
-def approx_log_prior(sample):
+def _approx_log_prior(sample):
     """ TODO: Make sure this was correctly translated from LALInference
 
     Parameters
