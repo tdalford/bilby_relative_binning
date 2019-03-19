@@ -73,6 +73,9 @@ class Pymultinest(NestedSampler):
                 .format(self.kwargs['outputfiles_basename']))
         check_directory_exists_and_if_not_mkdir(
             self.kwargs['outputfiles_basename'])
+        NestedSampler._verify_kwargs_against_default_kwargs(self)
+
+    def _apply_multinest_boundaries(self):
         if 'wrapped_params' not in self.kwargs.keys():
             self.kwargs['wrapped_params'] = []
             for param, value in self.priors.items():
@@ -81,10 +84,9 @@ class Pymultinest(NestedSampler):
                 else:
                     self.kwargs['wrapped_params'].append(1)
 
-        NestedSampler._verify_kwargs_against_default_kwargs(self)
-
     def run_sampler(self):
         import pymultinest
+        self._apply_multinest_boundaries()
         self._verify_kwargs_against_default_kwargs()
         out = pymultinest.solve(
             LogLikelihood=self.log_likelihood, Prior=self.prior_transform,
