@@ -35,8 +35,8 @@ class TestSample(unittest.TestCase):
 class TestJumpProposal(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, boundary='reflecting'),
-                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, boundary='periodic'),
+        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='reflecting'),
+                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='periodic'),
                                            default=prior.Uniform(minimum=-0.5, maximum=1)))
         self.sample_above = dict(reflecting=1.1, periodic=1.1, default=1.1)
         self.sample_below = dict(reflecting=-0.6, periodic=-0.6, default=-0.6)
@@ -82,8 +82,8 @@ class TestJumpProposal(unittest.TestCase):
 class TestNormJump(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, boundary='reflecting'),
-                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, boundary='periodic'),
+        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='reflecting'),
+                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='periodic'),
                                            default=prior.Uniform(minimum=-0.5, maximum=1)))
         self.jump_proposal = proposal.NormJump(step_size=3.0, priors=self.priors)
 
@@ -110,8 +110,8 @@ class TestNormJump(unittest.TestCase):
 class TestEnsembleWalk(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, boundary='reflecting'),
-                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, boundary='periodic'),
+        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='reflecting'),
+                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='periodic'),
                                            default=prior.Uniform(minimum=-0.5, maximum=1)))
         self.jump_proposal = proposal.EnsembleWalk(random_number_generator=random.random,
                                                    n_points=4, priors=self.priors)
@@ -152,8 +152,8 @@ class TestEnsembleWalk(unittest.TestCase):
 class TestEnsembleEnsembleStretch(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, boundary='reflecting'),
-                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, boundary='periodic'),
+        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='reflecting'),
+                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='periodic'),
                                            default=prior.Uniform(minimum=-0.5, maximum=1)))
         self.jump_proposal = proposal.EnsembleStretch(scale=3.0, priors=self.priors)
 
@@ -200,8 +200,8 @@ class TestEnsembleEnsembleStretch(unittest.TestCase):
 class TestDifferentialEvolution(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, boundary='reflecting'),
-                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, boundary='periodic'),
+        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='reflecting'),
+                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='periodic'),
                                            default=prior.Uniform(minimum=-0.5, maximum=1)))
         self.jump_proposal = proposal.DifferentialEvolution(sigma=1e-3, mu=0.5, priors=self.priors)
 
@@ -236,8 +236,8 @@ class TestDifferentialEvolution(unittest.TestCase):
 class TestEnsembleEigenVector(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, boundary='reflecting'),
-                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, boundary='periodic'),
+        self.priors = prior.PriorDict(dict(reflecting=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='reflecting'),
+                                           periodic=prior.Uniform(minimum=-0.5, maximum=1, periodic_boundary='periodic'),
                                            default=prior.Uniform(minimum=-0.5, maximum=1)))
         self.jump_proposal = proposal.EnsembleEigenVector(priors=self.priors)
 
@@ -304,8 +304,8 @@ class TestEnsembleEigenVector(unittest.TestCase):
 class TestSkyLocationWanderJump(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(ra=prior.Uniform(minimum=0.0, maximum=2*np.pi, boundary='periodic'),
-                                           dec=prior.Uniform(minimum=0.0, maximum=np.pi, boundary='reflecting')))
+        self.priors = prior.PriorDict(dict(ra=prior.Uniform(minimum=0.0, maximum=2*np.pi, periodic_boundary='periodic'),
+                                           dec=prior.Uniform(minimum=0.0, maximum=np.pi, periodic_boundary='reflecting')))
         self.jump_proposal = proposal.SkyLocationWanderJump(priors=self.priors)
 
     def tearDown(self):
