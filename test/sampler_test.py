@@ -144,7 +144,7 @@ class TestDynesty(unittest.TestCase):
         del self.sampler
 
     def test_default_kwargs(self):
-        expected = dict(bound='multi', sample='rwalk', verbose=True,
+        expected = dict(bound='multi', sample='rwalk', periodic=None, verbose=True,
                         check_point_delta_t=600, nlive=500, first_update=None,
                         npdim=None, rstate=None, queue_size=None, pool=None,
                         use_pool=None, live_points=None, logl_args=None, logl_kwargs=None,
@@ -157,7 +157,7 @@ class TestDynesty(unittest.TestCase):
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
-        expected = dict(bound='multi', sample='rwalk', verbose=True,
+        expected = dict(bound='multi', sample='rwalk', periodic=None, verbose=True,
                         check_point_delta_t=600, nlive=250, first_update=None,
                         npdim=None, rstate=None, queue_size=None, pool=None,
                         use_pool=None, live_points=None, logl_args=None, logl_kwargs=None,

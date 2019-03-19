@@ -71,7 +71,7 @@ class Dynesty(NestedSampler):
         If true, resume run from checkpoint (if available)
     """
     default_kwargs = dict(bound='multi', sample='rwalk',
-                          verbose=True,
+                          verbose=True, periodic=None,
                           check_point_delta_t=600, nlive=500,
                           first_update=None,
                           npdim=None, rstate=None, queue_size=None, pool=None,
@@ -173,8 +173,13 @@ class Dynesty(NestedSampler):
         sys.stderr.write(print_str)
         sys.stderr.flush()
 
+    def _apply_dynesty_boundaries(self):
+        if self.kwargs['periodic'] is None:
+            self.apply_boundary('periodic')
+
     def run_sampler(self):
         import dynesty
+        self._apply_dynesty_boundaries()
         self.sampler = dynesty.NestedSampler(
             loglikelihood=self.log_likelihood,
             prior_transform=self.prior_transform,

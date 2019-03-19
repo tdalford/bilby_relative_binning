@@ -76,17 +76,11 @@ class Pymultinest(NestedSampler):
         NestedSampler._verify_kwargs_against_default_kwargs(self)
 
     def _apply_multinest_boundaries(self):
-        if 'wrapped_params' not in self.kwargs.keys():
-            self.kwargs['wrapped_params'] = []
-            for param, value in self.priors.items():
-                if value.periodic_boundary:
-                    self.kwargs['wrapped_params'].append(0)
-                else:
-                    self.kwargs['wrapped_params'].append(1)
+        if self.kwargs['wrapped_params'] is None:
+            self.apply_boundary('wrapped_params')
 
     def run_sampler(self):
         import pymultinest
-        self._apply_multinest_boundaries()
         self._verify_kwargs_against_default_kwargs()
         out = pymultinest.solve(
             LogLikelihood=self.log_likelihood, Prior=self.prior_transform,
