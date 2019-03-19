@@ -27,7 +27,7 @@ class Cosmological(Interped):
                 name='comoving_distance', latex_label='$d_C$', unit=units.Mpc))
 
     def __init__(self, minimum, maximum, cosmology=None, name=None,
-                 latex_label=None, unit=None, boundary='reflecting'):
+                 latex_label=None, unit=None, periodic_boundary=False):
         self.cosmology = get_cosmology(cosmology)
         if name not in self._default_args_dict:
             raise ValueError(
@@ -55,7 +55,7 @@ class Cosmological(Interped):
         else:
             raise ValueError('Name {} not recognized.'.format(name))
         Interped.__init__(self, xx=xx, yy=yy, minimum=minimum, maximum=maximum,
-                          boundary=boundary, **label_args)
+                          periodic_boundary=periodic_boundary, **label_args)
 
     @property
     def minimum(self):
@@ -158,7 +158,7 @@ class UniformComovingVolume(Cosmological):
 class AlignedSpin(Interped):
 
     def __init__(self, a_prior=Uniform(0, 1), z_prior=Uniform(-1, 1),
-                 name=None, latex_label=None, unit=None, boundary='reflecting'):
+                 name=None, latex_label=None, unit=None, periodic_boundary=False):
         """
         Prior distribution for the aligned (z) component of the spin.
 
@@ -190,7 +190,7 @@ class AlignedSpin(Interped):
                                      z_prior.prob(x / aas)), aas) for x in xx]
         Interped.__init__(self, xx=xx, yy=yy, name=name,
                           latex_label=latex_label, unit=unit,
-                          boundary=boundary)
+                          periodic_boundary=periodic_boundary)
 
 
 class BBHPriorDict(PriorDict):
@@ -431,14 +431,14 @@ class CalibrationPriorDict(PriorDict):
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary='reflecting')
+                                   periodic_boundary=False)
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary='reflecting')
+                                   periodic_boundary=False)
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
@@ -492,14 +492,14 @@ class CalibrationPriorDict(PriorDict):
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary='reflecting')
+                                   periodic_boundary=False)
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary='reflecting')
+                                   periodic_boundary=False)
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)

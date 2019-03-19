@@ -36,8 +36,8 @@ class TestBBHPriorDict(unittest.TestCase):
                       for key in default.keys()])
         names = all([self.bbh_prior_dict[key].name == default[key].name
                      for key in default.keys()])
-        boundaries = all([self.bbh_prior_dict[key].boundary == default[key].boundary
-                         for key in default.keys()])
+        boundaries = all([self.bbh_prior_dict[key].periodic_boundary == default[key].periodic_boundary
+                          for key in default.keys()])
 
         self.assertTrue(all([minima, maxima, names, boundaries]))
 
@@ -132,8 +132,8 @@ class TestBNSPriorDict(unittest.TestCase):
                       for key in default.keys()])
         names = all([self.bns_prior_dict[key].name == default[key].name
                      for key in default.keys()])
-        boundaries = all([self.bns_prior_dict[key].boundary == default[key].boundary
-                         for key in default.keys()])
+        boundaries = all([self.bns_prior_dict[key].periodic_boundary == default[key].periodic_boundary
+                          for key in default.keys()])
 
         self.assertTrue(all([minima, maxima, names, boundaries]))
 
