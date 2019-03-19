@@ -73,6 +73,14 @@ class Pymultinest(NestedSampler):
                 .format(self.kwargs['outputfiles_basename']))
         check_directory_exists_and_if_not_mkdir(
             self.kwargs['outputfiles_basename'])
+        if 'wrapped_params' not in self.kwargs.keys():
+            self.kwargs['wrapped_params'] = []
+            for param, value in self.priors.items():
+                if value.periodic_boundary:
+                    self.kwargs['wrapped_params'].append(0)
+                else:
+                    self.kwargs['wrapped_params'].append(1)
+
         NestedSampler._verify_kwargs_against_default_kwargs(self)
 
     def run_sampler(self):
