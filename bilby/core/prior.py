@@ -636,7 +636,7 @@ class PowerLaw(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label,
@@ -724,7 +724,7 @@ class Uniform(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label,
@@ -782,7 +782,7 @@ class LogUniform(PowerLaw):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         PowerLaw.__init__(self, name=name, latex_label=latex_label, unit=unit,
@@ -809,7 +809,7 @@ class Cosine(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
@@ -857,7 +857,7 @@ class Sine(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
@@ -904,7 +904,7 @@ class Gaussian(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
@@ -954,7 +954,7 @@ class Normal(Gaussian):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Gaussian.__init__(self, mu=mu, sigma=sigma, name=name, latex_label=latex_label,
@@ -985,7 +985,7 @@ class TruncatedGaussian(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
@@ -1051,7 +1051,7 @@ class TruncatedNormal(TruncatedGaussian):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         TruncatedGaussian.__init__(self, mu=mu, sigma=sigma, minimum=minimum,
@@ -1073,7 +1073,7 @@ class HalfGaussian(TruncatedGaussian):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         TruncatedGaussian.__init__(self, 0., sigma, minimum=0., maximum=np.inf,
@@ -1095,7 +1095,7 @@ class HalfNormal(HalfGaussian):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         HalfGaussian.__init__(self, sigma=sigma, name=name,
@@ -1121,7 +1121,7 @@ class LogNormal(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
@@ -1178,7 +1178,7 @@ class LogGaussian(LogNormal):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         LogNormal.__init__(self, mu=mu, sigma=sigma, name=name,
@@ -1199,7 +1199,7 @@ class Exponential(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
@@ -1255,7 +1255,7 @@ class StudentT(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
@@ -1321,7 +1321,7 @@ class Beta(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         if alpha <= 0. or beta <= 0.:
@@ -1443,7 +1443,7 @@ class Logistic(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
@@ -1500,7 +1500,7 @@ class Cauchy(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
@@ -1557,7 +1557,7 @@ class Lorentzian(Cauchy):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Cauchy.__init__(self, alpha=alpha, beta=beta, name=name,
@@ -1582,7 +1582,7 @@ class Gamma(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
         Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
@@ -1639,7 +1639,7 @@ class ChiSquared(Gamma):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
         """
 
@@ -1680,7 +1680,7 @@ class Interped(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
 
         Attributes
@@ -1811,7 +1811,7 @@ class FromFile(Interped):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: str
+        periodic_boundary: bool
             See superclass
 
         Attributes
