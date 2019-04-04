@@ -175,7 +175,7 @@ class Dynesty(NestedSampler):
 
     def _apply_dynesty_boundaries(self):
         if self.kwargs['periodic'] is None:
-            self.apply_boundary('periodic')
+            self._periodic_boundaries_to_binary_list('periodic')
 
     def run_sampler(self):
         import dynesty
