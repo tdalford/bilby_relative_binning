@@ -423,7 +423,8 @@ class Prior(object):
         maximum: float, optional
             Maximum of the domain, default=np.inf
         periodic_boundary: bool, optional
-            Whether or not the boundary condition is periodic. Not available in all samplers.
+            Whether or not the boundary condition is periodic.
+            Currently implemented in cpnest, dynesty and pymultinest.
         """
         self.name = name
         self.latex_label = latex_label
