@@ -3,13 +3,57 @@
 ## Unreleased
 
 ### Added
--
+- 
 
 ### Changed
--
+- 
 
 ### Removed
 -
+
+## [0.4.4] 2019-04-03
+
+### Added
+- Infrastucture for custom jump proposals (cpnest-only)
+- Evidence uncertainty estimate to cpnest
+
+### Changed
+- Bug fix to close figures after creation
+- Improved the frequency-mask to entirely remove values outside the mask rather
+  than simply set them to zero
+- Fix problem with Prior prob and ln_prob if passing multiple samples
+- Improved cpnest prior sampling
+
+### Removed
+-
+
+## [0.4.3] 2019-03-21
+
+### Added
+- Constraint prior: in prior files you can now add option of a constraint based
+on other parameters. Currently implements mass-constraints only.
+- Grid likelihood: module to evaluate the likelihood on a grid
+
+### Changed
+- The GWTransientLikelihood no longer returns -inf for  m2 > m1. It will evaluate
+the likelihood as-is. To implement the constraint, use the Constraint priors.
+
+## [0.4.2] 2019-03-21
+
+### Added
+- Fermi-Dirac and SymmetricLogUniform prior distributions
+- Multivariate Gaussian example and BNS example
+- Added standard GWOSC channel names
+- Initial work on a fake sampler for testing
+- Option for aligned spins
+- Results file command line interface
+- Full reconstruction of marginalized parameters
+
+### Changed
+- Fixed scheduled tests and simplify testing environment
+- JSON result files can now be gzipped
+- Reduced ROQ memory usage
+- Default checkpointing in cpnest
 
 ## [0.4.1] 2019-03-04
 

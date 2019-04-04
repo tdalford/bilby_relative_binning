@@ -194,7 +194,10 @@ class Dynesty(NestedSampler):
         if self.kwargs["verbose"]:
             print("")
 
-        # self.result.sampler_output = out
+        dynesty_result = "{}/{}_dynesty.pickle".format(self.outdir, self.label)
+        with open(dynesty_result, 'wb') as file:
+            pickle.dump(out, file)
+
         weights = np.exp(out['logwt'] - out['logz'][-1])
         nested_samples = DataFrame(
             out.samples, columns=self.search_parameter_keys)
@@ -312,8 +315,8 @@ class Dynesty(NestedSampler):
             return False
 
     def write_current_state_and_exit(self, signum=None, frame=None):
+        logger.warning("Run terminated with signal {}".format(signum))
         self.write_current_state()
-        logger.warning("Run terminated")
         sys.exit()
 
     def write_current_state(self):
@@ -333,6 +336,7 @@ class Dynesty(NestedSampler):
             NestedSampler to write to disk.
         """
         check_directory_exists_and_if_not_mkdir(self.outdir)
+        logger.info("Writing checkpoint file {}".format(self.resume_file))
 
         current_state = dict(
             unit_cube_samples=self.sampler.saved_u,
@@ -383,6 +387,7 @@ class Dynesty(NestedSampler):
 
     def _run_test(self):
         import dynesty
+        import pandas as pd
         self.sampler = dynesty.NestedSampler(
             loglikelihood=self.log_likelihood,
             prior_transform=self.prior_transform,
@@ -392,7 +397,8 @@ class Dynesty(NestedSampler):
 
         self.sampler.run_nested(**sampler_kwargs)
 
-        self.result.samples = np.random.uniform(0, 1, (100, self.ndim))
+        self.result.samples = pd.DataFrame(
+            self.priors.sample(100))[self.search_parameter_keys].values
         self.result.log_evidence = np.nan
         self.result.log_evidence_err = np.nan
         return self.result

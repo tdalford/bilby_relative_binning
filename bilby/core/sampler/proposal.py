@@ -1,12 +1,10 @@
-from __future__ import division
-
 from collections import OrderedDict
 from inspect import isclass
 
 import numpy as np
 import random
 
-from bilby.core.prior import DeltaFunction, Uniform
+from bilby.core.prior import Uniform
 
 
 class Sample(OrderedDict):
@@ -26,26 +24,16 @@ class Sample(OrderedDict):
         return Sample({key: self[key] * other for key in self.keys()})
 
     @classmethod
-    def from_cpnest_live_point(cls, cpnest_sample):
-        res = cls()
-        for i, key in enumerate(cpnest_sample.names):
-            res[key] = cpnest_sample.values[i]
+    def from_cpnest_live_point(cls, cpnest_live_point):
+        res = cls(dict())
+        for i, key in enumerate(cpnest_live_point.names):
+            res[key] = cpnest_live_point.values[i]
         return res
 
     @classmethod
-    def from_ptmcmc_walker(cls, ptmcmc_sample, priors):
-        res = cls()
-        for i, key in enumerate(list(priors.keys())):
-            if not isinstance(priors[key], DeltaFunction):
-                res[key] = ptmcmc_sample[i]
-        return res
-
-    @classmethod
-    def from_external_type(cls, external_sample, sampler_name, priors):
+    def from_external_type(cls, external_sample, sampler_name):
         if sampler_name == 'cpnest':
             return cls.from_cpnest_live_point(external_sample)
-        elif sampler_name == 'PTMCMC':
-            return cls.from_ptmcmc_walker(external_sample, priors)
         return external_sample
 
 
@@ -84,21 +72,24 @@ class JumpProposal(object):
         return self._apply_boundaries(sample)
 
     def _move_reflecting_keys(self, sample):
-        keys = [key for key in self.priors.keys() if not self.priors[key].periodic_boundary]
+        keys = [key for key in sample.keys() if not self.priors[key].periodic_boundary]
         for key in keys:
-            if sample[key] > self.priors[key].maximum:
-                sample[key] = 2 * self.priors[key].maximum - sample[key]
-            elif sample[key] < self.priors[key].minimum:
-                sample[key] = 2 * self.priors[key].minimum - sample[key]
+            if sample[key] > self.priors[key].maximum or sample[key] < self.priors[key].minimum:
+                r = self.priors[key].maximum - self.priors[key].minimum
+                delta = (sample[key] - self.priors[key].minimum) % (2 * r)
+                if delta > r:
+                    sample[key] = 2 * self.priors[key].maximum - self.priors[key].minimum - delta
+                elif delta < r:
+                    sample[key] = self.priors[key].minimum + delta
         return sample
 
     def _move_periodic_keys(self, sample):
-        keys = [key for key in self.priors.keys() if self.priors[key].periodic_boundary]
+        keys = [key for key in sample.keys() if self.priors[key].periodic_boundary]
         for key in keys:
-            if sample[key] > self.priors[key].maximum:
-                sample[key] = self.priors[key].minimum + sample[key] - self.priors[key].maximum
-            elif sample[key] < self.priors[key].minimum:
-                sample[key] = self.priors[key].maximum + sample[key] - self.priors[key].minimum
+            if sample[key] > self.priors[key].maximum or sample[key] < self.priors[key].minimum:
+                sample[key] = (self.priors[key].minimum +
+                               ((sample[key] - self.priors[key].minimum) %
+                                (self.priors[key].maximum - self.priors[key].minimum)))
         return sample
 
     def _apply_boundaries(self, sample):
@@ -168,6 +159,7 @@ class JumpProposalCycle(object):
 
     @weights.setter
     def weights(self, weights):
+        assert len(weights) == len(self.proposal_functions)
         self._weights = weights
 
     @property
@@ -330,50 +322,6 @@ class EnsembleEigenVector(JumpProposal):
         return super(EnsembleEigenVector, self).__call__(sample)
 
 
-class SkyLocationWanderJump(JumpProposal):
-    """
-    Jump proposal for wandering over the sky location. Does a Gaussian step in
-    RA and DEC depending on the temperature.
-    """
-
-    def __call__(self, sample, **kwargs):
-        temperature = 1 / kwargs.get('inverse_temperature', 1.0)
-        sigma = np.sqrt(temperature) / 2 / np.pi
-        sample['ra'] += random.gauss(0, sigma)
-        sample['dec'] += random.gauss(0, sigma)
-        return super(SkyLocationWanderJump, self).__call__(sample)
-
-
-class CorrelatedPolarisationPhaseJump(JumpProposal):
-    """
-    Correlated polarisation/phase jump proposal. Jumps between degenerate phi/psi regions.
-    """
-
-    def __call__(self, sample, **kwargs):
-        alpha = sample['psi'] + sample['phase']
-        beta = sample['psi'] - sample['phase']
-
-        draw = random.random()
-        if draw < 0.5:
-            alpha = 3.0 * np.pi * random.random()
-        else:
-            beta = 3.0 * np.pi * random.random() - 2 * np.pi
-        sample['psi'] = (alpha + beta) * 0.5
-        sample['phase'] = (alpha - beta) * 0.5
-        return super(CorrelatedPolarisationPhaseJump, self).__call__(sample)
-
-
-class PolarisationPhaseJump(JumpProposal):
-    """
-    Correlated polarisation/phase jump proposal. Jumps between degenerate phi/psi regions.
-    """
-
-    def __call__(self, sample, **kwargs):
-        sample['phase'] += np.pi
-        sample['psi'] += np.pi / 2
-        return super(PolarisationPhaseJump, self).__call__(sample)
-
-
 class DrawFlatPrior(JumpProposal):
     """
     Draws a proposal from the flattened prior distribution.
@@ -384,63 +332,8 @@ class DrawFlatPrior(JumpProposal):
         return super(DrawFlatPrior, self).__call__(sample)
 
 
-class DrawApproxPrior(JumpProposal):
-
-    def __init__(self, priors, analytic_test=True):
-        """ Draws new sample from the prior distribution.
-
-        Parameters
-        ----------
-        priors:
-            See superclass
-        analytic_test: bool, optional
-            Draw from flat priors if True; Draw from defined priors if false
-        """
-        super(DrawApproxPrior, self).__init__(priors)
-        self.analytic_test = analytic_test
-
-    def __call__(self, sample, **kwargs):
-        if self.analytic_test:
-            sample = _draw_from_flat_priors(sample, self.priors)
-        else:
-            sample = Sample({key: self.priors[key].sample() for key in self.priors.keys()})
-            log_backward_jump = _approx_log_prior(sample)
-            self.log_j = log_backward_jump - _approx_log_prior(sample)
-        return super(DrawApproxPrior, self).__call__(sample)
-
-
 def _draw_from_flat_priors(sample, priors):
     for key in sample.keys():
         flat_prior = Uniform(priors[key].minimum, priors[key].maximum, priors[key].name)
         sample[key] = flat_prior.sample()
     return sample
-
-
-def _approx_log_prior(sample):
-    """ TODO: Make sure this was correctly translated from LALInference
-
-    Parameters
-    ----------
-    sample: dict
-
-    Returns
-    -------
-    An approximation for the log prior
-    """
-    log_p = 0
-    if 'chirp_mass' in sample.keys():
-        log_p += -11.0 / 6.0 * np.log(sample['chirp_mass'])
-
-    if 'luminosity_distance' in sample.keys():
-        log_p += 2 * np.log(sample['luminosity_distance'])
-
-    if 'dec' in sample.keys():
-        log_p += np.log(np.cos(sample['dec']))
-
-    if 'tilt_1' in sample.keys():
-        log_p += np.log(np.abs(np.sin(sample['tilt_1'])))
-
-    if 'tilt_2' in sample.keys():
-        log_p += np.log(np.abs(np.sin(sample['tilt_2'])))
-
-    return log_p

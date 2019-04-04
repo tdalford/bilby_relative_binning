@@ -16,7 +16,8 @@ from .utils import logger, infer_args_from_method, check_directory_exists_and_if
 
 
 class PriorDict(OrderedDict):
-    def __init__(self, dictionary=None, filename=None):
+    def __init__(self, dictionary=None, filename=None,
+                 conversion_function=None):
         """ A set of priors
 
         Parameters
@@ -25,6 +26,9 @@ class PriorDict(OrderedDict):
             If given, a dictionary to generate the prior set.
         filename: str, None
             If given, a file containing the prior to generate the prior set.
+        conversion_function: func
+            Function to convert between sampled parameters and constraints.
+            Default is no conversion.
         """
         OrderedDict.__init__(self)
         if isinstance(dictionary, dict):
@@ -39,6 +43,35 @@ class PriorDict(OrderedDict):
             raise ValueError("PriorDict input dictionary not understood")
 
         self.convert_floats_to_delta_functions()
+
+        if conversion_function is not None:
+            self.conversion_function = conversion_function
+        else:
+            self.conversion_function = self.default_conversion_function
+
+    def evaluate_constraints(self, sample):
+        out_sample = self.conversion_function(sample)
+        prob = 1
+        for key in self:
+            if isinstance(self[key], Constraint) and key in out_sample:
+                prob *= self[key].prob(out_sample[key])
+        return prob
+
+    def default_conversion_function(self, sample):
+        """
+        Placeholder parameter conversion function.
+
+        Parameters
+        ----------
+        sample: dict
+            Dictionary to convert
+
+        Returns
+        -------
+        sample: dict
+            Same as input
+        """
+        return sample
 
     def to_file(self, outdir, label):
         """ Write the prior distribution to file.
@@ -168,7 +201,7 @@ class PriorDict(OrderedDict):
         -------
         dict: Dictionary of the samples
         """
-        return self.sample_subset(keys=self.keys(), size=size)
+        return self.sample_subset_constrained(keys=list(self.keys()), size=size)
 
     def sample_subset(self, keys=iter([]), size=None):
         """Draw samples from the prior set for parameters which are not a DeltaFunction
@@ -188,10 +221,34 @@ class PriorDict(OrderedDict):
         samples = dict()
         for key in keys:
             if isinstance(self[key], Prior):
-                samples[key] = self[key].sample(size=size)
+                if isinstance(self[key], Constraint):
+                    continue
+                else:
+                    samples[key] = self[key].sample(size=size)
             else:
                 logger.debug('{} not a known prior.'.format(key))
         return samples
+
+    def sample_subset_constrained(self, keys=iter([]), size=None):
+        if size is None or size == 1:
+            while True:
+                sample = self.sample_subset(keys=keys, size=size)
+                if self.evaluate_constraints(sample):
+                    return sample
+        else:
+            needed = np.prod(size)
+            all_samples = {key: np.array([]) for key in keys}
+            _first_key = list(all_samples.keys())[0]
+            while len(all_samples[_first_key]) <= needed:
+                samples = self.sample_subset(keys=keys, size=needed)
+                keep = np.array(self.evaluate_constraints(samples), dtype=bool)
+                for key in samples:
+                    all_samples[key] = np.hstack(
+                        [all_samples[key], samples[key][keep].flatten()])
+            all_samples = {key: np.reshape(all_samples[key][:needed], size)
+                           for key in all_samples
+                           if not isinstance(self[key], Constraint)}
+            return all_samples
 
     def prob(self, sample, **kwargs):
         """
@@ -208,7 +265,22 @@ class PriorDict(OrderedDict):
         float: Joint probability of all individual sample probabilities
 
         """
-        return np.product([self[key].prob(sample[key]) for key in sample], **kwargs)
+        prob = np.product([self[key].prob(sample[key])
+                           for key in sample], **kwargs)
+
+        if np.all(prob == 0.):
+            return prob
+        else:
+            if isinstance(prob, float):
+                if self.evaluate_constraints(sample):
+                    return prob
+                else:
+                    return 0.
+            else:
+                constrained_prob = np.zeros_like(prob)
+                keep = np.array(self.evaluate_constraints(sample), dtype=bool)
+                constrained_prob[keep] = prob[keep]
+                return constrained_prob
 
     def ln_prob(self, sample, axis=None):
         """
@@ -226,8 +298,22 @@ class PriorDict(OrderedDict):
             Joint log probability of all the individual sample probabilities
 
         """
-        return np.sum([self[key].ln_prob(sample[key]) for key in sample],
-                      axis=axis)
+        ln_prob = np.sum([self[key].ln_prob(sample[key])
+                          for key in sample], axis=axis)
+
+        if np.all(np.isinf(ln_prob)):
+            return ln_prob
+        else:
+            if isinstance(ln_prob, float):
+                if self.evaluate_constraints(sample):
+                    return ln_prob
+                else:
+                    return -np.inf
+            else:
+                constrained_ln_prob = -np.inf * np.ones_like(ln_prob)
+                keep = np.array(self.evaluate_constraints(sample), dtype=bool)
+                constrained_ln_prob[keep] = ln_prob[keep]
+                return constrained_ln_prob
 
     def rescale(self, keys, theta):
         """Rescale samples from unit cube to prior
@@ -259,6 +345,8 @@ class PriorDict(OrderedDict):
         """
         redundant = False
         for key in self:
+            if isinstance(self[key], Constraint):
+                continue
             temp = self.copy()
             del temp[key]
             if temp.test_redundancy(key, disable_logging=True):
@@ -492,7 +580,7 @@ class Prior(object):
         bool: Whether it's fixed or not!
 
         """
-        return isinstance(self, DeltaFunction)
+        return isinstance(self, (Constraint, DeltaFunction))
 
     @property
     def latex_label(self):
@@ -563,6 +651,20 @@ class Prior(object):
         else:
             label = self.name
         return label
+
+
+class Constraint(Prior):
+
+    def __init__(self, minimum, maximum, name=None, latex_label=None,
+                 unit=None):
+        Prior.__init__(self, minimum=minimum, maximum=maximum, name=name,
+                       latex_label=latex_label, unit=unit)
+
+    def prob(self, val):
+        return (val > self.minimum) & (val < self.maximum)
+
+    def ln_prob(self, val):
+        return np.log((val > self.minimum) & (val < self.maximum))
 
 
 class DeltaFunction(Prior):
@@ -789,6 +891,89 @@ class LogUniform(PowerLaw):
                           minimum=minimum, maximum=maximum, alpha=-1, periodic_boundary=periodic_boundary)
         if self.minimum <= 0:
             logger.warning('You specified a uniform-in-log prior with minimum={}'.format(self.minimum))
+
+
+class SymmetricLogUniform(Prior):
+
+    def __init__(self, minimum, maximum, name=None, latex_label=None,
+                 unit=None, periodic_boundary=False):
+        """Symmetric Log-Uniform distribtions with bounds
+
+        This is identical to a Log-Uniform distribition, but mirrored about
+        the zero-axis and subsequently normalized. As such, the distribution
+        has support on the two regions [-maximum, -minimum] and [minimum,
+        maximum].
+
+        Parameters
+        ----------
+        minimum: float
+            See superclass
+        maximum: float
+            See superclass
+        name: str
+            See superclass
+        latex_label: str
+            See superclass
+        unit: str
+            See superclass
+        periodic_boundary: bool
+            See superclass
+        """
+        Prior.__init__(self, name=name, latex_label=latex_label,
+                       minimum=minimum, maximum=maximum, unit=unit,
+                       periodic_boundary=periodic_boundary)
+
+    def rescale(self, val):
+        """
+        'Rescale' a sample from the unit line element to the power-law prior.
+
+        This maps to the inverse CDF. This has been analytically solved for this case.
+
+        Parameters
+        ----------
+        val: float
+            Uniform probability
+
+        Returns
+        -------
+        float: Rescaled probability
+        """
+        Prior.test_valid_for_rescaling(val)
+        if val < 0.5:
+            return -self.maximum * np.exp(-2 * val * np.log(self.maximum / self.minimum))
+        elif val > 0.5:
+            return self.minimum * np.exp(np.log(self.maximum / self.minimum) * (2 * val - 1))
+        else:
+            raise ValueError("Rescale not valid for val=0.5")
+
+    def prob(self, val):
+        """Return the prior probability of val
+
+        Parameters
+        ----------
+        val: float
+
+        Returns
+        -------
+        float: Prior probability of val
+        """
+        return (
+            np.nan_to_num(0.5 / np.abs(val) / np.log(self.maximum / self.minimum)) *
+            self.is_in_prior_range(val))
+
+    def ln_prob(self, val):
+        """Return the logarithmic prior probability of val
+
+        Parameters
+        ----------
+        val: float
+
+        Returns
+        -------
+        float:
+
+        """
+        return np.nan_to_num(- np.log(2 * np.abs(val)) - np.log(np.log(self.maximum / self.minimum)))
 
 
 class Cosine(Prior):
@@ -1830,3 +2015,110 @@ class FromFile(Interped):
             logger.warning("Can't load {}.".format(self.id))
             logger.warning("Format should be:")
             logger.warning(r"x\tp(x)")
+
+
+class FermiDirac(Prior):
+    def __init__(self, sigma, mu=None, r=None, name=None, latex_label=None,
+                 unit=None):
+        """A Fermi-Dirac type prior, with a fixed lower boundary at zero
+        (see, e.g. Section 2.3.5 of [1]_). The probability distribution
+        is defined by Equation 22 of [1]_.
+
+        Parameters
+        ----------
+        sigma: float (required)
+            The range over which the attenuation of the distribution happens
+        mu: float
+            The point at which the distribution falls to 50% of its maximum
+            value
+        r: float
+            A value giving mu/sigma. This can be used instead of specifying
+            mu.
+        name: str
+            See superclass
+        latex_label: str
+            See superclass
+        unit: str
+            See superclass
+
+        References
+        ----------
+
+        .. [1] M. Pitkin, M. Isi, J. Veitch & G. Woan, `arXiv:1705.08978v1
+           <https:arxiv.org/abs/1705.08978v1>`_, 2017.
+        """
+        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, minimum=0.)
+
+        self.sigma = sigma
+
+        if mu is None and r is None:
+            raise ValueError("For the Fermi-Dirac prior either a 'mu' value or 'r' "
+                             "value must be given.")
+
+        if r is None and mu is not None:
+            self.mu = mu
+            self.r = self.mu / self.sigma
+        else:
+            self.r = r
+            self.mu = self.sigma * self.r
+
+        if self.r <= 0. or self.sigma <= 0.:
+            raise ValueError("For the Fermi-Dirac prior the values of sigma and r "
+                             "must be positive.")
+
+    def rescale(self, val):
+        """
+        'Rescale' a sample from the unit line element to the appropriate Fermi-Dirac prior.
+
+        This maps to the inverse CDF. This has been analytically solved for this case,
+        see Equation 24 of [1]_.
+
+        References
+        ----------
+
+        .. [1] M. Pitkin, M. Isi, J. Veitch & G. Woan, `arXiv:1705.08978v1
+           <https:arxiv.org/abs/1705.08978v1>`_, 2017.
+        """
+        Prior.test_valid_for_rescaling(val)
+
+        inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r))**-val +
+               np.exp(-1. * self.r) * (1. + np.exp(self.r))**-val)
+
+        # if val is 1 this will cause inv to be negative (due to numerical
+        # issues), so return np.inf
+        if isinstance(val, (float, int)):
+            if inv < 0:
+                return np.inf
+            else:
+                return -self.sigma * np.log(inv)
+        else:
+            idx = inv >= 0.
+            tmpinv = np.inf * np.ones(len(val))
+            tmpinv[idx] = -self.sigma * np.log(inv[idx])
+            return tmpinv
+
+    def prob(self, val):
+        """Return the prior probability of val.
+
+        Parameters
+        ----------
+        val: float
+
+        Returns
+        -------
+        float: Prior probability of val
+        """
+        return np.exp(self.ln_prob(val))
+
+    def ln_prob(self, val):
+        norm = -np.log(self.sigma * np.log(1. + np.exp(self.r)))
+        if isinstance(val, (float, int)):
+            if val < self.minimum:
+                return -np.inf
+            else:
+                return norm - np.logaddexp((val / self.sigma) - self.r, 0.)
+        else:
+            lnp = -np.inf * np.ones(len(val))
+            idx = val >= self.minimum
+            lnp[idx] = norm - np.logaddexp((val[idx] / self.sigma) - self.r, 0.)
+            return lnp

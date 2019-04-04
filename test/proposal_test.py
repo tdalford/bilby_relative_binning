@@ -4,6 +4,7 @@ import random
 
 import numpy as np
 
+import bilby.gw.sampler.proposal
 from bilby.core import prior
 from bilby.core.sampler import proposal
 
@@ -40,11 +41,20 @@ class TestJumpProposal(unittest.TestCase):
                                            default=prior.Uniform(minimum=-0.5, maximum=1)))
         self.sample_above = dict(reflecting=1.1, periodic=1.1, default=1.1)
         self.sample_below = dict(reflecting=-0.6, periodic=-0.6, default=-0.6)
+        self.sample_way_above_case1 = dict(reflecting=272, periodic=272, default=272)
+        self.sample_way_above_case2 = dict(reflecting=270.1, periodic=270.1, default=270.1)
+        self.sample_way_below_case1 = dict(reflecting=-274, periodic=-274.1, default=-274)
+        self.sample_way_below_case2 = dict(reflecting=-273.1, periodic=-273.1, default=-273.1)
         self.jump_proposal = proposal.JumpProposal(priors=self.priors)
 
     def tearDown(self):
         del self.priors
         del self.sample_above
+        del self.sample_below
+        del self.sample_way_above_case1
+        del self.sample_way_above_case2
+        del self.sample_way_below_case1
+        del self.sample_way_below_case2
         del self.jump_proposal
 
     def test_set_get_log_j(self):
@@ -61,7 +71,7 @@ class TestJumpProposal(unittest.TestCase):
 
     def test_boundary_above_default(self):
         new_sample = self.jump_proposal(self.sample_above)
-        self.assertAlmostEqual(1.1, new_sample['default'])
+        self.assertAlmostEqual(0.9, new_sample['default'])
 
     def test_boundary_below_reflecting(self):
         new_sample = self.jump_proposal(self.sample_below)
@@ -73,7 +83,31 @@ class TestJumpProposal(unittest.TestCase):
 
     def test_boundary_below_default(self):
         new_sample = self.jump_proposal(self.sample_below)
-        self.assertAlmostEqual(-0.6, new_sample['default'])
+        self.assertAlmostEqual(-0.4, new_sample['default'])
+
+    def test_boundary_way_below_reflecting_case1(self):
+        new_sample = self.jump_proposal(self.sample_way_below_case1)
+        self.assertAlmostEqual(0.0, new_sample['reflecting'])
+
+    def test_boundary_way_below_reflecting_case2(self):
+        new_sample = self.jump_proposal(self.sample_way_below_case2)
+        self.assertAlmostEqual(-0.1, new_sample['reflecting'])
+
+    def test_boundary_way_below_periodic(self):
+        new_sample = self.jump_proposal(self.sample_way_below_case2)
+        self.assertAlmostEqual(-0.1, new_sample['periodic'])
+
+    def test_boundary_way_above_reflecting_case1(self):
+        new_sample = self.jump_proposal(self.sample_way_above_case1)
+        self.assertAlmostEqual(0.0, new_sample['reflecting'])
+
+    def test_boundary_way_above_reflecting_case2(self):
+        new_sample = self.jump_proposal(self.sample_way_above_case2)
+        self.assertAlmostEqual(0.1, new_sample['reflecting'])
+
+    def test_boundary_way_above_periodic(self):
+        new_sample = self.jump_proposal(self.sample_way_above_case2)
+        self.assertAlmostEqual(0.1, new_sample['periodic'])
 
     def test_priors(self):
         self.assertEqual(self.priors, self.jump_proposal.priors)
@@ -306,7 +340,7 @@ class TestSkyLocationWanderJump(unittest.TestCase):
     def setUp(self):
         self.priors = prior.PriorDict(dict(ra=prior.Uniform(minimum=0.0, maximum=2*np.pi, periodic_boundary=True),
                                            dec=prior.Uniform(minimum=0.0, maximum=np.pi, periodic_boundary=False)))
-        self.jump_proposal = proposal.SkyLocationWanderJump(priors=self.priors)
+        self.jump_proposal = bilby.gw.sampler.proposal.SkyLocationWanderJump(priors=self.priors)
 
     def tearDown(self):
         del self.priors
@@ -338,7 +372,7 @@ class TestCorrelatedPolarisationPhaseJump(unittest.TestCase):
     def setUp(self):
         self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2*np.pi),
                                            psi=prior.Uniform(minimum=0.0, maximum=np.pi)))
-        self.jump_proposal = proposal.CorrelatedPolarisationPhaseJump(priors=self.priors)
+        self.jump_proposal = bilby.gw.sampler.proposal.CorrelatedPolarisationPhaseJump(priors=self.priors)
 
     def tearDown(self):
         del self.priors
@@ -368,7 +402,7 @@ class TestPolarisationPhaseJump(unittest.TestCase):
     def setUp(self):
         self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2*np.pi),
                                            psi=prior.Uniform(minimum=0.0, maximum=np.pi)))
-        self.jump_proposal = proposal.PolarisationPhaseJump(priors=self.priors)
+        self.jump_proposal = bilby.gw.sampler.proposal.PolarisationPhaseJump(priors=self.priors)
 
     def tearDown(self):
         del self.priors
@@ -397,39 +431,3 @@ class TestDrawFlatPrior(unittest.TestCase):
             sample = proposal.Sample(dict(phase=0.2, psi=0.5))
             expected = proposal.Sample(dict(phase=0.3, psi=0.3))
             self.assertEqual(expected, self.jump_proposal(sample))
-
-
-class TestApproxPrior(unittest.TestCase):
-
-    def setUp(self):
-        self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2*np.pi),
-                                           psi=prior.Uniform(minimum=0.0, maximum=np.pi)))
-        self.jump_proposal = proposal.DrawApproxPrior(priors=self.priors)
-
-    def tearDown(self):
-        del self.priors
-        del self.jump_proposal
-
-    def test_analytic_test_init(self):
-        self.assertTrue(self.jump_proposal.analytic_test)
-
-    def test_set_get_analytic_test(self):
-        self.jump_proposal.analytic_test = False
-        self.assertFalse(self.jump_proposal.analytic_test)
-
-    def test_jump_proposal_call_analytic_test(self):
-        with mock.patch('bilby.core.prior.Uniform.sample') as m:
-            m.return_value = 0.3
-            sample = proposal.Sample(dict(phase=0.2, psi=0.5))
-            expected = proposal.Sample(dict(phase=0.3, psi=0.3))
-            self.assertEqual(expected, self.jump_proposal(sample))
-
-    def test_jump_proposal_call_no_analytic_test(self):
-        with mock.patch('bilby.core.prior.Uniform.sample') as m:
-            m.return_value = 1
-            self.jump_proposal.analytic_test = False
-            proposal._approx_log_prior = lambda x: 0.5
-            sample = proposal.Sample(dict(phase=0.2, psi=0.5))
-            expected = proposal.Sample(dict(phase=1, psi=1))
-            self.assertEqual(expected, self.jump_proposal(sample))
-            self.assertEqual(0, self.jump_proposal.log_j)
