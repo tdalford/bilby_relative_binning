@@ -46,6 +46,14 @@ class Pymultinest(NestedSampler):
                           context=0, write_output=True, log_zero=-1e100,
                           max_iter=0, init_MPI=False, dump_callback=None)
 
+    def __init__(self, likelihood, priors, outdir='outdir', label='label', use_ratio=False, plot=False,
+                 skip_import_verification=False, **kwargs):
+        NestedSampler.__init__(self, likelihood=likelihood, priors=priors, outdir=outdir, label=label,
+                               use_ratio=use_ratio, plot=plot,
+                               skip_import_verification=skip_import_verification,
+                               **kwargs)
+        self._apply_multinest_boundaries()
+
     def _translate_kwargs(self, kwargs):
         if 'n_live_points' not in kwargs:
             for equiv in self.npoints_equiv_kwargs:

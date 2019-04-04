@@ -95,6 +95,7 @@ class Dynesty(NestedSampler):
         self.n_check_point = n_check_point
         self.check_point = check_point
         self.resume = resume
+        self._apply_dynesty_boundaries()
         if self.n_check_point is None:
             # If the log_likelihood_eval_time is not calculable then
             # check_point is set to False.
@@ -179,7 +180,6 @@ class Dynesty(NestedSampler):
 
     def run_sampler(self):
         import dynesty
-        self._apply_dynesty_boundaries()
         self.sampler = dynesty.NestedSampler(
             loglikelihood=self.log_likelihood,
             prior_transform=self.prior_transform,
