@@ -5,7 +5,6 @@ import shutil
 
 import numpy as np
 
-from . import proposal
 from .base_sampler import MCMCSampler, SamplerNotInstalledError
 from ..utils import logger
 
@@ -79,7 +78,7 @@ class PTMCMCSampler(MCMCSampler):
 
     def _translate_kwargs(self, kwargs):
         if 'Niter' not in kwargs:
-            for equiv in self.nwalkers_equiv_kwargs:
+            for equiv in self.nsteps_equiv_kwargs:
                 if equiv in kwargs:
                     kwargs['Niter'] = kwargs.pop(equiv)
         if 'burn' not in kwargs:
