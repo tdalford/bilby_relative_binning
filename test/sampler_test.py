@@ -132,7 +132,9 @@ class TestDynesty(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict()
+        self.priors = bilby.core.prior.PriorDict()
+        self.priors['a'] = bilby.core.prior.Prior(periodic_boundary=True)
+        self.priors['b'] = bilby.core.prior.Prior(periodic_boundary=False)
         self.sampler = bilby.core.sampler.Dynesty(self.likelihood, self.priors,
                                                   outdir='outdir', label='label',
                                                   use_ratio=False, plot=False,
@@ -154,10 +156,12 @@ class TestDynesty(unittest.TestCase):
                         logl_max=np.inf, add_live=True, print_progress=True, save_bounds=True,
                         walks=0, update_interval=300, print_func='func')
         self.sampler.kwargs['print_func'] = 'func'  # set this manually as this is not testable otherwise
+        self.assertListEqual([1, 0], self.sampler.kwargs['periodic'])  # Check this separately
+        self.sampler.kwargs['periodic'] = None # The dict comparison can't handle lists
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
-        expected = dict(bound='multi', sample='rwalk', periodic=None, verbose=True,
+        expected = dict(bound='multi', sample='rwalk', periodic=[1, 0], verbose=True,
                         check_point_delta_t=600, nlive=250, first_update=None,
                         npdim=None, rstate=None, queue_size=None, pool=None,
                         use_pool=None, live_points=None, logl_args=None, logl_kwargs=None,
@@ -408,6 +412,8 @@ class TestPymultinest(unittest.TestCase):
                         max_modes=100, mode_tolerance=-1e90, seed=-1,
                         context=0, write_output=True, log_zero=-1e100,
                         max_iter=0, init_MPI=False, dump_callback=None)
+        self.assertListEqual([1, 0], self.sampler.kwargs['wrapped_params'])  # Check this separately
+        self.sampler.kwargs['wrapped_params'] = None # The dict comparison can't handle lists
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
