@@ -154,10 +154,14 @@ class TestDynesty(unittest.TestCase):
                         enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
                         facc=0.5, slices=5, dlogz=0.1, maxiter=None, maxcall=None,
                         logl_max=np.inf, add_live=True, print_progress=True, save_bounds=True,
-                        walks=0, update_interval=300, print_func='func')
+                        walks=10, update_interval=300, print_func='func')
         self.sampler.kwargs['print_func'] = 'func'  # set this manually as this is not testable otherwise
         self.assertListEqual([1, 0], self.sampler.kwargs['periodic'])  # Check this separately
-        self.sampler.kwargs['periodic'] = None # The dict comparison can't handle lists
+        self.sampler.kwargs['periodic'] = None  # The dict comparison can't handle lists
+        for key in self.sampler.kwargs.keys():
+            print(key)
+            print(expected[key])
+            print(self.sampler.kwargs[key])
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
@@ -169,7 +173,7 @@ class TestDynesty(unittest.TestCase):
                         enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
                         facc=0.5, slices=5, dlogz=0.1, maxiter=None, maxcall=None,
                         logl_max=np.inf, add_live=True, print_progress=True, save_bounds=True,
-                        walks=0, update_interval=300, print_func='func')
+                        walks=10, update_interval=300, print_func='func')
 
         for equiv in bilby.core.sampler.base_sampler.NestedSampler.npoints_equiv_kwargs:
             new_kwargs = self.sampler.kwargs.copy()
@@ -389,7 +393,9 @@ class TestPymultinest(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict()
+        self.priors = bilby.core.prior.PriorDict()
+        self.priors['a'] = bilby.core.prior.Prior(periodic_boundary=True)
+        self.priors['b'] = bilby.core.prior.Prior(periodic_boundary=False)
         self.sampler = bilby.core.sampler.Pymultinest(self.likelihood, self.priors,
                                                       outdir='outdir', label='label',
                                                       use_ratio=False, plot=False,
@@ -413,7 +419,7 @@ class TestPymultinest(unittest.TestCase):
                         context=0, write_output=True, log_zero=-1e100,
                         max_iter=0, init_MPI=False, dump_callback=None)
         self.assertListEqual([1, 0], self.sampler.kwargs['wrapped_params'])  # Check this separately
-        self.sampler.kwargs['wrapped_params'] = None # The dict comparison can't handle lists
+        self.sampler.kwargs['wrapped_params'] = None  # The dict comparison can't handle lists
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
@@ -431,6 +437,7 @@ class TestPymultinest(unittest.TestCase):
         for equiv in bilby.core.sampler.base_sampler.NestedSampler.npoints_equiv_kwargs:
             new_kwargs = self.sampler.kwargs.copy()
             del new_kwargs['n_live_points']
+            new_kwargs['wrapped_params'] = None  # The dict comparison can't handle lists
             new_kwargs[equiv] = 123
             self.sampler.kwargs = new_kwargs
             self.assertDictEqual(expected, self.sampler.kwargs)
