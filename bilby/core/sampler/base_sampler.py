@@ -420,9 +420,9 @@ class Sampler(object):
         self.kwargs[keyword] = []
         for param, value in self.priors.items():
             if value.periodic_boundary:
-                self.kwargs[keyword].append(0)
-            else:
                 self.kwargs[keyword].append(1)
+            else:
+                self.kwargs[keyword].append(0)
 
     def _log_summary_for_sampler(self):
         """Print a summary of the sampler used and its kwargs"""
