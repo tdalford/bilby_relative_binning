@@ -7,7 +7,6 @@ import numpy as np
 
 from . import proposal
 from .base_sampler import MCMCSampler, SamplerNotInstalledError
-from ..prior import Prior
 from ..utils import logger
 
 
@@ -92,10 +91,6 @@ class PTMCMCSampler(MCMCSampler):
     def custom_proposals(self):
         return self.kwargs['custom_proposals']
 
-    @custom_proposals.setter
-    def custom_proposals(self, custom_proposals):
-        self.kwargs['custom_proposals'] = custom_proposals
-
     @property
     def sampler_init_kwargs(self):
         keys = ['groups',
@@ -145,13 +140,12 @@ class PTMCMCSampler(MCMCSampler):
         sampler = PTMCMCSampler.PTSampler(ndim=self.ndim, logp=self.log_prior,
                                           logl=self.log_likelihood, cov=np.eye(self.ndim),
                                           **self.sampler_init_kwargs)
-
         if self.custom_proposals is not None:
-            for proposal, weight in zip(self.custom_proposals.proposal_functions,
-                                        self.custom_proposals.unnormalised_weights):
-                proposal = ptmcmc_proposal_factory(proposal, proposal_name=proposal.__class__.__name__)
-                logger.info('Adding {} to proposals with weight {}'.format(proposal, weight))
-                sampler.addProposalToCycle(proposal, weight)
+            for proposal in self.custom_proposals:
+                logger.info('Adding {} to proposals with weight {}'.format(
+                    proposal, self.custom_proposals[proposal][1]))
+                sampler.addProposalToCycle(self.custom_proposals[proposal][0],
+                                           self.custom_proposals[proposal][1])
         sampler.sample(p0=self.p0, **self.sampler_function_kwargs)
         samples, meta, loglike = self.__read_in_data()
 
@@ -190,23 +184,3 @@ class PTMCMCSampler(MCMCSampler):
         shutil.rmtree(temp_outDir)
 
         return samples, meta, loglike
-
-
-def ptmcmc_proposal_factory(jump_proposal, proposal_name=None):
-
-    class PTMCMCProposal(object):
-
-        def __init__(self, jp, pn):
-            self.__name__ = pn
-            self.jump_proposal = jp
-
-        def __call__(self, *args):
-            sample = proposal.Sample.from_ptmcmc_walker(ptmcmc_sample=args[0], priors=jump_proposal.priors)
-            iteration = args[1]
-            inverse_temperature = args[2]
-            jump = self.jump_proposal(sample=sample, iteration=iteration,
-                                      inverse_temperature=inverse_temperature)
-            qxy = self.jump_proposal.log_j
-            return list(jump.values()), qxy
-
-    return PTMCMCProposal(jp=jump_proposal, pn=proposal_name)
