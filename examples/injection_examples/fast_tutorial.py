@@ -11,8 +11,6 @@ from __future__ import division, print_function
 
 import numpy as np
 import bilby
-from bilby.core.sampler import proposal
-
 
 # Set the duration and sampling frequency of the data segment that we're
 # going to inject the signal into
@@ -32,9 +30,9 @@ np.random.seed(88170235)
 # parameters, including masses of the two black holes (mass_1, mass_2),
 # spins of both black holes (a, tilt, phi), etc.
 injection_parameters = dict(
-    mass_1=12., mass_2=12., a_1=0.0, a_2=0.0, tilt_1=0.0, tilt_2=0.0,
-    phi_12=0.0, phi_jl=0.0, luminosity_distance=400., theta_jn=0.4, psi=2 * np.pi,
-    phase=0, geocent_time=1126259642.413, ra=0, dec=-1.2108)
+    mass_1=36., mass_2=29., a_1=0.4, a_2=0.3, tilt_1=0.5, tilt_2=1.0,
+    phi_12=1.7, phi_jl=0.3, luminosity_distance=2000., theta_jn=0.4, psi=2.659,
+    phase=1.3, geocent_time=1126259642.413, ra=1.375, dec=-1.2108)
 
 # Fixed arguments passed into the source model
 waveform_arguments = dict(waveform_approximant='IMRPhenomPv2',
@@ -63,7 +61,7 @@ ifos.inject_signal(waveform_generator=waveform_generator,
 # prior is a delta function at the true, injected value.  In reality, the
 # sampler implementation is smart enough to not sample any parameter that has
 # a delta-function prior.
-# The above list does *not* include mass_1, mass_2, iota and luminosity
+# The above list does *not* include mass_1, mass_2, theta_jn and luminosity
 # distance, which means those are the parameters that will be included in the
 # sampler.  If we do nothing, then the default priors get used.
 priors = bilby.gw.prior.BBHPriorDict()
@@ -71,8 +69,8 @@ priors['geocent_time'] = bilby.core.prior.Uniform(
     minimum=injection_parameters['geocent_time'] - 1,
     maximum=injection_parameters['geocent_time'] + 1,
     name='geocent_time', latex_label='$t_c$', unit='$s$')
-for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl',
-            'geocent_time', 'mass_1', 'mass_2', 'luminosity_distance', 'theta_jn']:
+for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl', 'psi', 'ra',
+            'dec', 'geocent_time', 'phase']:
     priors[key] = injection_parameters[key]
 
 # Initialise the likelihood by passing in the interferometer data (ifos) and
@@ -81,26 +79,9 @@ likelihood = bilby.gw.GravitationalWaveTransient(
     interferometers=ifos, waveform_generator=waveform_generator)
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
-# from cpnest.proposal import *
-
-
-# test_cycle = ProposalCycle(proposals=[EnsembleDegenerateWalk(), EnsembleStretch(),
-#                                       DifferentialEvolution(), EnsembleEigenVector()],
-#                            weights=[2, 2, 5, 1])
-
-test = proposal.JumpProposalCycle(
-    [proposal.EnsembleWalk(priors=priors), proposal.EnsembleStretch(priors=priors),
-     proposal.DifferentialEvolution(priors=priors), proposal.EnsembleEigenVector(priors=priors),
-     proposal.SkyLocationWanderJump(priors=priors), proposal.CorrelatedPolarisationPhaseJump(priors=priors),
-     proposal.PolarisationPhaseJump(priors=priors), proposal.DrawFlatPrior(priors=priors),
-     proposal.DrawApproxPrior(analytic_test=True, priors=priors)],
-    weights=[2, 2, 5, 1, 1, 1, 1, 1, 1])
-
-
-proposals = dict(mhs=test, hmc=test)
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='cpnest', npoints=100, nthreads=1,
-    injection_parameters=injection_parameters, outdir=outdir, label=label, proposals=proposals,
-    resume=False, dlogz=1000)
+    likelihood=likelihood, priors=priors, sampler='dynesty', npoints=1000,
+    injection_parameters=injection_parameters, outdir=outdir, label=label)
+
 # Make a corner plot.
 result.plot_corner()

@@ -416,7 +416,7 @@ class Sampler(object):
             if use_cache is False:
                 self.cached_result = None
 
-    def apply_boundary(self, keyword):
+    def _periodic_boundaries_to_binary_list(self, keyword):
         self.kwargs[keyword] = []
         for param, value in self.priors.items():
             if value.periodic_boundary:
