@@ -416,14 +416,6 @@ class Sampler(object):
             if use_cache is False:
                 self.cached_result = None
 
-    def _periodic_boundaries_to_binary_list(self, keyword):
-        self.kwargs[keyword] = []
-        for param, value in self.priors.items():
-            if value.periodic_boundary:
-                self.kwargs[keyword].append(1)
-            else:
-                self.kwargs[keyword].append(0)
-
     def _log_summary_for_sampler(self):
         """Print a summary of the sampler used and its kwargs"""
         if self.cached_result is None:

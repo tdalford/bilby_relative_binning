@@ -156,7 +156,7 @@ class TestDynesty(unittest.TestCase):
                         logl_max=np.inf, add_live=True, print_progress=True, save_bounds=True,
                         walks=10, update_interval=300, print_func='func')
         self.sampler.kwargs['print_func'] = 'func'  # set this manually as this is not testable otherwise
-        self.assertListEqual([1, 0], self.sampler.kwargs['periodic'])  # Check this separately
+        self.assertListEqual([0], self.sampler.kwargs['periodic'])  # Check this separately
         self.sampler.kwargs['periodic'] = None  # The dict comparison can't handle lists
         for key in self.sampler.kwargs.keys():
             print(key)
@@ -165,7 +165,7 @@ class TestDynesty(unittest.TestCase):
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
-        expected = dict(bound='multi', sample='rwalk', periodic=[1, 0], verbose=True,
+        expected = dict(bound='multi', sample='rwalk', periodic=[0], verbose=True,
                         check_point_delta_t=600, nlive=250, first_update=None,
                         npdim=None, rstate=None, queue_size=None, pool=None,
                         use_pool=None, live_points=None, logl_args=None, logl_kwargs=None,
@@ -457,8 +457,9 @@ class TestRunningSamplers(unittest.TestCase):
         self.likelihood = bilby.likelihood.GaussianLikelihood(
             self.x, self.y, self.model, self.sigma)
 
-        self.priors = dict(
-            m=bilby.core.prior.Uniform(0, 5), c=bilby.core.prior.Uniform(-2, 2))
+        self.priors = bilby.core.prior.PriorDict()
+        self.priors['m'] = bilby.core.prior.Uniform(0, 5, periodic_boundary=False)
+        self.priors['c'] = bilby.core.prior.Uniform(-2, 2, periodic_boundary=False)
         bilby.core.utils.check_directory_exists_and_if_not_mkdir('outdir')
 
     def tearDown(self):

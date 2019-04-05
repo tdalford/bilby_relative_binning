@@ -85,7 +85,12 @@ class Pymultinest(NestedSampler):
 
     def _apply_multinest_boundaries(self):
         if self.kwargs['wrapped_params'] is None:
-            self._periodic_boundaries_to_binary_list('wrapped_params')
+            self.kwargs['wrapped_params'] = []
+            for param, value in self.priors.items():
+                if value.periodic_boundary:
+                    self.kwargs['wrapped_params'].append(1)
+                else:
+                    self.kwargs['wrapped_params'].append(0)
 
     def run_sampler(self):
         import pymultinest
