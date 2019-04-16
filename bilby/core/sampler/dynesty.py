@@ -427,3 +427,80 @@ class Dynesty(NestedSampler):
         """
         theta = np.mod(theta, 1)
         return self.priors.rescale(self._search_parameter_keys, theta)
+
+    @staticmethod
+    def merge_dynesty_results(results, print_progress=True, save=True, outdir='.', label='combined'):
+        """ Merges multiple dynesty results into a single result
+
+        Parameters
+        ----------
+        results: list
+            List of result filenames
+        print_progress: bool, optional
+            Whether or not to print the progress
+        save: bool, optional
+            Whether or not to save the combined result
+        outdir: string, optional
+            Out directory for the combined result
+        label: string, optional
+            Label for the combined result
+        """
+        from dynesty.utils import merge_runs
+        unpickled_results = []
+        for res in results:
+            with open(res, 'rb') as f:
+                unpickled_results.append(pickle.load(f))
+        combined_result = merge_runs(res_list=unpickled_results, print_progress=print_progress)
+        if save:
+            dynesty_result = "{}/{}_dynesty.pickle".format(outdir, label)
+            with open(dynesty_result, 'wb') as file:
+                pickle.dump(combined_result, file)
+        return combined_result
+
+    @staticmethod
+    def dynesty_result_to_bilby_result(outdir, label, parameter_keys, priors, injection_parameters):
+        from ..result import Result
+        import pandas as pd
+        import dynesty
+        with open(outdir + '/' + label + '.pickle', 'rb') as file:
+            dynesty_result = pickle.load(file)
+
+        result = Result()
+        result.label = label
+        result.outdir = os.path.abspath(outdir)
+        result.sampler = 'dynesty'
+        result.search_parameter_keys = parameter_keys
+        result.log_evidence = dynesty_result.logz[-1]
+        result.log_evidence_err = dynesty_result.logzerr[-1]
+        result.priors = priors
+        result.injection_parameters = injection_parameters
+        result.samples = DataFrame(dynesty_result.samples, columns=parameter_keys)
+
+        # weights = np.exp(current_state['sample_log_weights'] -
+        #                  current_state['cumulative_log_evidence'][-1])
+        #
+        # dynesty_result.samp = self.external_sampler.utils.resample_equal(
+        #     np.array(current_state['physical_samples']), weights)
+        weights = np.exp(dynesty_result.logwt - dynesty_result.logz[-1])
+        posterior_samples = dynesty.utils.resample_equal(dynesty_result.samples, weights)
+        result.posterior = pd.DataFrame(posterior_samples, columns=parameter_keys)
+        # result.meta_data = meta_data
+        # result.fixed_parameter_keys = fixed_parameter_keys
+        # result.constraint_parameter_keys = constraint_parameter_keys
+        # result.parameter_labels = parameter_labels
+        # result.parameter_labels_with_unit = parameter_labels_with_unit
+        # result.sampler_kwargs = sampler_kwargs
+        # result.nested_samples = nested_samples
+        # result.log_noise_evidence = log_noise_evidence
+        # result.log_bayes_factor = log_bayes_factor
+        # result.log_likelihood_evaluations = log_likelihood_evaluations
+        # result.log_prior_evaluations = log_prior_evaluations
+        # result.sampling_time = sampling_time
+        # result.version = version
+        # result.max_autocorrelation_time = max_autocorrelation_time
+        # result.prior_values = None
+        # result._kde = None
+        return result
+
+
+
