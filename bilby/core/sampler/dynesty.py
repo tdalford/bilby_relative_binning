@@ -8,7 +8,7 @@ import signal
 import numpy as np
 
 from .base_sampler import Sampler, NestedSampler
-from ..result import Result
+from ..result import Result, read_in_result
 from ..utils import logger, check_directory_exists_and_if_not_mkdir
 
 
@@ -199,9 +199,7 @@ class Dynesty(NestedSampler):
         if self.kwargs["verbose"]:
             print("")
 
-        dynesty_result_file = "{}/{}_dynesty.pickle".format(self.outdir, self.label)
-        with open(dynesty_result_file, 'wb') as file:
-            pickle.dump(dynesty_result, file)
+        Dynesty._dump_dynesty_result(dynesty_result, self.label, self.outdir)
 
         self._write_result(dynesty_result=dynesty_result)
 
@@ -433,13 +431,17 @@ class Dynesty(NestedSampler):
         results: list
             List of result filenames
         print_progress: bool, optional
-            Whether or not to print the progress
+            Whether or not to use the print_progress in dynesty's merge_runs
         save: bool, optional
             Whether or not to save the combined result
         outdir: string, optional
             Out directory for the combined result
         label: string, optional
             Label for the combined result
+
+        Returns
+        ----------
+        The combined dynesty results
         """
         from dynesty.utils import merge_runs
         unpickled_results = []
@@ -448,7 +450,60 @@ class Dynesty(NestedSampler):
                 unpickled_results.append(pickle.load(f))
         combined_result = merge_runs(res_list=unpickled_results, print_progress=print_progress)
         if save:
-            dynesty_result = "{}/{}_dynesty.pickle".format(outdir, label)
-            with open(dynesty_result, 'wb') as file:
-                pickle.dump(combined_result, file)
+            Dynesty._dump_dynesty_result(combined_result, label, outdir)
         return combined_result
+
+    @staticmethod
+    def merge_dynesty_and_bilby_results(dynesty_results, bilby_results, print_progress=True,
+                                        save=True, outdir=None, label='combined'):
+        """
+
+        Parameters
+        ----------
+        dynesty_results: list
+            List of relative paths to dynesty result files
+        bilby_results:
+            List of relative paths to corresponding bilby result files
+        print_progress: bool, optional
+            Whether or not to use the print_progress in dynesty's merge_runs
+        save:
+            Whether or not to save the combined dynesty and bilby results
+        outdir: string, optional
+            Out directory for the combined results
+        label: string, optional
+            Label for the combined results
+
+        Returns
+        -------
+        The combined dynesty and bilby results
+
+        """
+        bilby_results = [read_in_result(filename) for filename in bilby_results]
+        if outdir is None:
+            outdir = bilby_results[0].outdir
+        consistent_parameters = ['sampler', 'search_parameter_keys', 'fixed_parameter_keys',
+                                 'constraint_parameter_keys', 'parameter_labels',
+                                 'parameter_labels_with_unit', 'priors', 'sampler_kwargs', 'injection_parameters']
+        combined_dynesty_result = Dynesty.merge_dynesty_results(results=dynesty_results, print_progress=print_progress,
+                                                                save=save, outdir=outdir, label=label)
+        combined_bilby_result = Result.from_dynesty_result(combined_dynesty_result, label=label, outdir=outdir,
+                                                           search_parameter_keys=bilby_results[0].search_parameter_keys)
+
+        for parameter in consistent_parameters:
+            for res in bilby_results:
+                if not getattr(bilby_results[0], parameter).__eq__(getattr(res, parameter)):
+                    logger.warning("The {} parameter is not consistent between some of your results."
+                                   "This might mean that merging these results may not sensible".format(parameter))
+            setattr(combined_bilby_result, parameter, getattr(bilby_results[0], parameter))
+
+        if save:
+            Dynesty._dump_dynesty_result(combined_dynesty_result, label, outdir)
+            combined_bilby_result.save_to_file(outdir=outdir)
+
+        return combined_dynesty_result, combined_bilby_result
+
+    @staticmethod
+    def _dump_dynesty_result(dynesty_result, label, outdir):
+        outfile = "{}/{}_dynesty.pickle".format(outdir, label)
+        with open(outfile, 'wb') as file:
+            pickle.dump(dynesty_result, file)
