@@ -19,11 +19,12 @@ sampling_frequency = 2048.
 
 # Specify the output directory and the name of the simulation.
 outdir = 'outdir'
-label = 'fast_tutorial'
+label = 'fast_tutorial_1'
 bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
 # Set up a random seed for result reproducibility.  This is optional!
-np.random.seed(88170235)
+import time
+np.random.seed(int(time.time()))
 
 # We are going to inject a binary black hole waveform.  We first establish a
 # dictionary of parameters that includes all of the different waveform
@@ -80,7 +81,7 @@ likelihood = bilby.gw.GravitationalWaveTransient(
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='dynesty', npoints=1000,
+    likelihood=likelihood, priors=priors, sampler='dynesty', npoints=100,
     injection_parameters=injection_parameters, outdir=outdir, label=label)
 
 # Make a corner plot.
