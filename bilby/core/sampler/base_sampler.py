@@ -63,8 +63,8 @@ class Sampler(object):
     skip_import_verification: bool
         Skips the check if the sampler is installed if true. This is
         only advisable for testing environments
-    result: bilby.core.result.Result
-        Container for the results of the sampling run
+    result: type, optional
+        Container type for the results of the sampling run
     kwargs: dict
         Dictionary of keyword arguments that can be used in the external sampler
 
