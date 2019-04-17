@@ -88,6 +88,7 @@ class Dynesty(NestedSampler):
     def __init__(self, likelihood, priors, outdir='outdir', label='label', use_ratio=False, plot=False,
                  skip_import_verification=False, check_point=True, n_check_point=None, check_point_delta_t=600,
                  resume=True, **kwargs):
+        import dynesty
         NestedSampler.__init__(self, likelihood=likelihood, priors=priors, outdir=outdir, label=label,
                                use_ratio=use_ratio, plot=plot,
                                skip_import_verification=skip_import_verification,
@@ -106,6 +107,11 @@ class Dynesty(NestedSampler):
             self.n_check_point = n_check_point_rnd
 
         self.resume_file = '{}/{}_resume.pickle'.format(self.outdir, self.label)
+
+        self.sampler = dynesty.NestedSampler(
+            loglikelihood=self.log_likelihood,
+            prior_transform=self.prior_transform,
+            ndim=self.ndim, **self.sampler_init_kwargs)
 
         signal.signal(signal.SIGTERM, self.write_current_state_and_exit)
         signal.signal(signal.SIGINT, self.write_current_state_and_exit)
@@ -184,12 +190,6 @@ class Dynesty(NestedSampler):
                     logger.debug("  {}".format(key))
 
     def run_sampler(self):
-        import dynesty
-        self.sampler = dynesty.NestedSampler(
-            loglikelihood=self.log_likelihood,
-            prior_transform=self.prior_transform,
-            ndim=self.ndim, **self.sampler_init_kwargs)
-
         if self.check_point:
             dynesty_result = self._run_external_sampler_with_checkpointing()
         else:
@@ -245,6 +245,20 @@ class Dynesty(NestedSampler):
         """Remove checkpointed state"""
         if os.path.isfile(self.resume_file):
             os.remove(self.resume_file)
+
+    def _write_result(self, dynesty_result):
+        self.result = Result.from_dynesty_result(dynesty_result, injection_parameters=self.result.injection_parameters,
+                                                 label=self.result.label, outdir=self.result.outdir,
+                                                 parameter_labels=self.result.parameter_labels,
+                                                 parameter_labels_with_unit=self.result.parameter_labels_with_unit,
+                                                 priors=self.result.priors,
+                                                 search_parameter_keys=self.result.search_parameter_keys,
+                                                 fixed_parameter_keys=self.result.fixed_parameter_keys,
+                                                 constraint_parameter_keys=self.result.constraint_parameter_keys,
+                                                 sampler_kwargs=self.result.sampler_kwargs,
+                                                 meta_data=self.result.meta_data,
+                                                 log_prior_evaluations=self.result.log_prior_evaluations,
+                                                 sampling_time=self.result.sampling_time, version=self.result.version)
 
     def read_saved_state(self, continuing=False):
         """
@@ -471,17 +485,3 @@ class Dynesty(NestedSampler):
             dynesty_result = pickle.load(file)
         return Result.from_dynesty_result(dynesty_result=dynesty_result, label=label, outdir=outdir,
                                           search_parameter_keys=search_parameter_keys, **kwargs)
-
-    def _write_result(self, dynesty_result):
-        self.result = Result.from_dynesty_result(dynesty_result, injection_parameters=self.result.injection_parameters,
-                                                 label=self.result.label, outdir=self.result.outdir,
-                                                 parameter_labels=self.result.parameter_labels,
-                                                 parameter_labels_with_unit=self.result.parameter_labels_with_unit,
-                                                 priors=self.result.priors,
-                                                 search_parameter_keys=self.result.search_parameter_keys,
-                                                 fixed_parameter_keys=self.result.fixed_parameter_keys,
-                                                 constraint_parameter_keys=self.result.constraint_parameter_keys,
-                                                 sampler_kwargs=self.result.sampler_kwargs,
-                                                 meta_data=self.result.meta_data,
-                                                 log_prior_evaluations=self.result.log_prior_evaluations,
-                                                 sampling_time=self.result.sampling_time, version=self.result.version)
