@@ -6,7 +6,6 @@ import pickle
 import signal
 
 import numpy as np
-from pandas import DataFrame
 
 from .base_sampler import Sampler, NestedSampler
 from ..result import Result
@@ -486,5 +485,3 @@ class Dynesty(NestedSampler):
                                    walkers=self.result.walkers,
                                    max_autocorrelation_time=self.result.max_autocorrelation_time,
                                    version=self.result.version)
-
-
