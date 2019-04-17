@@ -268,12 +268,27 @@ class Result(object):
             raise IOError("No result '{}' found".format(filename))
 
     @classmethod
-    def from_dynesty_result(cls, label, outdir, injection_parameters, parameter_labels,
-                            parameter_labels_with_unit, priors, search_parameter_keys, **kwargs):
-        import dynesty
+    def from_dynesty_result(cls, dynesty_result, label, outdir, search_parameter_keys, **kwargs):
+        """
 
-        with open(outdir + '/' + label + '.pickle', 'rb') as file:
-            dynesty_result = pickle.load(file)
+        Parameters
+        ----------
+        dynesty_result:
+            Dynesty result object to be converted
+        label:
+            Label to be used for the new bilby result.
+        outdir:
+            Outdir to be used for the new bilby result
+        search_parameter_keys: list
+            List of names for the searched parameters, i.e. the parameters for which samples exist
+        kwargs:
+            Other kwargs to be passed into the Result.__init__
+
+        Returns
+        -------
+        Result: The new bilby result
+        """
+        import dynesty
 
         outdir = os.path.abspath(outdir)
 
@@ -295,13 +310,9 @@ class Result(object):
             sorted_samples=samples)
 
         return cls(label=label, outdir=outdir, sampler='dynesty',
-                   search_parameter_keys=search_parameter_keys, priors=priors,
-                   injection_parameters=injection_parameters, posterior=posterior,
+                   search_parameter_keys=search_parameter_keys, posterior=posterior,
                    samples=samples, nested_samples=nested_samples, log_evidence=log_evidence,
-                   log_evidence_err=log_evidence_err, log_noise_evidence=np.nan,
-                   log_bayes_factor=np.nan, log_likelihood_evaluations=log_likelihood_evaluations,
-                   parameter_labels=parameter_labels, parameter_labels_with_unit=parameter_labels_with_unit,
-                   **kwargs)
+                   log_evidence_err=log_evidence_err, log_likelihood_evaluations=log_likelihood_evaluations, **kwargs)
 
     def __str__(self):
         """Print a summary """

@@ -466,22 +466,22 @@ class Dynesty(NestedSampler):
         Result: The parsed bilby result
 
         """
-        return Result.from_dynesty_result(label=label, outdir=outdir,
+
+        with open(outdir + '/' + label + '.pickle', 'rb') as file:
+            dynesty_result = pickle.load(file)
+        return Result.from_dynesty_result(dynesty_result=dynesty_result, label=label, outdir=outdir,
                                           search_parameter_keys=search_parameter_keys, **kwargs)
 
     def _write_result(self, dynesty_result):
-        Result.from_dynesty_result(dynesty_result, injection_parameters=self.result.injection_parameters,
-                                   label=self.result.label, outdir=self.result.outdir,
-                                   parameter_labels=self.result.parameter_labels,
-                                   parameter_labels_with_unit=self.result.parameter_labels_with_unit,
-                                   priors=self.result.priors,
-                                   search_parameter_keys=self.result.search_parameter_keys,
-                                   fixed_parameter_keys=self.result.fixed_parameter_keys,
-                                   constraint_parameter_keys=self.result.constraint_parameter_keys,
-                                   sampler_kwargs=self.result.sampler_kwargs,
-                                   meta_data=self.result.meta_data,
-                                   log_prior_evaluations=self.result.log_prior_evaluations,
-                                   sampling_time=self.result.sampling_time, nburn=self.result.nburn,
-                                   walkers=self.result.walkers,
-                                   max_autocorrelation_time=self.result.max_autocorrelation_time,
-                                   version=self.result.version)
+        self.result = Result.from_dynesty_result(dynesty_result, injection_parameters=self.result.injection_parameters,
+                                                 label=self.result.label, outdir=self.result.outdir,
+                                                 parameter_labels=self.result.parameter_labels,
+                                                 parameter_labels_with_unit=self.result.parameter_labels_with_unit,
+                                                 priors=self.result.priors,
+                                                 search_parameter_keys=self.result.search_parameter_keys,
+                                                 fixed_parameter_keys=self.result.fixed_parameter_keys,
+                                                 constraint_parameter_keys=self.result.constraint_parameter_keys,
+                                                 sampler_kwargs=self.result.sampler_kwargs,
+                                                 meta_data=self.result.meta_data,
+                                                 log_prior_evaluations=self.result.log_prior_evaluations,
+                                                 sampling_time=self.result.sampling_time, version=self.result.version)
