@@ -101,7 +101,7 @@ class Result(object):
                  log_prior_evaluations=None, sampling_time=None, nburn=None,
                  walkers=None, max_autocorrelation_time=None,
                  parameter_labels=None, parameter_labels_with_unit=None,
-                 gzip=False, version=None):
+                 version=None):
         """ A class to store the results of the sampling run
 
         Parameters
@@ -140,8 +140,6 @@ class Result(object):
             The estimated maximum autocorrelation time for MCMC samplers
         parameter_labels, parameter_labels_with_unit: list
             Lists of the latex-formatted parameter labels
-        gzip: bool
-            Set to True to gzip the results file (if using json format)
         version: str,
             Version information for software used to generate the result. Note,
             this information is generated when the result object is initialized
