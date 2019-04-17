@@ -7,6 +7,7 @@ from itertools import product
 
 import numpy as np
 import pandas as pd
+import pickle
 import corner
 import json
 import scipy.stats
@@ -312,6 +313,32 @@ class Result(object):
                    search_parameter_keys=search_parameter_keys, posterior=posterior,
                    samples=samples, nested_samples=nested_samples, log_evidence=log_evidence,
                    log_evidence_err=log_evidence_err, log_likelihood_evaluations=log_likelihood_evaluations, **kwargs)
+
+    @classmethod
+    def from_dynesty_result_file(cls, outdir, label, search_parameter_keys, **kwargs):
+
+        """
+
+        Parameters
+        ----------
+        outdir: string, optional
+            Out directory for the new bilby result
+        label: string, optional
+            Label for the bilby result, i.e. filename without the '.pickle'
+        search_parameter_keys: list
+            list of keys corresponding to the sampled parameters
+        kwargs: dict
+            Additional parameters to be passed into Result.from_dynesty_result
+
+        Returns
+        -------
+        Result: The parsed bilby result
+
+        """
+        with open(outdir + '/' + label + '.pickle', 'rb') as file:
+            dynesty_result = pickle.load(file)
+        return cls.from_dynesty_result(dynesty_result=dynesty_result, label=label, outdir=outdir,
+                                       search_parameter_keys=search_parameter_keys, **kwargs)
 
     def __str__(self):
         """Print a summary """

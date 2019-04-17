@@ -452,30 +452,3 @@ class Dynesty(NestedSampler):
             with open(dynesty_result, 'wb') as file:
                 pickle.dump(combined_result, file)
         return combined_result
-
-    @staticmethod
-    def dynesty_result_to_bilby_result(outdir, label, search_parameter_keys, **kwargs):
-
-        """
-
-        Parameters
-        ----------
-        outdir: string, optional
-            Out directory for the new bilby result
-        label: string, optional
-            Label for the bilby result
-        search_parameter_keys: list
-            list of keys corresponding to the sampled parameters
-        kwargs: dict
-            Additional parameters to be passed into Result.from_dynesty_result
-
-        Returns
-        -------
-        Result: The parsed bilby result
-
-        """
-
-        with open(outdir + '/' + label + '.pickle', 'rb') as file:
-            dynesty_result = pickle.load(file)
-        return Result.from_dynesty_result(dynesty_result=dynesty_result, label=label, outdir=outdir,
-                                          search_parameter_keys=search_parameter_keys, **kwargs)
