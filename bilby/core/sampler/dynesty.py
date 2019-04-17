@@ -273,8 +273,6 @@ class Dynesty(NestedSampler):
 
         Parameters
         ----------
-        sampler: `dynesty.NestedSampler`
-            NestedSampler instance to reconstruct from the saved state.
         continuing: bool
             Whether the run is continuing or terminating, if True, the loaded
             state is mostly written back to disk.
@@ -337,10 +335,6 @@ class Dynesty(NestedSampler):
         This means it is necessary to not append the first live point to the
         file if updating a previous checkpoint.
 
-        Parameters
-        ----------
-        sampler: `dynesty.NestedSampler`
-            NestedSampler to write to disk.
         """
         check_directory_exists_and_if_not_mkdir(self.outdir)
         logger.info("Writing checkpoint file {}".format(self.resume_file))
