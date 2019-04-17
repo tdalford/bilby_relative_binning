@@ -7,7 +7,6 @@ from itertools import product
 
 import numpy as np
 import pandas as pd
-import pickle
 import corner
 import json
 import scipy.stats
