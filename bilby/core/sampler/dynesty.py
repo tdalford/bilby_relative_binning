@@ -204,12 +204,7 @@ class Dynesty(NestedSampler):
         with open(dynesty_result_file, 'wb') as file:
             pickle.dump(dynesty_result, file)
 
-        self.result = self._write_bilby_result(dynesty_result=dynesty_result,
-                                               injection_parameters=self.injection_parameters,
-                                               label=self.label, outdir=self.outdir,
-                                               parameter_labels=self.result.parameter_labels,
-                                               parameter_labels_with_unit=self.result.parameter_labels_with_unit,
-                                               priors=self.priors, search_parameter_keys=self.search_parameter_keys)
+        self._write_result(dynesty_result=dynesty_result)
 
         if self.plot:
             self.generate_trace_plots(dynesty_result)
@@ -452,8 +447,8 @@ class Dynesty(NestedSampler):
         return combined_result
 
     @staticmethod
-    def dynesty_result_to_bilby_result(outdir, label, search_parameter_keys, priors, injection_parameters=None,
-                                       parameter_labels=None, parameter_labels_with_unit=None):
+    def dynesty_result_to_bilby_result(outdir, label, search_parameter_keys, **kwargs):
+
         """
 
         Parameters
@@ -464,49 +459,32 @@ class Dynesty(NestedSampler):
             Label for the bilby result
         search_parameter_keys: list
             list of keys corresponding to the sampled parameters
-        priors
-        injection_parameters
-        parameter_labels
-        parameter_labels_with_unit
+        kwargs: dict
+            Additional parameters to be passed into Result.from_dynesty_result
 
         Returns
         -------
+        Result: The parsed bilby result
 
         """
-        with open(outdir + '/' + label + '.pickle', 'rb') as file:
-            dynesty_result = pickle.load(file)
+        return Result.from_dynesty_result(label=label, outdir=outdir,
+                                          search_parameter_keys=search_parameter_keys, **kwargs)
 
-        return Dynesty._write_bilby_result(dynesty_result, injection_parameters, label, outdir, parameter_labels,
-                                           parameter_labels_with_unit, priors, search_parameter_keys)
+    def _write_result(self, dynesty_result):
+        Result.from_dynesty_result(dynesty_result, injection_parameters=self.result.injection_parameters,
+                                   label=self.result.label, outdir=self.result.outdir,
+                                   parameter_labels=self.result.parameter_labels,
+                                   parameter_labels_with_unit=self.result.parameter_labels_with_unit,
+                                   priors=self.result.priors,
+                                   search_parameter_keys=self.result.search_parameter_keys,
+                                   fixed_parameter_keys=self.result.fixed_parameter_keys,
+                                   constraint_parameter_keys=self.result.constraint_parameter_keys,
+                                   sampler_kwargs=self.result.sampler_kwargs,
+                                   meta_data=self.result.meta_data,
+                                   log_prior_evaluations=self.result.log_prior_evaluations,
+                                   sampling_time=self.result.sampling_time, nburn=self.result.nburn,
+                                   walkers=self.result.walkers,
+                                   max_autocorrelation_time=self.result.max_autocorrelation_time,
+                                   version=self.result.version)
 
-    @staticmethod
-    def _write_bilby_result(dynesty_result, injection_parameters, label, outdir, parameter_labels,
-                            parameter_labels_with_unit, priors, search_parameter_keys):
-        import dynesty
 
-        outdir = os.path.abspath(outdir)
-
-        log_evidence = dynesty_result.logz[-1]
-        log_evidence_err = dynesty_result.logzerr[-1]
-
-        weights = np.exp(dynesty_result.logwt - dynesty_result.logz[-1])
-
-        nested_samples = DataFrame(dynesty_result.samples, columns=search_parameter_keys)
-        nested_samples['weights'] = weights
-        nested_samples['log_likelihood'] = dynesty_result.logl
-
-        samples = dynesty.utils.resample_equal(dynesty_result.samples, weights)
-        posterior = DataFrame(samples, columns=search_parameter_keys)
-
-        log_likelihood_evaluations = NestedSampler.reorder_loglikelihoods(
-            unsorted_loglikelihoods=dynesty_result.logl,
-            unsorted_samples=dynesty_result.samples,
-            sorted_samples=samples)
-
-        return Result(label=label, outdir=outdir, sampler='dynesty',
-                      search_parameter_keys=search_parameter_keys, priors=priors,
-                      injection_parameters=injection_parameters, posterior=posterior,
-                      samples=samples, nested_samples=nested_samples, log_evidence=log_evidence,
-                      log_evidence_err=log_evidence_err, log_noise_evidence=np.nan,
-                      log_bayes_factor=np.nan, log_likelihood_evaluations=log_likelihood_evaluations,
-                      parameter_labels=parameter_labels, parameter_labels_with_unit=parameter_labels_with_unit)

@@ -7,6 +7,7 @@ from itertools import product
 
 import numpy as np
 import pandas as pd
+import pickle
 import corner
 import json
 import scipy.stats
@@ -19,6 +20,7 @@ from .utils import (logger, infer_parameters_from_function,
                     check_directory_exists_and_if_not_mkdir,
                     BilbyJsonEncoder, decode_bilby_json)
 from .prior import Prior, PriorDict, DeltaFunction
+from .sampler.base_sampler import NestedSampler
 
 
 def result_file_name(outdir, label, extension='json', gzip=False):
@@ -264,6 +266,42 @@ class Result(object):
                 raise IOError("Unable to load dictionary, error={}".format(e))
         else:
             raise IOError("No result '{}' found".format(filename))
+
+    @classmethod
+    def from_dynesty_result(cls, label, outdir, injection_parameters, parameter_labels,
+                            parameter_labels_with_unit, priors, search_parameter_keys, **kwargs):
+        import dynesty
+
+        with open(outdir + '/' + label + '.pickle', 'rb') as file:
+            dynesty_result = pickle.load(file)
+
+        outdir = os.path.abspath(outdir)
+
+        log_evidence = dynesty_result.logz[-1]
+        log_evidence_err = dynesty_result.logzerr[-1]
+
+        weights = np.exp(dynesty_result.logwt - dynesty_result.logz[-1])
+
+        nested_samples = pd.DataFrame(dynesty_result.samples, columns=search_parameter_keys)
+        nested_samples['weights'] = weights
+        nested_samples['log_likelihood'] = dynesty_result.logl
+
+        samples = dynesty.utils.resample_equal(dynesty_result.samples, weights)
+        posterior = pd.DataFrame(samples, columns=search_parameter_keys)
+
+        log_likelihood_evaluations = NestedSampler.reorder_loglikelihoods(
+            unsorted_loglikelihoods=dynesty_result.logl,
+            unsorted_samples=dynesty_result.samples,
+            sorted_samples=samples)
+
+        return cls(label=label, outdir=outdir, sampler='dynesty',
+                   search_parameter_keys=search_parameter_keys, priors=priors,
+                   injection_parameters=injection_parameters, posterior=posterior,
+                   samples=samples, nested_samples=nested_samples, log_evidence=log_evidence,
+                   log_evidence_err=log_evidence_err, log_noise_evidence=np.nan,
+                   log_bayes_factor=np.nan, log_likelihood_evaluations=log_likelihood_evaluations,
+                   parameter_labels=parameter_labels, parameter_labels_with_unit=parameter_labels_with_unit,
+                   **kwargs)
 
     def __str__(self):
         """Print a summary """
