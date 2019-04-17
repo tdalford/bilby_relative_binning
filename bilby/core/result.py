@@ -18,9 +18,9 @@ from matplotlib import lines as mpllines
 from . import utils
 from .utils import (logger, infer_parameters_from_function,
                     check_directory_exists_and_if_not_mkdir,
-                    BilbyJsonEncoder, decode_bilby_json)
+                    BilbyJsonEncoder, decode_bilby_json,
+                    reorder_loglikelihoods)
 from .prior import Prior, PriorDict, DeltaFunction
-from .sampler.base_sampler import NestedSampler
 
 
 def result_file_name(outdir, label, extension='json', gzip=False):
@@ -289,7 +289,7 @@ class Result(object):
         samples = dynesty.utils.resample_equal(dynesty_result.samples, weights)
         posterior = pd.DataFrame(samples, columns=search_parameter_keys)
 
-        log_likelihood_evaluations = NestedSampler.reorder_loglikelihoods(
+        log_likelihood_evaluations = reorder_loglikelihoods(
             unsorted_loglikelihoods=dynesty_result.logl,
             unsorted_samples=dynesty_result.samples,
             sorted_samples=samples)

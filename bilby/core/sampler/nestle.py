@@ -4,6 +4,7 @@ import numpy as np
 from pandas import DataFrame
 
 from .base_sampler import NestedSampler
+from ..utils import reorder_loglikelihoods
 
 
 class Nestle(NestedSampler):
@@ -65,7 +66,7 @@ class Nestle(NestedSampler):
             out.samples, columns=self.search_parameter_keys)
         self.result.nested_samples['weights'] = out.weights
         self.result.nested_samples['log_likelihood'] = out.logl
-        self.result.log_likelihood_evaluations = self.reorder_loglikelihoods(
+        self.result.log_likelihood_evaluations = reorder_loglikelihoods(
             unsorted_loglikelihoods=out.logl, unsorted_samples=out.samples,
             sorted_samples=self.result.samples)
         self.result.log_evidence = out.logz
