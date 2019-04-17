@@ -198,11 +198,17 @@ class Sampler(object):
         for key in self._fixed_parameter_keys:
             logger.info('  {} = {}'.format(key, self.priors[key].peak))
 
-    def _initialise_result(self, result_class):
+    def _initialise_result(self, result_class=None):
         """
+        Parameters
+        -------
+        result_class: type, optional
+        Result class to use. Default is bilby.core.result.Result
+
+
         Returns
         -------
-        bilby.core.result.Result: An initial template for the result
+        Result: An initial template for the result
 
         """
         result_kwargs = dict(
@@ -436,7 +442,8 @@ class Sampler(object):
 class NestedSampler(Sampler):
     npoints_equiv_kwargs = ['nlive', 'nlives', 'n_live_points', 'npoints', 'npoint', 'Nlive']
 
-    def reorder_loglikelihoods(self, unsorted_loglikelihoods, unsorted_samples,
+    @staticmethod
+    def reorder_loglikelihoods(unsorted_loglikelihoods, unsorted_samples,
                                sorted_samples):
         """ Reorders the stored log-likelihood after they have been reweighted
 
