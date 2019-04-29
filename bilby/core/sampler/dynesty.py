@@ -483,7 +483,7 @@ class Dynesty(NestedSampler):
             outdir = bilby_results[0].outdir
         consistent_parameters = ['sampler', 'search_parameter_keys', 'fixed_parameter_keys',
                                  'constraint_parameter_keys', 'parameter_labels',
-                                 'parameter_labels_with_unit', 'priors', 'sampler_kwargs', 'injection_parameters']
+                                 'parameter_labels_with_unit', 'priors', 'injection_parameters']
         combined_dynesty_result = Dynesty.merge_dynesty_results(results=dynesty_results, print_progress=print_progress,
                                                                 save=save, outdir=outdir, label=label)
         combined_bilby_result = Result.from_dynesty_result(combined_dynesty_result, label=label, outdir=outdir,
