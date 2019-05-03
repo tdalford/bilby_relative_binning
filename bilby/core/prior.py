@@ -18,7 +18,7 @@ from .utils import logger, infer_args_from_method, check_directory_exists_and_if
 
 class PriorDict(OrderedDict):
     def __init__(self, dictionary=None, filename=None,
-                 conversion_function=None):
+                 conversion_function=None, jacobian=None):
         """ A set of priors
 
         Parameters
@@ -30,6 +30,11 @@ class PriorDict(OrderedDict):
         conversion_function: func
             Function to convert between sampled parameters and constraints.
             Default is no conversion.
+        jacobian: func
+            If the prior is not separable, this can add some degeneracies.
+            Care should be taken with the rescaling, as this will break down
+            with a non-trivial Jacobian.
+            The function should take a dictionary and return the Jacobian.
         """
         OrderedDict.__init__(self)
         if isinstance(dictionary, dict):
@@ -49,6 +54,13 @@ class PriorDict(OrderedDict):
             self.conversion_function = conversion_function
         else:
             self.conversion_function = self.default_conversion_function
+        self._total_samples = 0
+        self._accepted_samples = 0
+
+        if jacobian is not None:
+            self.jacobian = jacobian
+        else:
+            self.jacobian = lambda x: np.ones_like(x[list(x)[0]])
 
     def evaluate_constraints(self, sample):
         out_sample = self.conversion_function(sample)
@@ -238,18 +250,37 @@ class PriorDict(OrderedDict):
                     return sample
         else:
             needed = np.prod(size)
+            generated = 0
             all_samples = {key: np.array([]) for key in keys}
             _first_key = list(all_samples.keys())[0]
-            while len(all_samples[_first_key]) <= needed:
-                samples = self.sample_subset(keys=keys, size=needed)
-                keep = np.array(self.evaluate_constraints(samples), dtype=bool)
+            while generated <= needed:
+                n_samples = int((needed - generated) / self.acceptance * 1.1)
+                samples = self.sample_subset(keys=keys, size=n_samples)
+                constraint = np.array(
+                    self.evaluate_constraints(samples), dtype=bool)
+                jacobians = self.jacobian(samples)
+                jacobian_cut = (jacobians > np.random.uniform(
+                    0, max(jacobians), len(jacobians)))
+                keep = constraint & jacobian_cut
                 for key in samples:
                     all_samples[key] = np.hstack(
                         [all_samples[key], samples[key][keep].flatten()])
+                self._total_samples += n_samples
+                self._accepted_samples += sum(keep)
+                generated += sum(keep)
+                print(n_samples, sum(keep), self.acceptance)
             all_samples = {key: np.reshape(all_samples[key][:needed], size)
                            for key in all_samples
                            if not isinstance(self[key], Constraint)}
             return all_samples
+
+    @property
+    def acceptance(self):
+        """The acceptance fraction for sampling from a constrained prior"""
+        try:
+            return self._accepted_samples / self._total_samples
+        except ZeroDivisionError:
+            return 1
 
     def prob(self, sample, **kwargs):
         """
@@ -268,6 +299,8 @@ class PriorDict(OrderedDict):
         """
         prob = np.product([self[key].prob(sample[key])
                            for key in sample], **kwargs)
+
+        prob *= self.jacobian(sample)
 
         if np.all(prob == 0.):
             return prob
@@ -301,6 +334,8 @@ class PriorDict(OrderedDict):
         """
         ln_prob = np.sum([self[key].ln_prob(sample[key])
                           for key in sample], axis=axis)
+
+        ln_prob += np.log(self.jacobian(sample))
 
         if np.all(np.isinf(ln_prob)):
             return ln_prob

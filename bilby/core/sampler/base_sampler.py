@@ -509,10 +509,11 @@ class NestedSampler(Sampler):
         -------
         float: log_likelihood
         """
-        if self.priors.evaluate_constraints({
-                key: theta[ii] for ii, key in
-                enumerate(self.search_parameter_keys)}):
-            return Sampler.log_likelihood(self, theta)
+        theta_dict = {key: theta[ii] for ii, key in
+                      enumerate(self.search_parameter_keys)}
+        if self.priors.evaluate_constraints(theta_dict):
+            log_jacobian = np.log(self.priors.jacobian(theta_dict))
+            return Sampler.log_likelihood(self, theta) + log_jacobian
         else:
             return np.nan_to_num(-np.inf)
 
