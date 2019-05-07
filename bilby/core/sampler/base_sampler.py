@@ -449,17 +449,17 @@ class Sampler(object):
 
         Returns
         -------
-        bool, cube (nlive,
+        bool,
             True if the likelihood and prior are finite, false otherwise
 
         """
-        if np.isinf(self.log_prior(theta)):
-            if warning:
-                logger.warning('Prior draw {} has inf prior'.format(theta))
-            return False
         if np.isinf(self.log_likelihood(theta)):
             if warning:
                 logger.warning('Prior draw {} has inf likelihood'.format(theta))
+            return False
+        if np.isinf(self.log_prior(theta)):
+            if warning:
+                logger.warning('Prior draw {} has inf prior'.format(theta))
             return False
         return True
 
