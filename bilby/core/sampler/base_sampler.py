@@ -388,12 +388,44 @@ class Sampler(object):
         self.check_draw(draw)
         return draw
 
-    def check_draw(self, draw):
-        """ Checks if the draw will generate an infinite prior or likelihood """
-        if np.isinf(self.log_likelihood(draw)):
-            logger.warning('Prior draw {} has inf likelihood'.format(draw))
-        if np.isinf(self.log_prior(draw)):
-            logger.warning('Prior draw {} has inf prior'.format(draw))
+    def get_initial_points_from_prior(self, npoints=1):
+        """ """
+        unit_cube = []
+        parameters = []
+        likelihood = []
+        while len(unit_cube) < npoints:
+            unit = np.random.rand(self.ndim)
+            theta = self.prior_transform(unit)
+            if self.check_draw(theta, warning=False):
+                unit_cube.append(unit)
+                parameters.append(theta)
+                likelihood.append(self.log_likelihood(theta))
+
+        return np.array(unit_cube), np.array(parameters), np.array(likelihood)
+
+    def check_draw(self, theta, warning=True):
+        """ Checks if the draw will generate an infinite prior or likelihood
+
+        Parameters
+        ----------
+        theta: array_like
+            Parameter values at which to evaluate likelihood
+
+        Returns
+        -------
+        bool,
+            True if the likelihood and prior are finite, false otherwise
+
+        """
+        if np.isinf(self.log_likelihood(theta)):
+            if warning:
+                logger.warning('Prior draw {} has inf likelihood'.format(theta))
+            return False
+        if np.isinf(self.log_prior(theta)):
+            if warning:
+                logger.warning('Prior draw {} has inf prior'.format(theta))
+            return False
+        return True
 
     def run_sampler(self):
         """A template method to run in subclasses"""
