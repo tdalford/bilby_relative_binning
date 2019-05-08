@@ -420,9 +420,11 @@ class Sampler(object):
         Returns
         -------
         unit_cube, parameters, likelihood: tuple of array_like
-            unit_cube (nlive, ndim) is an array of the prior samples from the unit cube,
-            parameters (nlive, ndim) is the unit_cube array transformed to the target space while
-            likelihood (nlive) are the likelihood evaluations. 
+            unit_cube (nlive, ndim) is an array of the prior samples from the
+            unit cube, parameters (nlive, ndim) is the unit_cube array
+            transformed to the target space, while likelihood (nlive) are the
+            likelihood evaluations.
+
         """
         unit_cube = []
         parameters = []
