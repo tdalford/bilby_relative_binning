@@ -17,7 +17,7 @@ from scipy.special import i0e
 from ..core import likelihood
 from ..core.utils import (
     logger, UnsortedInterp2d, BilbyJsonEncoder, decode_bilby_json,
-    create_time_series)
+    create_frequency_series, create_time_series)
 from ..core.prior import Interped, Prior, Uniform
 from .detector import InterferometerList
 from .prior import BBHPriorDict
@@ -551,13 +551,14 @@ class GravitationalWaveTransient(likelihood.Likelihood):
     def load_lookup_table(self, filename):
         if os.path.exists(filename):
             loaded_file = dict(np.load(filename))
-            if self._test_cached_lookup_table(loaded_file):
+            match, failure = self._test_cached_lookup_table(loaded_file)
+            if match:
                 logger.info('Loaded distance marginalisation lookup table from '
                             '{}.'.format(filename))
                 return loaded_file
             else:
                 logger.info('Loaded distance marginalisation lookup table does '
-                            'not match prior')
+                            'not match for {}.'.format(failure))
                 return None
         elif isinstance(filename, str):
             logger.info('Distance marginalisation file {} does not '
@@ -571,13 +572,22 @@ class GravitationalWaveTransient(likelihood.Likelihood):
                  distance_array=self._distance_array,
                  prior_array=self.distance_prior_array,
                  lookup_table=self._dist_margd_loglikelihood_array,
-                 reference_distance=self._ref_dist)
+                 reference_distance=self._ref_dist,
+                 phase_marginalization=self.phase_marginalization)
 
     def _test_cached_lookup_table(self, loaded_file):
-        cond_a = np.all(self._distance_array == loaded_file['distance_array'])
-        cond_b = np.all(self.distance_prior_array == loaded_file['prior_array'])
-        cond_c = self._ref_dist == loaded_file['reference_distance']
-        return all([cond_a, cond_b, cond_c])
+        pairs = dict(
+            distance_array=self._distance_array,
+            prior_array=self.distance_prior_array,
+            reference_distance=self._ref_dist,
+            phase_marginalization=self.phase_marginalization)
+        for key in pairs:
+            if key not in loaded_file:
+                return False, key
+            elif not np.array_equal(np.atleast_1d(loaded_file[key]),
+                                    np.atleast_1d(pairs[key])):
+                return False, key
+        return True, None
 
     def _create_lookup_table(self):
         """ Make the lookup table """
@@ -912,17 +922,27 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
 
         for ifo in self.interferometers:
             if self.roq_params is not None:
-                frequencies = np.arange(
-                    self.roq_params['flow'],
-                    self.roq_params['fhigh'] + 1 / self.roq_params['seglen'],
-                    1 / self.roq_params['seglen'])
+                frequencies = create_frequency_series(
+                    sampling_frequency=self.roq_params['fhigh'] * 2,
+                    duration=self.roq_params['seglen'])
+                roq_mask = [frequencies >= self.roq_params['flow']]
+                frequencies = frequencies[roq_mask]
                 overlap_frequencies, ifo_idxs, roq_idxs = np.intersect1d(
                     ifo.frequency_array[ifo.frequency_mask], frequencies,
                     return_indices=True)
             else:
                 overlap_frequencies = ifo.frequency_array[ifo.frequency_mask]
                 roq_idxs = np.arange(linear_matrix.shape[0], dtype=int)
-                ifo_idxs = ifo.frequency_mask
+                ifo_idxs = [True] * sum(ifo.frequency_mask)
+                if sum(ifo_idxs) != len(roq_idxs):
+                    raise ValueError(
+                        "Mismatch between ROQ basis and frequency array for "
+                        "{}".format(ifo.name))
+            logger.info(
+                "Building ROQ weights for {} with {} frequencies between {} "
+                "and {}.".format(
+                    ifo.name, len(overlap_frequencies),
+                    min(overlap_frequencies), max(overlap_frequencies)))
 
             # array of relative time shifts to be applied to the data
             # 0.045s comes from time for GW to traverse the Earth
@@ -936,7 +956,7 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
 
             # shift data to beginning of the prior increment by the time step
             shifted_data =\
-                ifo.frequency_domain_strain[ifo_idxs] * \
+                ifo.frequency_domain_strain[ifo.frequency_mask][ifo_idxs] * \
                 np.exp(2j * np.pi * overlap_frequencies *
                        self.weights['time_samples'][0])
             single_time_shift = np.exp(
@@ -951,14 +971,16 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
             max_elements = int((max_block_gigabytes * 2 ** 30) / 8)
 
             self.weights[ifo.name + '_linear'] = blockwise_dot_product(
-                tc_shifted_data / ifo.power_spectral_density_array[ifo_idxs],
+                tc_shifted_data /
+                ifo.power_spectral_density_array[ifo.frequency_mask][ifo_idxs],
                 linear_matrix[roq_idxs],
                 max_elements) * 4 / ifo.strain_data.duration
 
             del tc_shifted_data
 
             self.weights[ifo.name + '_quadratic'] = build_roq_weights(
-                1 / ifo.power_spectral_density_array[ifo_idxs],
+                1 /
+                ifo.power_spectral_density_array[ifo.frequency_mask][ifo_idxs],
                 quadratic_matrix[roq_idxs].real,
                 1 / ifo.strain_data.duration)
 
