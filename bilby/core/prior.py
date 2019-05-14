@@ -364,7 +364,7 @@ class PriorDict(OrderedDict):
             generated = 0
             all_samples = {key: np.array([]) for key in keys}
             _first_key = list(all_samples.keys())[0]
-            while generated <= needed:
+            while generated < needed:
                 n_samples = int((needed - generated) / self.acceptance * 1.1)
                 samples = self.sample_subset(keys=keys, size=n_samples)
                 constraint = np.array(
@@ -379,7 +379,6 @@ class PriorDict(OrderedDict):
                 self._total_samples += n_samples
                 self._accepted_samples += sum(keep)
                 generated += sum(keep)
-                print(n_samples, sum(keep), self.acceptance)
             all_samples = {key: np.reshape(all_samples[key][:needed], size)
                            for key in all_samples
                            if not isinstance(self[key], Constraint)}
