@@ -5,7 +5,6 @@ import unittest
 from mock import MagicMock
 import numpy as np
 import os
-import sys
 import shutil
 import copy
 
@@ -98,8 +97,7 @@ class TestSampler(unittest.TestCase):
 class TestCPNest(unittest.TestCase):
 
     def setUp(self):
-        self.likelihood = MagicMock()
-        self.priors = dict()
+        _setup_test(self)
         self.sampler = bilby.core.sampler.Cpnest(self.likelihood, self.priors,
                                                  outdir='outdir', label='label',
                                                  use_ratio=False, plot=False,
@@ -131,10 +129,7 @@ class TestCPNest(unittest.TestCase):
 class TestDynesty(unittest.TestCase):
 
     def setUp(self):
-        self.likelihood = MagicMock()
-        self.priors = bilby.core.prior.PriorDict()
-        self.priors['a'] = bilby.core.prior.Prior(boundary='periodic')
-        self.priors['b'] = bilby.core.prior.Prior(boundary='reflective')
+        _setup_test(self)
         self.sampler = bilby.core.sampler.Dynesty(self.likelihood, self.priors,
                                                   outdir='outdir', label='label',
                                                   use_ratio=False, plot=False,
@@ -187,8 +182,7 @@ class TestDynesty(unittest.TestCase):
 class TestEmcee(unittest.TestCase):
 
     def setUp(self):
-        self.likelihood = MagicMock()
-        self.priors = dict()
+        _setup_test(self)
         self.sampler = bilby.core.sampler.Emcee(self.likelihood, self.priors,
                                                 outdir='outdir', label='label',
                                                 use_ratio=False, plot=False,
@@ -223,8 +217,7 @@ class TestEmcee(unittest.TestCase):
 class TestNestle(unittest.TestCase):
 
     def setUp(self):
-        self.likelihood = MagicMock()
-        self.priors = dict()
+        _setup_test(self)
         self.sampler = bilby.core.sampler.Nestle(self.likelihood, self.priors,
                                                  outdir='outdir', label='label',
                                                  use_ratio=False, plot=False,
@@ -260,8 +253,7 @@ class TestNestle(unittest.TestCase):
 class TestPolyChord(unittest.TestCase):
 
     def setUp(self):
-        self.likelihood = MagicMock()
-        self.priors = dict(a=bilby.prior.Uniform(0, 1))
+        _setup_test(self)
         self.sampler = bilby.core.sampler.PyPolyChord(self.likelihood, self.priors,
                                                       outdir='outdir', label='polychord',
                                                       use_ratio=False, plot=False,
@@ -307,8 +299,7 @@ class TestPolyChord(unittest.TestCase):
 class TestPTEmcee(unittest.TestCase):
 
     def setUp(self):
-        self.likelihood = MagicMock()
-        self.priors = dict()
+        _setup_test(self)
         self.sampler = bilby.core.sampler.Ptemcee(self.likelihood, self.priors,
                                                   outdir='outdir', label='label',
                                                   use_ratio=False, plot=False,
@@ -354,8 +345,7 @@ class TestPTEmcee(unittest.TestCase):
 class TestPyMC3(unittest.TestCase):
 
     def setUp(self):
-        self.likelihood = MagicMock()
-        self.priors = dict()
+        _setup_test(self)
         self.sampler = bilby.core.sampler.Pymc3(self.likelihood, self.priors,
                                                 outdir='outdir', label='label',
                                                 use_ratio=False, plot=False,
@@ -392,10 +382,7 @@ class TestPyMC3(unittest.TestCase):
 class TestPymultinest(unittest.TestCase):
 
     def setUp(self):
-        self.likelihood = MagicMock()
-        self.priors = bilby.core.prior.PriorDict()
-        self.priors['a'] = bilby.core.prior.Prior(boundary='periodic')
-        self.priors['b'] = bilby.core.prior.Prior(boundary='reflective')
+        _setup_test(self)
         self.sampler = bilby.core.sampler.Pymultinest(self.likelihood, self.priors,
                                                       outdir='outdir', label='label',
                                                       use_ratio=False, plot=False,
@@ -448,18 +435,7 @@ class TestRunningSamplers(unittest.TestCase):
     def setUp(self):
         np.random.seed(42)
         bilby.core.utils.command_line_args.test = False
-        self.x = np.linspace(0, 1, 11)
-        self.model = lambda x, m, c: m * x + c
-        self.injection_parameters = dict(m=0.5, c=0.2)
-        self.sigma = 0.1
-        self.y = self.model(self.x, **self.injection_parameters) +\
-            np.random.normal(0, self.sigma, len(self.x))
-        self.likelihood = bilby.likelihood.GaussianLikelihood(
-            self.x, self.y, self.model, self.sigma)
-
-        self.priors = bilby.core.prior.PriorDict()
-        self.priors['m'] = bilby.core.prior.Uniform(0, 5, boundary='reflective')
-        self.priors['c'] = bilby.core.prior.Uniform(-2, 2, boundary='reflective')
+        _setup_test(self)
         bilby.core.utils.check_directory_exists_and_if_not_mkdir('outdir')
 
     def tearDown(self):
@@ -513,6 +489,22 @@ class TestRunningSamplers(unittest.TestCase):
             likelihood=self.likelihood, priors=self.priors,
             sampler='PTMCMCsampler', Niter=101, burn=2,
             isave=100, save=False)
+
+
+def _setup_test(self):
+    self.x = np.linspace(0, 1, 11)
+    self.model = lambda x, m, c: m * x + c
+    self.injection_parameters = dict(m=0.5, c=0.2)
+    self.sigma = 0.1
+    self.y = (
+        self.model(self.x, **self.injection_parameters) +
+        np.random.normal(0, self.sigma, len(self.x)))
+    self.likelihood = bilby.likelihood.GaussianLikelihood(
+        self.x, self.y, self.model, self.sigma)
+
+    self.priors = bilby.core.prior.PriorDict()
+    self.priors['m'] = bilby.core.prior.Uniform(0, 5, boundary='periodic')
+    self.priors['c'] = bilby.core.prior.Uniform(-2, 2, boundary='reflective')
 
 
 if __name__ == '__main__':
