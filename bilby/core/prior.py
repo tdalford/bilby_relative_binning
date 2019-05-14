@@ -257,7 +257,6 @@ class PriorDict(OrderedDict):
             needed = np.prod(size)
             generated = 0
             all_samples = {key: np.array([]) for key in keys}
-            _first_key = list(all_samples.keys())[0]
             while generated < needed:
                 n_samples = int((needed - generated) / self.acceptance * 1.1)
                 samples = self.sample_subset(keys=keys, size=n_samples)
