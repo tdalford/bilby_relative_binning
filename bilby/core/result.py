@@ -1029,7 +1029,7 @@ class Result(object):
         ----------
         likelihood: bilby.likelihood.GravitationalWaveTransient, optional
             GravitationalWaveTransient likelihood used for sampling.
-        priors: dict, optional
+        priors: bilby.prior.PriorDict, optional
             Dictionary of prior object, used to fill in delta function priors.
         conversion_function: function, optional
             Function which adds in extra parameters to the data frame,
@@ -1044,13 +1044,9 @@ class Result(object):
                 data_frame, priors)
             data_frame['log_likelihood'] = getattr(
                 self, 'log_likelihood_evaluations', np.nan)
-            if self.log_prior_evaluations is None:
-                ln_prior = list()
-                for ii in range(len(data_frame)):
-                    ln_prior.append(
-                        self.priors.ln_prob(dict(
-                            data_frame[self.search_parameter_keys].iloc[ii])))
-                data_frame['log_prior'] = np.array(ln_prior)
+            if self.log_prior_evaluations is None and priors is not None:
+                data_frame['log_prior'] = priors.ln_prob(
+                    dict(data_frame[self.search_parameter_keys]), axis=0)
             else:
                 data_frame['log_prior'] = self.log_prior_evaluations
         if conversion_function is not None:
@@ -1447,7 +1443,8 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
 
 
 def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
-                 lines=None, legend_fontsize=9, keys=None, **kwargs):
+                 lines=None, legend_fontsize=9, keys=None, title=True,
+                 **kwargs):
     """
     Make a P-P plot for a set of runs with injected signals.
 
@@ -1515,7 +1512,16 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
         pvalues.append(pvalue)
         logger.info("{}: {}".format(key, pvalue))
 
-    ax.legend(fontsize=legend_fontsize)
+    Pvals = namedtuple('pvals', ['combined_pvalue', 'pvalues', 'names'])
+    pvals = Pvals(combined_pvalue=scipy.stats.combine_pvalues(pvalues)[1],
+                  pvalues=pvalues,
+                  names=list(credible_levels.keys()))
+    logger.info(
+        "Combined p-value: {}".format(pvals.combined_pvalue))
+
+    if title:
+        ax.set_title("p-value = {:2.4f}".format(pvals.combined_pvalue))
+    ax.legend(linewidth=1, labelspacing=0.25)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     fig.tight_layout()
@@ -1524,12 +1530,6 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
             filename = 'outdir/pp.png'
         fig.savefig(filename, dpi=500)
 
-    Pvals = namedtuple('pvals', ['combined_pvalue', 'pvalues', 'names'])
-    pvals = Pvals(combined_pvalue=scipy.stats.combine_pvalues(pvalues)[1],
-                  pvalues=pvalues,
-                  names=list(credible_levels.keys()))
-    logger.info(
-        "Combined p-value: {}".format(pvals.combined_pvalue))
     return fig, pvals
 
 
