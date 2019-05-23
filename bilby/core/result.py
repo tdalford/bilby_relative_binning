@@ -1,30 +1,28 @@
 from __future__ import division
 
+import json
 import os
+import pickle
 from collections import OrderedDict, namedtuple
 from copy import copy
 from distutils.version import LooseVersion
 from itertools import product
 
-import numpy as np
-import pandas as pd
-import pickle
 import corner
-import json
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib import lines as mpllines
 import numpy as np
 import pandas as pd
 import scipy.stats
+from matplotlib import lines as mpllines
 from scipy.special import logsumexp
 
 from . import utils
+from .prior import Prior, PriorDict, DeltaFunction
 from .utils import (logger, infer_parameters_from_function,
                     check_directory_exists_and_if_not_mkdir,
                     BilbyJsonEncoder, decode_bilby_json,
                     reorder_loglikelihoods)
-from .prior import Prior, PriorDict, DeltaFunction
 
 
 def result_file_name(outdir, label, extension='json', gzip=False):
