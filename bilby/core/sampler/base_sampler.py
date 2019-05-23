@@ -104,9 +104,10 @@ class Sampler(object):
 
         self._search_parameter_keys = list()
         self._fixed_parameter_keys = list()
-        self._constraint_keys = list()
+        self._constraint_parameter_keys = list()
         self._initialise_parameters()
         self._verify_parameters()
+        self._time_likelihood()
         self._verify_use_ratio()
         self.kwargs = kwargs
 
@@ -152,8 +153,12 @@ class Sampler(object):
         """ Template for child classes """
         pass
 
+    @property
+    def external_sampler_name(self):
+        return self.__class__.__name__.lower()
+
     def _verify_external_sampler(self):
-        external_sampler_name = self.__class__.__name__.lower()
+        external_sampler_name = self.external_sampler_name
         try:
             self.external_sampler = __import__(external_sampler_name)
         except (ImportError, SystemExit):
@@ -187,13 +192,13 @@ class Sampler(object):
                     and self.priors[key].is_fixed is False:
                 self._search_parameter_keys.append(key)
             elif isinstance(self.priors[key], Constraint):
-                self._constraint_keys.append(key)
+                self._constraint_parameter_keys.append(key)
             elif isinstance(self.priors[key], DeltaFunction):
                 self.likelihood.parameters[key] = self.priors[key].sample()
                 self._fixed_parameter_keys.append(key)
 
         logger.info("Search parameters:")
-        for key in self._search_parameter_keys + self._constraint_keys:
+        for key in self._search_parameter_keys + self._constraint_parameter_keys:
             logger.info('  {} = {}'.format(key, self.priors[key]))
         for key in self._fixed_parameter_keys:
             logger.info('  {} = {}'.format(key, self.priors[key].peak))
@@ -216,10 +221,10 @@ class Sampler(object):
             sampler=self.__class__.__name__.lower(),
             search_parameter_keys=self._search_parameter_keys,
             fixed_parameter_keys=self._fixed_parameter_keys,
-            constraint_parameter_keys=self._constraint_keys,
+            constraint_parameter_keys=self._constraint_parameter_keys,
             priors=self.priors, meta_data=self.meta_data,
             injection_parameters=self.injection_parameters,
-            sampler_kwargs=self.kwargs)
+            sampler_kwargs=self.kwargs, use_ratio=self.use_ratio)
 
         if result_class is None:
             result = Result(**result_kwargs)
@@ -248,7 +253,9 @@ class Sampler(object):
                 logger.warning('Cannot sample from {}, {}'.format(key, e))
 
     def _verify_parameters(self):
-        """ Sets initial values for likelihood.parameters.
+        """ Evaluate a set of parameters drawn from the prior
+
+        Tests if the likelihood evaluation passes
 
         Raises
         ------
@@ -258,27 +265,44 @@ class Sampler(object):
         """
 
         if self.priors.test_has_redundant_keys():
-            raise IllegalSamplingSetError("Your sampling set contains redundant parameters.")
+            raise IllegalSamplingSetError(
+                "Your sampling set contains redundant parameters.")
 
         self._check_if_priors_can_be_sampled()
         try:
-            t1 = datetime.datetime.now()
             theta = [self.priors[key].sample()
                      for key in self._search_parameter_keys]
             self.log_likelihood(theta)
-            self._log_likelihood_eval_time = (
-                datetime.datetime.now() - t1).total_seconds()
-            if self._log_likelihood_eval_time == 0:
-                self._log_likelihood_eval_time = np.nan
-                logger.info("Unable to measure single likelihood time")
-            else:
-                logger.info("Single likelihood evaluation took {:.3e} s"
-                            .format(self._log_likelihood_eval_time))
         except TypeError as e:
             raise TypeError(
                 "Likelihood evaluation failed with message: \n'{}'\n"
                 "Have you specified all the parameters:\n{}"
                 .format(e, self.likelihood.parameters))
+
+    def _time_likelihood(self, n_evaluations=100):
+        """ Times the likelihood evaluation and print an info message
+
+        Parameters
+        ----------
+        n_evaluations: int
+            The number of evaluations to estimate the evaluation time from
+
+        """
+
+        t1 = datetime.datetime.now()
+        for _ in range(n_evaluations):
+            theta = [self.priors[key].sample()
+                     for key in self._search_parameter_keys]
+            self.log_likelihood(theta)
+        total_time = (datetime.datetime.now() - t1).total_seconds()
+        self._log_likelihood_eval_time = total_time / n_evaluations
+
+        if self._log_likelihood_eval_time == 0:
+            self._log_likelihood_eval_time = np.nan
+            logger.info("Unable to measure single likelihood time")
+        else:
+            logger.info("Single likelihood evaluation took {:.3e} s"
+                        .format(self._log_likelihood_eval_time))
 
     def _verify_use_ratio(self):
         """
@@ -448,7 +472,7 @@ class NestedSampler(Sampler):
         the prior constraint here.
 
         Parameters
-        theta: array-like
+        theta: array_like
             Parameter values at which to evaluate likelihood
 
         Returns

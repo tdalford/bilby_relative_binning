@@ -3,6 +3,7 @@ from __future__ import division
 import os
 from collections import OrderedDict
 from future.utils import iteritems
+from matplotlib.cbook import flatten
 
 import numpy as np
 import scipy.stats
@@ -22,9 +23,9 @@ class PriorDict(OrderedDict):
 
         Parameters
         ----------
-        dictionary: dict, None
+        dictionary: Union[dict, str, None]
             If given, a dictionary to generate the prior set.
-        filename: str, None
+        filename: Union[str, None]
             If given, a file containing the prior to generate the prior set.
         conversion_function: func
             Function to convert between sampled parameters and constraints.
@@ -114,7 +115,12 @@ class PriorDict(OrderedDict):
                 elements = line.split('=')
                 key = elements[0].replace(' ', '')
                 val = '='.join(elements[1:])
-                prior[key] = eval(val)
+                try:
+                    prior[key] = eval(val)
+                except TypeError as e:
+                    raise TypeError(
+                        "Unable to parse dictionary file {}, bad line: {} = {}. Error message {}"
+                        .format(filename, key, val, e))
         self.update(prior)
 
     def from_dictionary(self, dictionary):
@@ -126,7 +132,7 @@ class PriorDict(OrderedDict):
                         val = prior
                 except (NameError, SyntaxError, TypeError):
                     logger.debug(
-                        "Failed to load dictionary value {} correctlty"
+                        "Failed to load dictionary value {} correctly"
                         .format(key))
                     pass
             self[key] = val
@@ -329,7 +335,7 @@ class PriorDict(OrderedDict):
         -------
         list: List of floats containing the rescaled sample
         """
-        return [self[key].rescale(sample) for key, sample in zip(keys, theta)]
+        return list(flatten([self[key].rescale(sample) for key, sample in zip(keys, theta)]))
 
     def test_redundancy(self, key, disable_logging=False):
         """Empty redundancy test, should be overwritten in subclasses"""
@@ -407,7 +413,7 @@ class Prior(object):
     _default_latex_labels = dict()
 
     def __init__(self, name=None, latex_label=None, unit=None, minimum=-np.inf,
-                 maximum=np.inf, periodic_boundary=False):
+                 maximum=np.inf, boundary=None):
         """ Implements a Prior object
 
         Parameters
@@ -422,8 +428,8 @@ class Prior(object):
             Minimum of the domain, default=-np.inf
         maximum: float, optional
             Maximum of the domain, default=np.inf
-        periodic_boundary: bool, optional
-            Whether or not the boundary condition is periodic.
+        boundary: str, optional
+            The boundary condition of the prior, can be 'periodic', 'reflective'
             Currently implemented in cpnest, dynesty and pymultinest.
         """
         self.name = name
@@ -431,7 +437,7 @@ class Prior(object):
         self.unit = unit
         self.minimum = minimum
         self.maximum = maximum
-        self.periodic_boundary = periodic_boundary
+        self.boundary = boundary
 
     def __call__(self):
         """Overrides the __call__ special method. Calls the sample method.
@@ -451,6 +457,8 @@ class Prior(object):
             if type(self.__dict__[key]) is np.ndarray:
                 if not np.array_equal(self.__dict__[key], other.__dict__[key]):
                     return False
+            elif isinstance(self.__dict__[key], type(scipy.stats.beta(1., 1.))):
+                continue
             else:
                 if not self.__dict__[key] == other.__dict__[key]:
                     return False
@@ -479,7 +487,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
             A random number between 0 and 1
 
         Returns
@@ -494,7 +502,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -508,7 +516,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -522,7 +530,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -537,7 +545,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Raises
         -------
@@ -613,7 +621,7 @@ class Prior(object):
 
     @property
     def latex_label_with_unit(self):
-        """ If a unit is specifed, returns a string of the latex label and unit """
+        """ If a unit is specified, returns a string of the latex label and unit """
         if self.unit is not None:
             return "{} [{}]".format(self.latex_label, self.unit)
         else:
@@ -636,14 +644,14 @@ class Prior(object):
         self._maximum = maximum
 
     @property
-    def periodic_boundary(self):
-        return self._periodic_boundary
+    def boundary(self):
+        return self._boundary
 
-    @periodic_boundary.setter
-    def periodic_boundary(self, periodic_boundary):
-        if type(periodic_boundary) is not bool:
-            raise ValueError('{} is not a valid setting for prior boundaries'.format(periodic_boundary))
-        self._periodic_boundary = periodic_boundary
+    @boundary.setter
+    def boundary(self, boundary):
+        if boundary not in ['periodic', 'reflective', None]:
+            raise ValueError('{} is not a valid setting for prior boundaries'.format(boundary))
+        self._boundary = boundary
 
     @property
     def __default_latex_label(self):
@@ -694,7 +702,7 @@ class DeltaFunction(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -708,11 +716,11 @@ class DeltaFunction(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: np.inf if val = peak, 0 otherwise
+         Union[float, array_like]: np.inf if val = peak, 0 otherwise
 
         """
         at_peak = (val == self.peak)
@@ -722,7 +730,7 @@ class DeltaFunction(Prior):
 class PowerLaw(Prior):
 
     def __init__(self, alpha, minimum, maximum, name=None, latex_label=None,
-                 unit=None, periodic_boundary=False):
+                 unit=None, boundary=None):
         """Power law with bounds and alpha, spectral index
 
         Parameters
@@ -739,12 +747,12 @@ class PowerLaw(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label,
                        minimum=minimum, maximum=maximum, unit=unit,
-                       periodic_boundary=periodic_boundary)
+                       boundary=boundary)
         self.alpha = alpha
 
     def rescale(self, val):
@@ -755,12 +763,12 @@ class PowerLaw(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
             Uniform probability
 
         Returns
         -------
-        float: Rescaled probability
+        Union[float, array_like]: Rescaled probability
         """
         self.test_valid_for_rescaling(val)
         if self.alpha == -1:
@@ -774,7 +782,7 @@ class PowerLaw(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -792,7 +800,7 @@ class PowerLaw(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -812,7 +820,7 @@ class PowerLaw(Prior):
 class Uniform(Prior):
 
     def __init__(self, minimum, maximum, name=None, latex_label=None,
-                 unit=None, periodic_boundary=False):
+                 unit=None, boundary=None):
         """Uniform prior with bounds
 
         Parameters
@@ -827,14 +835,28 @@ class Uniform(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label,
                        minimum=minimum, maximum=maximum, unit=unit,
-                       periodic_boundary=periodic_boundary)
+                       boundary=boundary)
 
     def rescale(self, val):
+        """
+        'Rescale' a sample from the unit line element to the power-law prior.
+
+        This maps to the inverse CDF. This has been analytically solved for this case.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+            Uniform probability
+
+        Returns
+        -------
+        Union[float, array_like]: Rescaled probability
+        """
         self.test_valid_for_rescaling(val)
         return self.minimum + val * (self.maximum - self.minimum)
 
@@ -843,7 +865,7 @@ class Uniform(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -857,7 +879,7 @@ class Uniform(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -870,7 +892,7 @@ class Uniform(Prior):
 class LogUniform(PowerLaw):
 
     def __init__(self, minimum, maximum, name=None, latex_label=None,
-                 unit=None, periodic_boundary=False):
+                 unit=None, boundary=None):
         """Log-Uniform prior with bounds
 
         Parameters
@@ -885,11 +907,11 @@ class LogUniform(PowerLaw):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         PowerLaw.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                          minimum=minimum, maximum=maximum, alpha=-1, periodic_boundary=periodic_boundary)
+                          minimum=minimum, maximum=maximum, alpha=-1, boundary=boundary)
         if self.minimum <= 0:
             logger.warning('You specified a uniform-in-log prior with minimum={}'.format(self.minimum))
 
@@ -897,10 +919,10 @@ class LogUniform(PowerLaw):
 class SymmetricLogUniform(Prior):
 
     def __init__(self, minimum, maximum, name=None, latex_label=None,
-                 unit=None, periodic_boundary=False):
+                 unit=None, boundary=None):
         """Symmetric Log-Uniform distribtions with bounds
 
-        This is identical to a Log-Uniform distribition, but mirrored about
+        This is identical to a Log-Uniform distribution, but mirrored about
         the zero-axis and subsequently normalized. As such, the distribution
         has support on the two regions [-maximum, -minimum] and [minimum,
         maximum].
@@ -917,12 +939,12 @@ class SymmetricLogUniform(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label,
                        minimum=minimum, maximum=maximum, unit=unit,
-                       periodic_boundary=periodic_boundary)
+                       boundary=boundary)
 
     def rescale(self, val):
         """
@@ -932,12 +954,12 @@ class SymmetricLogUniform(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
             Uniform probability
 
         Returns
         -------
-        float: Rescaled probability
+        Union[float, array_like]: Rescaled probability
         """
         self.test_valid_for_rescaling(val)
         if val < 0.5:
@@ -952,7 +974,7 @@ class SymmetricLogUniform(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -967,7 +989,7 @@ class SymmetricLogUniform(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -980,7 +1002,7 @@ class SymmetricLogUniform(Prior):
 class Cosine(Prior):
 
     def __init__(self, name=None, latex_label=None, unit=None,
-                 minimum=-np.pi / 2, maximum=np.pi / 2, periodic_boundary=False):
+                 minimum=-np.pi / 2, maximum=np.pi / 2, boundary=None):
         """Cosine prior with bounds
 
         Parameters
@@ -995,11 +1017,11 @@ class Cosine(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=minimum, maximum=maximum, periodic_boundary=periodic_boundary)
+                       minimum=minimum, maximum=maximum, boundary=boundary)
 
     def rescale(self, val):
         """
@@ -1016,7 +1038,7 @@ class Cosine(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -1028,7 +1050,7 @@ class Cosine(Prior):
 class Sine(Prior):
 
     def __init__(self, name=None, latex_label=None, unit=None, minimum=0,
-                 maximum=np.pi, periodic_boundary=False):
+                 maximum=np.pi, boundary=None):
         """Sine prior with bounds
 
         Parameters
@@ -1043,11 +1065,11 @@ class Sine(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=minimum, maximum=maximum, periodic_boundary=periodic_boundary)
+                       minimum=minimum, maximum=maximum, boundary=boundary)
 
     def rescale(self, val):
         """
@@ -1064,18 +1086,18 @@ class Sine(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+        Union[float, array_like]: Prior probability of val
         """
         return np.sin(val) / 2 * self.is_in_prior_range(val)
 
 
 class Gaussian(Prior):
 
-    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, boundary=None):
         """Gaussian prior with mean mu and width sigma
 
         Parameters
@@ -1090,16 +1112,20 @@ class Gaussian(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
+        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, boundary=boundary)
         self.mu = mu
         self.sigma = sigma
 
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Gaussian prior.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
@@ -1111,21 +1137,32 @@ class Gaussian(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+        Union[float, array_like]: Prior probability of val
         """
         return np.exp(-(self.mu - val) ** 2 / (2 * self.sigma ** 2)) / (2 * np.pi) ** 0.5 / self.sigma
 
     def ln_prob(self, val):
+        """Return the Log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Prior probability of val
+        """
+
         return -0.5 * ((self.mu - val) ** 2 / self.sigma ** 2 + np.log(2 * np.pi * self.sigma ** 2))
 
 
 class Normal(Gaussian):
 
-    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, boundary=None):
         """A synonym for the Gaussian distribution.
 
         Parameters
@@ -1140,17 +1177,17 @@ class Normal(Gaussian):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Gaussian.__init__(self, mu=mu, sigma=sigma, name=name, latex_label=latex_label,
-                          unit=unit, periodic_boundary=periodic_boundary)
+                          unit=unit, boundary=boundary)
 
 
 class TruncatedGaussian(Prior):
 
     def __init__(self, mu, sigma, minimum, maximum, name=None,
-                 latex_label=None, unit=None, periodic_boundary=False):
+                 latex_label=None, unit=None, boundary=None):
         """Truncated Gaussian prior with mean mu and width sigma
 
         https://en.wikipedia.org/wiki/Truncated_normal_distribution
@@ -1171,11 +1208,11 @@ class TruncatedGaussian(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=minimum, maximum=maximum, periodic_boundary=periodic_boundary)
+                       minimum=minimum, maximum=maximum, boundary=boundary)
         self.mu = mu
         self.sigma = sigma
 
@@ -1205,7 +1242,7 @@ class TruncatedGaussian(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -1218,7 +1255,7 @@ class TruncatedGaussian(Prior):
 class TruncatedNormal(TruncatedGaussian):
 
     def __init__(self, mu, sigma, minimum, maximum, name=None,
-                 latex_label=None, unit=None, periodic_boundary=False):
+                 latex_label=None, unit=None, boundary=None):
         """A synonym for the TruncatedGaussian distribution.
 
         Parameters
@@ -1237,16 +1274,16 @@ class TruncatedNormal(TruncatedGaussian):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         TruncatedGaussian.__init__(self, mu=mu, sigma=sigma, minimum=minimum,
                                    maximum=maximum, name=name, latex_label=latex_label,
-                                   unit=unit, periodic_boundary=periodic_boundary)
+                                   unit=unit, boundary=boundary)
 
 
 class HalfGaussian(TruncatedGaussian):
-    def __init__(self, sigma, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, sigma, name=None, latex_label=None, unit=None, boundary=None):
         """A Gaussian with its mode at zero, and truncated to only be positive.
 
         Parameters
@@ -1259,16 +1296,16 @@ class HalfGaussian(TruncatedGaussian):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         TruncatedGaussian.__init__(self, 0., sigma, minimum=0., maximum=np.inf,
                                    name=name, latex_label=latex_label,
-                                   unit=unit, periodic_boundary=periodic_boundary)
+                                   unit=unit, boundary=boundary)
 
 
 class HalfNormal(HalfGaussian):
-    def __init__(self, sigma, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, sigma, name=None, latex_label=None, unit=None, boundary=None):
         """A synonym for the HalfGaussian distribution.
 
         Parameters
@@ -1281,16 +1318,16 @@ class HalfNormal(HalfGaussian):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         HalfGaussian.__init__(self, sigma=sigma, name=name,
                               latex_label=latex_label, unit=unit,
-                              periodic_boundary=periodic_boundary)
+                              boundary=boundary)
 
 
 class LogNormal(Prior):
-    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, boundary=None):
         """Log-normal prior with mean mu and width sigma
 
         https://en.wikipedia.org/wiki/Log-normal_distribution
@@ -1307,11 +1344,11 @@ class LogNormal(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
-                       unit=unit, periodic_boundary=periodic_boundary)
+                       unit=unit, boundary=boundary)
 
         if sigma <= 0.:
             raise ValueError("For the LogGaussian prior the standard deviation must be positive")
@@ -1329,25 +1366,36 @@ class LogNormal(Prior):
         return scipy.stats.lognorm.ppf(val, self.sigma, scale=np.exp(self.mu))
 
     def prob(self, val):
-        """Return the prior probability of val.
+        """Returns the prior probability of val.
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+        Union[float, array_like]: Prior probability of val
         """
 
         return scipy.stats.lognorm.pdf(val, self.sigma, scale=np.exp(self.mu))
 
     def ln_prob(self, val):
+        """Returns the log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Prior probability of val
+        """
+
         return scipy.stats.lognorm.logpdf(val, self.sigma, scale=np.exp(self.mu))
 
 
 class LogGaussian(LogNormal):
-    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, boundary=None):
         """Synonym of LogNormal prior
 
         https://en.wikipedia.org/wiki/Log-normal_distribution
@@ -1364,15 +1412,15 @@ class LogGaussian(LogNormal):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         LogNormal.__init__(self, mu=mu, sigma=sigma, name=name,
-                           latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
+                           latex_label=latex_label, unit=unit, boundary=boundary)
 
 
 class Exponential(Prior):
-    def __init__(self, mu, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, mu, name=None, latex_label=None, unit=None, boundary=None):
         """Exponential prior with mean mu
 
         Parameters
@@ -1385,11 +1433,11 @@ class Exponential(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
-                       unit=unit, periodic_boundary=periodic_boundary)
+                       unit=unit, boundary=boundary)
         self.mu = mu
 
     def rescale(self, val):
@@ -1406,22 +1454,33 @@ class Exponential(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+        Union[float, array_like]: Prior probability of val
         """
 
         return scipy.stats.expon.pdf(val, scale=self.mu)
 
     def ln_prob(self, val):
+        """Returns the log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Prior probability of val
+        """
+
         return scipy.stats.expon.logpdf(val, scale=self.mu)
 
 
 class StudentT(Prior):
     def __init__(self, df, mu=0., scale=1., name=None, latex_label=None,
-                 unit=None, periodic_boundary=False):
+                 unit=None, boundary=None):
         """Student's t-distribution prior with number of degrees of freedom df,
         mean mu and scale
 
@@ -1441,10 +1500,10 @@ class StudentT(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
+        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, boundary=boundary)
 
         if df <= 0. or scale <= 0.:
             raise ValueError("For the StudentT prior the number of degrees of freedom and scale must be positive")
@@ -1469,21 +1528,32 @@ class StudentT(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+        Union[float, array_like]: Prior probability of val
         """
         return scipy.stats.t.pdf(val, self.df, loc=self.mu, scale=self.scale)
 
     def ln_prob(self, val):
+        """Returns the log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Prior probability of val
+        """
+
         return scipy.stats.t.logpdf(val, self.df, loc=self.mu, scale=self.scale)
 
 
 class Beta(Prior):
     def __init__(self, alpha, beta, minimum=0, maximum=1, name=None,
-                 latex_label=None, unit=None, periodic_boundary=False):
+                 latex_label=None, unit=None, boundary=None):
         """Beta distribution
 
         https://en.wikipedia.org/wiki/Beta_distribution
@@ -1507,7 +1577,7 @@ class Beta(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         if alpha <= 0. or beta <= 0.:
@@ -1518,7 +1588,7 @@ class Beta(Prior):
         self._minimum = minimum
         self._maximum = maximum
         Prior.__init__(self, minimum=minimum, maximum=maximum, name=name,
-                       latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
+                       latex_label=latex_label, unit=unit, boundary=boundary)
         self._set_dist()
 
     def rescale(self, val):
@@ -1537,11 +1607,11 @@ class Beta(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+        Union[float, array_like]: Prior probability of val
         """
 
         spdf = self._dist.pdf(val)
@@ -1557,6 +1627,17 @@ class Beta(Prior):
             return 0.
 
     def ln_prob(self, val):
+        """Returns the log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Prior probability of val
+        """
+
         spdf = self._dist.logpdf(val)
         if np.all(np.isfinite(spdf)):
             return spdf
@@ -1569,7 +1650,6 @@ class Beta(Prior):
             return -np.inf
 
     def _set_dist(self):
-        """Try/except to stop it falling over at instantiation"""
         self._dist = scipy.stats.beta(
             a=self.alpha, b=self.beta, loc=self.minimum,
             scale=(self.maximum - self.minimum))
@@ -1612,7 +1692,7 @@ class Beta(Prior):
 
 
 class Logistic(Prior):
-    def __init__(self, mu, scale, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, mu, scale, name=None, latex_label=None, unit=None, boundary=None):
         """Logistic distribution
 
         https://en.wikipedia.org/wiki/Logistic_distribution
@@ -1629,10 +1709,10 @@ class Logistic(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
+        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, boundary=boundary)
 
         if scale <= 0.:
             raise ValueError("For the Logistic prior the scale must be positive")
@@ -1656,20 +1736,31 @@ class Logistic(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+        Union[float, array_like]: Prior probability of val
         """
         return scipy.stats.logistic.pdf(val, loc=self.mu, scale=self.scale)
 
     def ln_prob(self, val):
+        """Returns the log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Prior probability of val
+        """
+
         return scipy.stats.logistic.logpdf(val, loc=self.mu, scale=self.scale)
 
 
 class Cauchy(Prior):
-    def __init__(self, alpha, beta, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, alpha, beta, name=None, latex_label=None, unit=None, boundary=None):
         """Cauchy distribution
 
         https://en.wikipedia.org/wiki/Cauchy_distribution
@@ -1686,10 +1777,10 @@ class Cauchy(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
+        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, boundary=boundary)
 
         if beta <= 0.:
             raise ValueError("For the Cauchy prior the scale must be positive")
@@ -1713,20 +1804,30 @@ class Cauchy(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+        Union[float, array_like]: Prior probability of val
         """
         return scipy.stats.cauchy.pdf(val, loc=self.alpha, scale=self.beta)
 
     def ln_prob(self, val):
+        """Return the log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Log prior probability of val
+        """
         return scipy.stats.cauchy.logpdf(val, loc=self.alpha, scale=self.beta)
 
 
 class Lorentzian(Cauchy):
-    def __init__(self, alpha, beta, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, alpha, beta, name=None, latex_label=None, unit=None, boundary=None):
         """Synonym for the Cauchy distribution
 
         https://en.wikipedia.org/wiki/Cauchy_distribution
@@ -1743,15 +1844,15 @@ class Lorentzian(Cauchy):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Cauchy.__init__(self, alpha=alpha, beta=beta, name=name,
-                        latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
+                        latex_label=latex_label, unit=unit, boundary=boundary)
 
 
 class Gamma(Prior):
-    def __init__(self, k, theta=1., name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, k, theta=1., name=None, latex_label=None, unit=None, boundary=None):
         """Gamma distribution
 
         https://en.wikipedia.org/wiki/Gamma_distribution
@@ -1768,11 +1869,11 @@ class Gamma(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
         Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
-                       unit=unit, periodic_boundary=periodic_boundary)
+                       unit=unit, boundary=boundary)
 
         if k <= 0 or theta <= 0:
             raise ValueError("For the Gamma prior the shape and scale must be positive")
@@ -1796,21 +1897,32 @@ class Gamma(Prior):
 
         Parameters
         ----------
-        val: float
+        val:  Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+         Union[float, array_like]: Prior probability of val
         """
 
         return scipy.stats.gamma.pdf(val, self.k, loc=0., scale=self.theta)
 
     def ln_prob(self, val):
+        """Returns the log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Prior probability of val
+        """
+
         return scipy.stats.gamma.logpdf(val, self.k, loc=0., scale=self.theta)
 
 
 class ChiSquared(Gamma):
-    def __init__(self, nu, name=None, latex_label=None, unit=None, periodic_boundary=False):
+    def __init__(self, nu, name=None, latex_label=None, unit=None, boundary=None):
         """Chi-squared distribution
 
         https://en.wikipedia.org/wiki/Chi-squared_distribution
@@ -1825,7 +1937,7 @@ class ChiSquared(Gamma):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
         """
 
@@ -1833,7 +1945,7 @@ class ChiSquared(Gamma):
             raise ValueError("For the ChiSquared prior the number of degrees of freedom must be a positive integer")
 
         Gamma.__init__(self, name=name, k=nu / 2., theta=2.,
-                       latex_label=latex_label, unit=unit, periodic_boundary=periodic_boundary)
+                       latex_label=latex_label, unit=unit, boundary=boundary)
 
     @property
     def nu(self):
@@ -1847,7 +1959,7 @@ class ChiSquared(Gamma):
 class Interped(Prior):
 
     def __init__(self, xx, yy, minimum=np.nan, maximum=np.nan, name=None,
-                 latex_label=None, unit=None, periodic_boundary=False):
+                 latex_label=None, unit=None, boundary=None):
         """Creates an interpolated prior function from arrays of xx and yy=p(xx)
 
         Parameters
@@ -1866,11 +1978,11 @@ class Interped(Prior):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
 
         Attributes
-        -------
+        ----------
         probability_density: scipy.interpolate.interp1d
             Interpolated prior probability distribution
         cumulative_distribution: scipy.interpolate.interp1d
@@ -1883,11 +1995,15 @@ class Interped(Prior):
         """
         self.xx = xx
         self.yy = yy
+        self.YY = None
+        self.probability_density = None
+        self.cumulative_distribution = None
+        self.inverse_cumulative_distribution = None
         self.__all_interpolated = interp1d(x=xx, y=yy, bounds_error=False, fill_value=0)
+        minimum = float(np.nanmax(np.array((min(xx), minimum))))
+        maximum = float(np.nanmin(np.array((max(xx), maximum))))
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=np.nanmax(np.array((min(xx), minimum))),
-                       maximum=np.nanmin(np.array((max(xx), maximum))),
-                       periodic_boundary=periodic_boundary)
+                       minimum=minimum, maximum=maximum, boundary=boundary)
         self._update_instance()
 
     def __eq__(self, other):
@@ -1902,11 +2018,11 @@ class Interped(Prior):
 
         Parameters
         ----------
-        val: float
+        val:  Union[float, int, array_like]
 
         Returns
         -------
-        float: Prior probability of val
+         Union[float, array_like]: Prior probability of val
         """
         return self.probability_density(val)
 
@@ -1980,7 +2096,7 @@ class Interped(Prior):
 class FromFile(Interped):
 
     def __init__(self, file_name, minimum=None, maximum=None, name=None,
-                 latex_label=None, unit=None, periodic_boundary=False):
+                 latex_label=None, unit=None, boundary=None):
         """Creates an interpolated prior function from arrays of xx and yy=p(xx) extracted from a file
 
         Parameters
@@ -1997,13 +2113,8 @@ class FromFile(Interped):
             See superclass
         unit: str
             See superclass
-        periodic_boundary: bool
+        boundary: str
             See superclass
-
-        Attributes
-        -------
-        all_interpolated: scipy.interpolate.interp1d
-            Interpolated prior function
 
         """
         try:
@@ -2011,7 +2122,7 @@ class FromFile(Interped):
             xx, yy = np.genfromtxt(self.id).T
             Interped.__init__(self, xx=xx, yy=yy, minimum=minimum,
                               maximum=maximum, name=name, latex_label=latex_label,
-                              unit=unit, periodic_boundary=periodic_boundary)
+                              unit=unit, boundary=boundary)
         except IOError:
             logger.warning("Can't load {}.".format(self.id))
             logger.warning("Format should be:")
@@ -2071,6 +2182,10 @@ class FermiDirac(Prior):
         """
         'Rescale' a sample from the unit line element to the appropriate Fermi-Dirac prior.
 
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
         This maps to the inverse CDF. This has been analytically solved for this case,
         see Equation 24 of [1]_.
 
@@ -2094,7 +2209,7 @@ class FermiDirac(Prior):
                 return -self.sigma * np.log(inv)
         else:
             idx = inv >= 0.
-            tmpinv = np.inf * np.ones(len(val))
+            tmpinv = np.inf * np.ones(len(np.atleast_1d(val)))
             tmpinv[idx] = -self.sigma * np.log(inv[idx])
             return tmpinv
 
@@ -2103,7 +2218,7 @@ class FermiDirac(Prior):
 
         Parameters
         ----------
-        val: float
+        val: Union[float, int, array_like]
 
         Returns
         -------
@@ -2112,6 +2227,17 @@ class FermiDirac(Prior):
         return np.exp(self.ln_prob(val))
 
     def ln_prob(self, val):
+        """Return the log prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        Union[float, array_like]: Log prior probability of val
+        """
+
         norm = -np.log(self.sigma * np.log(1. + np.exp(self.r)))
         if isinstance(val, (float, int)):
             if val < self.minimum:
@@ -2119,7 +2245,716 @@ class FermiDirac(Prior):
             else:
                 return norm - np.logaddexp((val / self.sigma) - self.r, 0.)
         else:
+            val = np.atleast_1d(val)
             lnp = -np.inf * np.ones(len(val))
             idx = val >= self.minimum
             lnp[idx] = norm - np.logaddexp((val[idx] / self.sigma) - self.r, 0.)
             return lnp
+
+
+class MultivariateGaussianDist(object):
+
+    def __init__(self, names, nmodes=1, mus=None, sigmas=None, corrcoefs=None,
+                 covs=None, weights=None, bounds=None):
+        """
+        A class defining a multi-variate Gaussian, allowing multiple modes for
+        a Gaussian mixture model.
+
+        Note: if using a multivariate Gaussian prior, with bounds, this can
+        lead to biases in the marginal likelihood estimate and posterior
+        estimate for nested samplers routines that rely on sampling from a unit
+        hypercube and having a prior transform, e.g., nestle, dynesty and
+        MultiNest.
+
+        Parameters
+        ----------
+        names: list
+            A list of the parameter names in the multivariate Gaussian. The
+            listed parameters must have the same order that they appear in
+            the lists of means, standard deviations, and the correlation
+            coefficient, or covariance, matrices.
+        nmodes: int
+            The number of modes for the mixture model. This defaults to 1,
+            which will be checked against the shape of the other inputs.
+        mus: array_like
+            A list of lists of means of each mode in a multivariate Gaussian
+            mixture model. A single list can be given for a single mode. If
+            this is None then means at zero will be assumed.
+        sigmas: array_like
+            A list of lists of the standard deviations of each mode of the
+            multivariate Gaussian. If supplying a correlation coefficient
+            matrix rather than a covariance matrix these values must be given.
+            If this is None unit variances will be assumed.
+        corrcoefs: array
+            A list of square matrices containing the correlation coefficients
+            of the parameters for each mode. If this is None it will be assumed
+            that the parameters are uncorrelated.
+        covs: array
+            A list of square matrices containing the covariance matrix of the
+            multivariate Gaussian.
+        weights: list
+            A list of weights (relative probabilities) for each mode of the
+            multivariate Gaussian. This will default to equal weights for each
+            mode.
+        bounds: list
+            A list of bounds on each parameter. The defaults are for bounds at
+            +/- infinity.
+        """
+
+        if not isinstance(names, list):
+            self.names = [names]
+        else:
+            self.names = names
+
+        self.num_vars = len(self.names)  # the number of parameters
+
+        # set the bounds for each parameter
+        if isinstance(bounds, list):
+            if len(bounds) != len(self):
+                raise ValueError("Wrong number of parameter bounds")
+
+            # check bounds
+            for bound in bounds:
+                if isinstance(bounds, (list, tuple, np.ndarray)):
+                    if len(bound) != 2:
+                        raise ValueError("Bounds must contain an upper and "
+                                         "lower value.")
+                    else:
+                        if bound[1] <= bound[0]:
+                            raise ValueError("Bounds are not properly set")
+                else:
+                    raise TypeError("Bound must be a list")
+
+                logger.warning("If using bounded ranges on the multivariate "
+                               "Gaussian this will lead to biased posteriors "
+                               "for nested sampling routines that require "
+                               "a prior transform.")
+        else:
+            bounds = [(-np.inf, np.inf) for _ in self.names]
+
+        # set bounds as dictionary
+        self.bounds = {name: val for name, val in zip(self.names, bounds)}
+
+        self.mus = []
+        self.covs = []
+        self.corrcoefs = []
+        self.sigmas = []
+        self.weights = []
+        self.eigvalues = []
+        self.eigvectors = []
+        self.sqeigvalues = []  # square root of the eigenvalues
+        self.mvn = []  # list of multivariate normal distributions
+
+        self._current_sample = {}  # initialise empty sample
+        self._uncorrelated = None
+        self._current_lnprob = None
+
+        # put values in lists if required
+        if nmodes == 1:
+            if mus is not None:
+                if len(np.shape(mus)) == 1:
+                    mus = [mus]
+                elif len(np.shape(mus)) == 0:
+                    raise ValueError("Must supply a list of means")
+            if sigmas is not None:
+                if len(np.shape(sigmas)) == 1:
+                    sigmas = [sigmas]
+                elif len(np.shape(sigmas)) == 0:
+                    raise ValueError("Must supply a list of standard "
+                                     "deviations")
+            if covs is not None:
+                if isinstance(covs, np.ndarray):
+                    covs = [covs]
+                elif isinstance(covs, list):
+                    if len(np.shape(covs)) == 2:
+                        covs = [np.array(covs)]
+                    elif len(np.shape(covs)) != 3:
+                        raise TypeError("List of covariances the wrong shape")
+                else:
+                    raise TypeError("Must pass a list of covariances")
+            if corrcoefs is not None:
+                if isinstance(corrcoefs, np.ndarray):
+                    corrcoefs = [corrcoefs]
+                elif isinstance(corrcoefs, list):
+                    if len(np.shape(corrcoefs)) == 2:
+                        corrcoefs = [np.array(corrcoefs)]
+                    elif len(np.shape(corrcoefs)) != 3:
+                        raise TypeError("List of correlation coefficients the wrong shape")
+                elif not isinstance(corrcoefs, list):
+                    raise TypeError("Must pass a list of correlation "
+                                    "coefficients")
+            if weights is not None:
+                if isinstance(weights, (int, float)):
+                    weights = [weights]
+                elif isinstance(weights, list):
+                    if len(weights) != 1:
+                        raise ValueError("Wrong number of weights given")
+
+        for val in [mus, sigmas, covs, corrcoefs, weights]:
+            if val is not None and not isinstance(val, list):
+                raise TypeError("Value must be a list")
+            else:
+                if val is not None and len(val) != nmodes:
+                    raise ValueError("Wrong number of modes given")
+
+        # add the modes
+        self.nmodes = 0
+        for i in range(nmodes):
+            mu = mus[i] if mus is not None else None
+            sigma = sigmas[i] if sigmas is not None else None
+            corrcoef = corrcoefs[i] if corrcoefs is not None else None
+            cov = covs[i] if covs is not None else None
+            weight = weights[i] if weights is not None else 1.
+
+            self.add_mode(mu, sigma, corrcoef, cov, weight)
+
+        # a dictionary of the parameters as requested by the prior
+        self.requested_parameters = OrderedDict()
+        self.reset_request()
+
+        # a dictionary of the rescaled parameters
+        self.rescale_parameters = OrderedDict()
+        self.reset_rescale()
+
+        # a list of sampled parameters
+        self.reset_sampled()
+
+    def reset_sampled(self):
+        self.sampled_parameters = []
+        self.current_sample = {}
+
+    def filled_request(self):
+        """
+        Check if all requested parameters have been filled.
+        """
+
+        return not np.any([val is None for val in
+                          self.requested_parameters.values()])
+
+    def reset_request(self):
+        """
+        Reset the requested parameters to None.
+        """
+
+        for name in self.names:
+            self.requested_parameters[name] = None
+
+    def filled_rescale(self):
+        """
+        Check is all the rescaled parameters have been filled.
+        """
+
+        return not np.any([val is None for val in
+                          self.rescale_parameters.values()])
+
+    def reset_rescale(self):
+        """
+        Reset the rescaled parameters to None.
+        """
+
+        for name in self.names:
+            self.rescale_parameters[name] = None
+
+    def add_mode(self, mus=None, sigmas=None, corrcoef=None, cov=None,
+                 weight=1.):
+        """
+        Add a new mode.
+        """
+
+        # add means
+        if mus is not None:
+            try:
+                self.mus.append(list(mus))  # means
+            except TypeError:
+                raise TypeError("'mus' must be a list")
+        else:
+            self.mus.append(np.zeros(self.num_vars))
+
+        # add the covariances if supplied
+        if cov is not None:
+            self.covs.append(np.asarray(cov))
+
+            if len(self.covs[-1].shape) != 2:
+                raise ValueError("Covariance matrix must be a 2d array")
+
+            if (self.covs[-1].shape[0] != self.covs[-1].shape[1] or
+                    self.covs[-1].shape[0] != self.num_vars):
+                raise ValueError("Covariance shape is inconsistent")
+
+            # check matrix is symmetric
+            if not np.allclose(self.covs[-1], self.covs[-1].T):
+                raise ValueError("Covariance matrix is not symmetric")
+
+            self.sigmas.append(np.sqrt(np.diag(self.covs[-1])))  # standard deviations
+
+            # convert covariance into a correlation coefficient matrix
+            D = self.sigmas[-1] * np.identity(self.covs[-1].shape[0])
+            Dinv = np.linalg.inv(D)
+            self.corrcoefs.append(np.dot(np.dot(Dinv, self.covs[-1]), Dinv))
+        elif corrcoef is not None and sigmas is not None:
+            self.corrcoefs.append(np.asarray(corrcoef))
+
+            if len(self.corrcoefs[-1].shape) != 2:
+                raise ValueError("Correlation coefficient matrix must be a 2d "
+                                 "array.")
+
+            if (self.corrcoefs[-1].shape[0] != self.corrcoefs[-1].shape[1] or
+                    self.corrcoefs[-1].shape[0] != self.num_vars):
+                raise ValueError("Correlation coefficient matrix shape is "
+                                 "inconsistent")
+
+            # check matrix is symmetric
+            if not np.allclose(self.corrcoefs[-1], self.corrcoefs[-1].T):
+                raise ValueError("Correlation coefficient matrix is not "
+                                 "symmetric")
+
+            # check diagonal is all ones
+            if not np.all(np.diag(self.corrcoefs[-1]) == 1.):
+                raise ValueError("Correlation coefficient matrix is not"
+                                 "correct")
+
+            try:
+                self.sigmas.append(list(sigmas))  # standard deviations
+            except TypeError:
+                raise TypeError("'sigmas' must be a list")
+
+            if len(self.sigmas[-1]) != self.num_vars:
+                raise ValueError("Number of standard deviations must be the "
+                                 "same as the number of parameters.")
+
+            # convert correlation coefficients to covariance matrix
+            D = self.sigmas[-1] * np.identity(self.corrcoefs[-1].shape[0])
+            self.covs.append(np.dot(D, np.dot(self.corrcoefs[-1], D)))
+        else:
+            # set unit variance uncorrelated covariance
+            self.corrcoefs.append(np.eye(self.num_vars))
+            self.covs.append(np.eye(self.num_vars))
+            self.sigmas.append(np.ones(self.num_vars))
+
+        # get eigen values and vectors
+        try:
+            evals, evecs = np.linalg.eig(self.corrcoefs[-1])
+            self.eigvalues.append(evals)
+            self.eigvectors.append(evecs)
+        except Exception as e:
+            raise RuntimeError("Problem getting eigenvalues and vectors: "
+                               "{}".format(e))
+
+        # check eigenvalues are positive
+        if np.any(self.eigvalues[-1] <= 0.):
+            raise ValueError("Correlation coefficient matrix is not positive "
+                             "definite")
+        self.sqeigvalues.append(np.sqrt(self.eigvalues[-1]))
+
+        # set the weights
+        if weight is None:
+            self.weights.append(1.)
+        else:
+            self.weights.append(weight)
+
+        # set the cumulative relative weights
+        self.cumweights = np.cumsum(self.weights) / np.sum(self.weights)
+
+        # add the mode
+        self.nmodes += 1
+
+        # add multivariate Gaussian
+        self.mvn.append(scipy.stats.multivariate_normal(mean=self.mus[-1],
+                                                        cov=self.covs[-1]))
+
+    def rescale(self, value, mode=None):
+        """
+        Rescale from a unit hypercube to multivariate Gaussian. Note that no
+        bounds are applied in the rescale function.
+
+        Parameters
+        ----------
+        value: array
+            A 1d vector sample (one for each parameter) drawn from a uniform
+            distribution between 0 and 1, or a 2d NxM array of samples where
+            N is the number of samples and M is the number of parameters.
+        mode: int
+            Specify which mode to sample from. If not set then a mode is
+            chosen randomly based on its weight.
+
+        Returns
+        -------
+        array:
+            An vector sample drawn from the multivariate Gaussian
+            distribution.
+        """
+
+        # pick a mode (with a probability given by their weights)
+        if mode is None:
+            if self.nmodes == 1:
+                mode = 0
+            else:
+                mode = np.argwhere(self.cumweights - np.random.rand() > 0)[0][0]
+
+        samp = np.asarray(value)
+        if len(samp.shape) == 1:
+            samp = samp.reshape(1, self.num_vars)
+
+        if len(samp.shape) != 2:
+            raise ValueError("Array is the wrong shape")
+        elif samp.shape[1] != self.num_vars:
+            raise ValueError("Array is the wrong shape")
+
+        # draw points from unit variance, uncorrelated Gaussian
+        samp = erfinv(2. * samp - 1) * 2. ** 0.5
+
+        # rotate and scale to the multivariate normal shape
+        samp = self.mus[mode] + self.sigmas[mode] * np.einsum('ij,kj->ik',
+                                                              samp * self.sqeigvalues[mode],
+                                                              self.eigvectors[mode])
+
+        return np.squeeze(samp)
+
+    def sample(self, size=1, mode=None):
+        """
+        Draw, and set, a sample from the multivariate Gaussian.
+
+        Parameters
+        ----------
+        mode: int
+            Specify which mode to sample from. If not set then a mode is
+            chosen randomly based on its weight.
+        """
+
+        if size is None:
+            size = 1
+
+        # samples drawn from unit variance uncorrelated multivariate Gaussian
+        samps = np.zeros((size, len(self)))
+        for i in range(size):
+            inbound = False
+            while not inbound:
+                # sample the multivariate Gaussian keys
+                vals = np.random.uniform(0, 1, len(self))
+
+                samp = self.rescale(vals, mode=mode)
+                samps[i, :] = samp
+
+                # check sample is in bounds (otherwise perform another draw)
+                outbound = False
+                for name, val in zip(self.names, samp):
+                    if val < self.bounds[name][0] or val > self.bounds[name][1]:
+                        outbound = True
+                        break
+
+                if not outbound:
+                    inbound = True
+
+        for i, name in enumerate(self.names):
+            if size == 1:
+                self.current_sample[name] = samps[:, i].flatten()[0]
+            else:
+                self.current_sample[name] = samps[:, i].flatten()
+
+    def ln_prob(self, value):
+        """
+        Get the log-probability of a sample. For bounded priors the
+        probability will not be properly normalised.
+
+        Parameters
+        ----------
+        value: array_like
+            A 1d vector of the sample, or 2d array of sample values with shape
+            NxM, where N is the number of samples and M is the number of
+            parameters.
+        """
+
+        samp = np.asarray(value)
+        if len(samp.shape) == 1:
+            samp = samp.reshape(1, self.num_vars)
+
+        if len(samp.shape) != 2:
+            raise ValueError("Array is the wrong shape")
+        elif samp.shape[1] != self.num_vars:
+            raise ValueError("Array is the wrong shape")
+
+        # check sample(s) is within bounds
+        outbounds = np.ones(samp.shape[0], dtype=np.bool)
+        for s, bound in zip(samp.T, self.bounds.values()):
+            outbounds = (s < bound[0]) | (s > bound[1])
+            if np.any(outbounds):
+                break
+
+        lnprob = -np.inf * np.ones(samp.shape[0])
+        for j in range(samp.shape[0]):
+            # loop over the modes and sum the probabilities
+            for i in range(self.nmodes):
+                lnprob[j] = np.logaddexp(lnprob[j], self.mvn[i].logpdf(samp[j]))
+
+        # set out-of-bounds values to -inf
+        lnprob[outbounds] = -np.inf
+
+        if samp.shape[0] == 1:
+            return lnprob[0]
+        else:
+            return lnprob
+
+    def prob(self, samp):
+        """
+        Get the probability of a sample. For bounded priors the
+        probability will not be properly normalised.
+        """
+
+        return np.exp(self.ln_prob(samp))
+
+    def __len__(self):
+        return len(self.names)
+
+
+class MultivariateNormalDist(MultivariateGaussianDist):
+
+    def __init__(self, names, nmodes=1, mus=None, sigmas=None, corrcoefs=None,
+                 covs=None, weights=None, bounds=None):
+        """
+        A synonym for the :class:`~bilby.core.prior.MultivariateGaussianDist`
+        distribution.
+
+        Parameters
+        ----------
+        names: list
+            A list of the parameter names in the multivariate Gaussian. The
+            listed parameters must have the same order that they appear in
+            the lists of means, standard deviations, and the correlation
+            coefficient, or covariance, matrices.
+        nmodes: int
+            The number of modes for the mixture model. This defaults to 1,
+            which will be checked against the shape of the other inputs.
+        mus: array_like
+            A list of lists of means of each mode in a multivariate Gaussian
+            mixture model. A single list can be given for a single mode. If
+            this is None then means at zero will be assumed.
+        sigmas: array_like
+            A list of lists of the standard deviations of each mode of the
+            multivariate Gaussian. If supplying a correlation coefficient
+            matrix rather than a covariance matrix these values must be given.
+            If this is None unit variances will be assumed.
+        corrcoefs: array
+            A list of square matrices containing the correlation coefficients
+            of the parameters for each mode. If this is None it will be assumed
+            that the parameters are uncorrelated.
+        covs: array
+            A list of square matrices containing the covariance matrix of the
+            multivariate Gaussian.
+        weights: list
+            A list of weights (relative probabilities) for each mode of the
+            multivariate Gaussian. This will default to equal weights for each
+            mode.
+        bounds: list
+            A list of bounds on each parameter. The defaults are for bounds at
+            +/- infinity.
+        """
+        MultivariateGaussianDist.__init__(self, names, nmodes=nmodes,
+                                          mus=mus, sigmas=sigmas,
+                                          corrcoefs=corrcoefs, covs=covs,
+                                          weights=weights, bounds=bounds)
+
+
+class MultivariateGaussian(Prior):
+
+    def __init__(self, mvg, name=None, latex_label=None, unit=None):
+        """
+        A prior class for a multivariate Gaussian (mixture model) prior.
+
+        Parameters
+        ----------
+        mvg: MultivariateGaussianDist
+            A :class:`bilby.core.prior.MultivariateGaussianDist` object defining
+            the multivariate Gaussian distribution. This object is not copied,
+            as it needs to be shared across multiple priors, and as such its
+            contents will be altered by the prior.
+        name: str
+            See superclass
+        latex_label: str
+            See superclass
+        unit: str
+            See superclass
+
+        """
+
+        if not isinstance(mvg, MultivariateGaussianDist):
+            raise TypeError("Must supply a multivariate Gaussian object")
+
+        # check name is in the MultivariateGaussianDist class
+        if name not in mvg.names:
+            raise ValueError("'{}' is not a parameter in the multivariate "
+                             "Gaussian")
+        self.mvg = mvg
+
+        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
+                       minimum=mvg.bounds[name][0],
+                       maximum=mvg.bounds[name][1])
+
+    def rescale(self, val, mode=None):
+        """
+        Scale a unit hypercube sample to the prior.
+
+        Parameters
+        ----------
+        mode: int
+            Specify which mode to sample from. If not set then a mode is
+            chosen randomly based on its weight.
+        """
+
+        Prior.test_valid_for_rescaling(val)
+
+        # add parameter value to multivariate Gaussian
+        self.mvg.rescale_parameters[self.name] = val
+
+        if self.mvg.filled_rescale():
+            values = np.array(list(self.mvg.rescale_parameters.values())).T
+            samples = self.mvg.rescale(values, mode=mode)
+            self.mvg.reset_rescale()
+            return samples
+        else:
+            return []  # return empty list
+
+    def sample(self, size=1, mode=None):
+        """
+        Draw a sample from the prior.
+
+        Parameters
+        ----------
+        mode: int
+            Specify which mode to sample from. If not set then a mode is
+            chosen randomly based on its weight.
+
+        Returns
+        -------
+        float:
+            A sample from the prior paramter.
+        """
+
+        if self.name in self.mvg.sampled_parameters:
+            logger.warning("You have already drawn a sample from parameter "
+                           "'{}'. The same sample will be "
+                           "returned".format(self.name))
+
+        if len(self.mvg.current_sample) == 0:
+            # generate a sample
+            self.mvg.sample(size=size, mode=mode)
+
+        sample = self.mvg.current_sample[self.name]
+
+        if self.name not in self.mvg.sampled_parameters:
+            self.mvg.sampled_parameters.append(self.name)
+
+        if len(self.mvg.sampled_parameters) == len(self.mvg):
+            # reset samples
+            self.mvg.reset_sampled()
+
+        return sample
+
+    def prob(self, val):
+        """Return the prior probability of val
+
+        Parameters
+        ----------
+        val: float
+
+        Returns
+        -------
+        float:
+
+        """
+
+        return np.exp(self.ln_prob(val))
+
+    def ln_prob(self, val):
+        """
+        Return the natural logarithm of the prior probability. Note that this
+        will not be correctly normalised if there are bounds on the
+        distribution.
+        """
+
+        # add parameter value to multivariate Gaussian
+        self.mvg.requested_parameters[self.name] = val
+
+        if self.mvg.filled_request():
+            # all required parameters have been set
+            values = list(self.mvg.requested_parameters.values())
+
+            # check for the same number of values for each parameter
+            for i in range(len(self.mvg) - 1):
+                if (isinstance(values[i], (list, np.ndarray)) or
+                        isinstance(values[i + 1], (list, np.ndarray))):
+                    if (isinstance(values[i], (list, np.ndarray)) and
+                            isinstance(values[i + 1], (list, np.ndarray))):
+                        if len(values[i]) != len(values[i + 1]):
+                            raise ValueError("Each parameter must have the same "
+                                             "number of requested values.")
+                    else:
+                        raise ValueError("Each parameter must have the same "
+                                         "number of requested values.")
+
+            lnp = self.mvg.ln_prob(np.asarray(values).T)
+
+            # reset the requested parameters
+            self.mvg.reset_request()
+
+            return lnp
+        else:
+            # if not all parameters have been requested yet, just return 0
+            if isinstance(val, (float, int)):
+                return 0.
+            else:
+                try:
+                    # check value has a length
+                    len(val)
+                except Exception as e:
+                    raise TypeError('Invalid type for ln_prob: {}'.format(e))
+
+                if len(val) == 1:
+                    return 0.
+                else:
+                    return np.zeros_like(val)
+
+    @property
+    def minimum(self):
+        return self._minimum
+
+    @minimum.setter
+    def minimum(self, minimum):
+        self._minimum = minimum
+
+        # update the bounds in the MultivariateGaussianDist
+        self.mvg.bounds[self.name] = (minimum, self.mvg.bounds[self.name][1])
+
+    @property
+    def maximum(self):
+        return self._maximum
+
+    @maximum.setter
+    def maximum(self, maximum):
+        self._maximum = maximum
+
+        # update the bounds in the MultivariateGaussianDist
+        self.mvg.bounds[self.name] = (self.mvg.bounds[self.name][0], maximum)
+
+
+class MultivariateNormal(MultivariateGaussian):
+
+    def __init__(self, mvg, name=None, latex_label=None, unit=None):
+        """A synonym for the :class:`bilby.core.prior.MultivariateGaussian`
+        prior distribution.
+
+        Parameters
+        ----------
+        mvg: MultivariateGaussianDist
+            A :class:`bilby.core.prior.MultivariateGaussianDist` object
+            defining the multivariate Gaussian distribution. This object is not
+            copied, as it needs to be shared across multiple priors, and as
+            such its contents will be altered by the prior.
+        name: str
+            See superclass
+        latex_label: str
+            See superclass
+        unit: str
+            See superclass
+        """
+        MultivariateGaussian.__init__(self, mvg, name=name,
+                                      latex_label=latex_label, unit=unit)

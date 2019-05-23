@@ -133,8 +133,8 @@ class TestDynesty(unittest.TestCase):
     def setUp(self):
         self.likelihood = MagicMock()
         self.priors = bilby.core.prior.PriorDict()
-        self.priors['a'] = bilby.core.prior.Prior(periodic_boundary=True)
-        self.priors['b'] = bilby.core.prior.Prior(periodic_boundary=False)
+        self.priors['a'] = bilby.core.prior.Prior(boundary='periodic')
+        self.priors['b'] = bilby.core.prior.Prior(boundary='reflective')
         self.sampler = bilby.core.sampler.Dynesty(self.likelihood, self.priors,
                                                   outdir='outdir', label='label',
                                                   use_ratio=False, plot=False,
@@ -147,16 +147,16 @@ class TestDynesty(unittest.TestCase):
 
     def test_default_kwargs(self):
         expected = dict(bound='multi', sample='rwalk', periodic=None, verbose=True,
-                        check_point_delta_t=600, nlive=500, first_update=None,
+                        check_point_delta_t=600, nlive=1000, first_update=None,
                         npdim=None, rstate=None, queue_size=None, pool=None,
                         use_pool=None, live_points=None, logl_args=None, logl_kwargs=None,
                         ptform_args=None, ptform_kwargs=None,
                         enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
                         facc=0.5, slices=5, dlogz=0.1, maxiter=None, maxcall=None,
-                        logl_max=np.inf, add_live=True, print_progress=True, save_bounds=True,
-                        walks=10, update_interval=300, print_func='func')
+                        logl_max=np.inf, add_live=True, print_progress=True, save_bounds=False,
+                        walks=20, update_interval=600, print_func='func')
         self.sampler.kwargs['print_func'] = 'func'  # set this manually as this is not testable otherwise
-        self.assertListEqual([0], self.sampler.kwargs['periodic'])  # Check this separately
+        self.assertListEqual([0, 1], self.sampler.kwargs['periodic'])  # Check this separately
         self.sampler.kwargs['periodic'] = None  # The dict comparison can't handle lists
         for key in self.sampler.kwargs.keys():
             print(key)
@@ -165,20 +165,20 @@ class TestDynesty(unittest.TestCase):
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
-        expected = dict(bound='multi', sample='rwalk', periodic=[0], verbose=True,
-                        check_point_delta_t=600, nlive=250, first_update=None,
+        expected = dict(bound='multi', sample='rwalk', periodic=[0, 1], verbose=True,
+                        check_point_delta_t=600, nlive=1000, first_update=None,
                         npdim=None, rstate=None, queue_size=None, pool=None,
                         use_pool=None, live_points=None, logl_args=None, logl_kwargs=None,
                         ptform_args=None, ptform_kwargs=None,
                         enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
                         facc=0.5, slices=5, dlogz=0.1, maxiter=None, maxcall=None,
-                        logl_max=np.inf, add_live=True, print_progress=True, save_bounds=True,
-                        walks=10, update_interval=300, print_func='func')
+                        logl_max=np.inf, add_live=True, print_progress=True, save_bounds=False,
+                        walks=20, update_interval=600, print_func='func')
 
         for equiv in bilby.core.sampler.base_sampler.NestedSampler.npoints_equiv_kwargs:
             new_kwargs = self.sampler.kwargs.copy()
             del new_kwargs['nlive']
-            new_kwargs[equiv] = 250
+            new_kwargs[equiv] = 1000
             self.sampler.kwargs = new_kwargs
             self.sampler.kwargs['print_func'] = 'func'  # set this manually as this is not testable otherwise
             self.assertDictEqual(expected, self.sampler.kwargs)
@@ -371,7 +371,7 @@ class TestPyMC3(unittest.TestCase):
             draws=500, step=None, init='auto', n_init=200000, start=None, trace=None, chain_idx=0,
             chains=2, cores=1, tune=500, nuts_kwargs=None, step_kwargs=None, progressbar=True,
             model=None, random_seed=None, live_plot=False, discard_tuned_samples=True,
-            live_plot_kwargs=None, compute_convergence_checks=True, use_mmap=False)
+            live_plot_kwargs=None, compute_convergence_checks=True)
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
@@ -379,7 +379,7 @@ class TestPyMC3(unittest.TestCase):
             draws=500, step=None, init='auto', n_init=200000, start=None, trace=None, chain_idx=0,
             chains=2, cores=1, tune=500, nuts_kwargs=None, step_kwargs=None, progressbar=True,
             model=None, random_seed=None, live_plot=False, discard_tuned_samples=True,
-            live_plot_kwargs=None, compute_convergence_checks=True, use_mmap=False)
+            live_plot_kwargs=None, compute_convergence_checks=True)
         self.sampler.kwargs['draws'] = 123
         for equiv in bilby.core.sampler.base_sampler.NestedSampler.npoints_equiv_kwargs:
             new_kwargs = self.sampler.kwargs.copy()
@@ -394,8 +394,8 @@ class TestPymultinest(unittest.TestCase):
     def setUp(self):
         self.likelihood = MagicMock()
         self.priors = bilby.core.prior.PriorDict()
-        self.priors['a'] = bilby.core.prior.Prior(periodic_boundary=True)
-        self.priors['b'] = bilby.core.prior.Prior(periodic_boundary=False)
+        self.priors['a'] = bilby.core.prior.Prior(boundary='periodic')
+        self.priors['b'] = bilby.core.prior.Prior(boundary='reflective')
         self.sampler = bilby.core.sampler.Pymultinest(self.likelihood, self.priors,
                                                       outdir='outdir', label='label',
                                                       use_ratio=False, plot=False,
@@ -458,8 +458,8 @@ class TestRunningSamplers(unittest.TestCase):
             self.x, self.y, self.model, self.sigma)
 
         self.priors = bilby.core.prior.PriorDict()
-        self.priors['m'] = bilby.core.prior.Uniform(0, 5, periodic_boundary=False)
-        self.priors['c'] = bilby.core.prior.Uniform(-2, 2, periodic_boundary=False)
+        self.priors['m'] = bilby.core.prior.Uniform(0, 5, boundary='reflective')
+        self.priors['c'] = bilby.core.prior.Uniform(-2, 2, boundary='reflective')
         bilby.core.utils.check_directory_exists_and_if_not_mkdir('outdir')
 
     def tearDown(self):
@@ -511,8 +511,8 @@ class TestRunningSamplers(unittest.TestCase):
     def test_run_PTMCMCSampler(self):
         _ = bilby.run_sampler(
             likelihood=self.likelihood, priors=self.priors,
-            sampler= 'PTMCMCsampler', Niter=101, burn =2,
-            isave = 100 ,save=False)
+            sampler='PTMCMCsampler', Niter=101, burn=2,
+            isave=100, save=False)
 
 
 if __name__ == '__main__':

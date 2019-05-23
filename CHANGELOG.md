@@ -4,13 +4,51 @@
 
 ### Added
 - 
+### Changed
+- 
+### Removed
+- 
+
+## [0.5.0] 2019-05-08
+
+### Added
+- A plot_skymap method to the CBCResult object based on ligo.skymap
+- A plot_calibration_posterior method to the CBCResult object
+- Method to merge results
 
 ### Changed
-- Make calibration work, maybe with interp1d
--
+- Significant refactoring of detector module: this should be backward conmpatible. This work was done to break the large detector.py file into smaller, more manageable chunks. 
+- The `periodic_boundary` option to the prior classes has been changed to `boundary`.
+*This breaks backward compatibility*.
+The options to `boundary` are `{'periodic', 'reflective', None}`.
+Periodic boundaries are supported as before.
+Reflective boundaries are supported in `dynesty` and `cpnest`.  
+- Minor speed improvements by caching intermediate steps
+- Added state plotting for dynesty. Use `check_point_plot=True` in the `run_sampler` 
+function to create trace plots during the dynesty checkpoints
+- Dynesty now prints the progress to STDOUT rather than STDERR
+- `detector` module refactored into subpackage. Maintains backward compatibility.
+- Specifying alternative frequency bounds for the ROQ now possible if the appropriate
+`params.dat` file is passed.
 
 ### Removed
--
+- Obsolete (and potentially incorrect) plot_skymap methods from gw.utils
+
+## [0.4.5] 2019-04-03
+
+### Added
+- Calibration method and plotting
+- Multivariate Gaussian prior
+- Bayesian model diminsionality calculator
+- Dynamic dynesty (note: this is in an alpha stage)
+- Waveform caching
+
+### Changes
+- Fixed bugs in the ROQ time resolution
+- Fixed bugs in the gracedb wrapper-method
+- Improvements to the pp-plot method
+- Improved checkpointing for emcee/ptemcee
+- Various perforance-related improvements
 
 ## [0.4.4] 2019-04-03
 

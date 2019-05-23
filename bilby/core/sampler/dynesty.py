@@ -5,6 +5,7 @@ import pickle
 import signal
 import sys
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from .base_sampler import Sampler, NestedSampler
@@ -44,7 +45,7 @@ class Dynesty(NestedSampler):
 
     Other Parameters
     ----------------
-    npoints: int, (250)
+    npoints: int, (1000)
         The number of live points, note this can also equivalently be given as
         one of [nlive, nlives, n_live_points]
     bound: {'none', 'single', 'multi', 'balls', 'cubes'}, ('multi')
@@ -60,6 +61,8 @@ class Dynesty(NestedSampler):
         If true, print information information about the convergence during
     check_point: bool,
         If true, use check pointing.
+    check_point_plot: bool,
+        If true, generate a trace plot along with the check-point
     check_point_delta_t: float (600)
         The approximate checkpoint period (in seconds). Should the run be
         interrupted, it can be resumed from the last checkpoint. Set to
@@ -72,29 +75,34 @@ class Dynesty(NestedSampler):
     """
     default_kwargs = dict(bound='multi', sample='rwalk',
                           verbose=True, periodic=None,
-                          check_point_delta_t=600, nlive=500,
-                          first_update=None,
+                          check_point_delta_t=600, nlive=1000,
+                          first_update=None, walks=None,
                           npdim=None, rstate=None, queue_size=None, pool=None,
                           use_pool=None, live_points=None,
                           logl_args=None, logl_kwargs=None,
                           ptform_args=None, ptform_kwargs=None,
                           enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
                           facc=0.5, slices=5,
-                          walks=None, update_interval=None, print_func=None,
+                          update_interval=None, print_func=None,
                           dlogz=0.1, maxiter=None, maxcall=None,
                           logl_max=np.inf, add_live=True, print_progress=True,
-                          save_bounds=True)
+                          save_bounds=False)
 
-    def __init__(self, likelihood, priors, outdir='outdir', label='label', use_ratio=False, plot=False,
-                 skip_import_verification=False, check_point=True, n_check_point=None, check_point_delta_t=600,
-                 resume=True, **kwargs):
-        NestedSampler.__init__(self, likelihood=likelihood, priors=priors, outdir=outdir, label=label,
-                               use_ratio=use_ratio, plot=plot,
+    def __init__(self, likelihood, priors, outdir='outdir', label='label',
+                 use_ratio=False, plot=False, skip_import_verification=False,
+                 check_point=True, check_point_plot=True, n_check_point=None,
+                 check_point_delta_t=600, resume=True, **kwargs):
+        NestedSampler.__init__(self, likelihood=likelihood, priors=priors,
+                               outdir=outdir, label=label, use_ratio=use_ratio,
+                               plot=plot,
                                skip_import_verification=skip_import_verification,
                                **kwargs)
         self.n_check_point = n_check_point
         self.check_point = check_point
+        self.check_point_plot = check_point_plot
         self.resume = resume
+        self._periodic = list()
+        self._reflective = list()
         self._apply_dynesty_boundaries()
         if self.n_check_point is None:
             # If the log_likelihood_eval_time is not calculable then
@@ -105,10 +113,13 @@ class Dynesty(NestedSampler):
             n_check_point_rnd = int(float("{:1.0g}".format(n_check_point_raw)))
             self.n_check_point = n_check_point_rnd
 
+        logger.info("Checkpoint every n_check_point = {}".format(self.n_check_point))
+
         self.resume_file = '{}/{}_resume.pickle'.format(self.outdir, self.label)
 
         signal.signal(signal.SIGTERM, self.write_current_state_and_exit)
         signal.signal(signal.SIGINT, self.write_current_state_and_exit)
+        signal.signal(signal.SIGALRM, self.write_current_state_and_exit)
 
     @property
     def sampler_function_kwargs(self):
@@ -133,7 +144,7 @@ class Dynesty(NestedSampler):
 
     def _verify_kwargs_against_default_kwargs(self):
         if not self.kwargs['walks']:
-            self.kwargs['walks'] = self.ndim * 5
+            self.kwargs['walks'] = self.ndim * 10
         if not self.kwargs['update_interval']:
             self.kwargs['update_interval'] = int(0.6 * self.kwargs['nlive'])
         if not self.kwargs['print_func']:
@@ -171,17 +182,23 @@ class Dynesty(NestedSampler):
             niter, key, logz, logzerr, delta_logz, dlogz)
 
         # Printing.
-        sys.stderr.write(print_str)
-        sys.stderr.flush()
+        sys.stdout.write(print_str)
+        sys.stdout.flush()
 
     def _apply_dynesty_boundaries(self):
         if self.kwargs['periodic'] is None:
             logger.debug("Setting periodic boundaries for keys:")
             self.kwargs['periodic'] = []
+            self._periodic = list()
+            self._reflective = list()
             for ii, key in enumerate(self.search_parameter_keys):
-                if self.priors[key].periodic_boundary:
+                if self.priors[key].boundary in ['periodic', 'reflective']:
                     self.kwargs['periodic'].append(ii)
                     logger.debug("  {}".format(key))
+                    if self.priors[key].boundary == 'periodic':
+                        self._periodic.append(ii)
+                    else:
+                        self._reflective.append(ii)
 
     def run_sampler(self):
         import dynesty
@@ -199,6 +216,7 @@ class Dynesty(NestedSampler):
         if self.kwargs["verbose"]:
             print("")
 
+        check_directory_exists_and_if_not_mkdir(self.outdir)
         Dynesty._dump_dynesty_result(dynesty_result, self.label, self.outdir)
 
         self._write_result(dynesty_result=dynesty_result)
@@ -236,7 +254,6 @@ class Dynesty(NestedSampler):
         self.read_saved_state()
         sampler_kwargs['add_live'] = True
         self.sampler.run_nested(**sampler_kwargs)
-        self._remove_checkpoint()
         return self.sampler.results
 
     def _remove_checkpoint(self):
@@ -276,12 +293,11 @@ class Dynesty(NestedSampler):
             state is mostly written back to disk.
         """
 
-        logger.debug("Reading resume file {}".format(self.resume_file))
-
         if os.path.isfile(self.resume_file):
+            logger.info("Reading resume file {}".format(self.resume_file))
             with open(self.resume_file, 'rb') as file:
                 saved = pickle.load(file)
-            logger.debug(
+            logger.info(
                 "Succesfuly read resume file {}".format(self.resume_file))
 
             self.sampler.saved_u = list(saved['unit_cube_samples'])
@@ -307,22 +323,19 @@ class Dynesty(NestedSampler):
             self.sampler.live_bound = saved['live_bound']
             self.sampler.live_it = saved['live_it']
             self.sampler.added_live = saved['added_live']
-            self._remove_checkpoint()
-            if continuing:
-                self.write_current_state()
             return True
 
         else:
             logger.debug(
-                "Failed to read resume file {}".format(self.resume_file))
+                "No resume file {}".format(self.resume_file))
             return False
 
     def write_current_state_and_exit(self, signum=None, frame=None):
         logger.warning("Run terminated with signal {}".format(signum))
-        self.write_current_state()
-        sys.exit()
+        self.write_current_state(plot=False)
+        sys.exit(130)
 
-    def write_current_state(self):
+    def write_current_state(self, plot=True):
         """
         Write the current state of the sampler to disk.
 
@@ -365,14 +378,28 @@ class Dynesty(NestedSampler):
         try:
             weights = np.exp(current_state['sample_log_weights'] -
                              current_state['cumulative_log_evidence'][-1])
+            from dynesty.utils import resample_equal
 
-            current_state['posterior'] = self.external_sampler.utils.resample_equal(
+            current_state['posterior'] = resample_equal(
                 np.array(current_state['physical_samples']), weights)
         except ValueError:
             logger.debug("Unable to create posterior")
 
         with open(self.resume_file, 'wb') as file:
             pickle.dump(current_state, file)
+
+        if plot and self.check_point_plot:
+            import dynesty.plotting as dyplot
+            labels = [label.replace('_', ' ') for label in self.search_parameter_keys]
+            filename = "{}/{}_checkpoint_trace.png".format(self.outdir, self.label)
+            try:
+                fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
+                fig.tight_layout()
+                fig.savefig(filename)
+                plt.close('all')
+            except (RuntimeError, np.linalg.linalg.LinAlgError) as e:
+                logger.warning(e)
+                logger.warning('Failed to create dynesty state plot at checkpoint')
 
     def generate_trace_plots(self, dynesty_results):
         check_directory_exists_and_if_not_mkdir(self.outdir)
@@ -417,9 +444,18 @@ class Dynesty(NestedSampler):
 
         Notes
         -----
-        Since dynesty allows periodic parameters to wander outside the unit
+        Since dynesty allows periodic parameters to wander outside the unit,
+        here we transform them depending of if they should be periodic or
+        reflective. For reflective boundaries, theta < 0 you shift to |theta|
+        and when theta > 1 you return 2 - theta. For periodic boundaries,
+        if theta < 0, you shift to 1-|theta| and when theta > 1 you shift to
+        |theta| - 1 (i.e. wrap around).
+
         """
-        theta = np.mod(theta, 1)
+        theta[self._periodic] = np.mod(theta[self._periodic], 1)
+        theta_ref = theta[self._reflective]
+        theta[self._reflective] = np.minimum(
+            np.maximum(theta_ref, abs(theta_ref)), 2 - theta_ref)
         return self.priors.rescale(self._search_parameter_keys, theta)
 
     @staticmethod

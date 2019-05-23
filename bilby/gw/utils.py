@@ -3,10 +3,13 @@ import os
 import json
 
 import numpy as np
+from scipy import interpolate
+import matplotlib.pyplot as plt
 
 from ..core.utils import (gps_time_to_gmst, ra_dec_to_theta_phi,
                           speed_of_light, logger, run_commandline,
-                          check_directory_exists_and_if_not_mkdir)
+                          check_directory_exists_and_if_not_mkdir,
+                          SamplesSummary)
 
 try:
     from gwpy.timeseries import TimeSeries
@@ -458,24 +461,30 @@ def get_gracedb(gracedb, outdir, duration, calibration, detectors, query_types=N
     return candidate, cache_files
 
 
-def gracedb_to_json(gracedb, outdir=None):
+def gracedb_to_json(gracedb, cred=None, service_url='https://gracedb.ligo.org/api/', outdir=None):
     """ Script to download a GraceDB candidate
 
     Parameters
     ----------
     gracedb: str
         The UID of the GraceDB candidate
+    cred:
+        Credentials for authentications, see ligo.gracedb.rest.GraceDb
+    service_url:
+        The url of the GraceDB candidate
+        GraceDB 'https://gracedb.ligo.org/api/' (default)
+        GraceDB-playground 'https://gracedb-playground.ligo.org/api/'
     outdir: str, optional
         If given, a string identfying the location in which to store the json
     """
     logger.info(
         'Starting routine to download GraceDb candidate {}'.format(gracedb))
     from ligo.gracedb.rest import GraceDb
-    import urllib3
 
     logger.info('Initialise client and attempt to download')
+    logger.info('Fetching from {}'.format(service_url))
     try:
-        client = GraceDb()
+        client = GraceDb(cred=cred, service_url=service_url)
     except IOError:
         raise ValueError(
             'Failed to authenticate with gracedb: check your X509 '
@@ -483,8 +492,8 @@ def gracedb_to_json(gracedb, outdir=None):
     try:
         candidate = client.event(gracedb)
         logger.info('Successfully downloaded candidate')
-    except urllib3.HTTPError:
-        raise ValueError("No candidate found")
+    except Exception as e:
+        raise ValueError("Unable to obtain GraceDB candidate, exception: {}".format(e))
 
     json_output = candidate.json()
 
@@ -562,84 +571,6 @@ def gw_data_find(observatory, gps_start_time, duration, calibration,
     cl = ' '.join(cl_list)
     run_commandline(cl)
     return output_cache_file
-
-
-def save_to_fits(posterior, outdir, label):
-    """ Generate a fits file from a posterior array """
-    from astropy.io import fits
-    from astropy.units import pixel
-    from astropy.table import Table
-    import healpy as hp
-    nside = hp.get_nside(posterior)
-    npix = hp.nside2npix(nside)
-    logger.debug('Generating table')
-    m = Table([posterior], names=['PROB'])
-    m['PROB'].unit = pixel ** -1
-
-    ordering = 'RING'
-    extra_header = [('PIXTYPE', 'HEALPIX',
-                     'HEALPIX pixelisation'),
-                    ('ORDERING', ordering,
-                     'Pixel ordering scheme: RING, NESTED, or NUNIQ'),
-                    ('COORDSYS', 'C',
-                     'Ecliptic, Galactic or Celestial (equatorial)'),
-                    ('NSIDE', hp.npix2nside(npix),
-                     'Resolution parameter of HEALPIX'),
-                    ('INDXSCHM', 'IMPLICIT',
-                     'Indexing: IMPLICIT or EXPLICIT')]
-
-    fname = '{}/{}_{}.fits'.format(outdir, label, nside)
-    hdu = fits.table_to_hdu(m)
-    hdu.header.extend(extra_header)
-    hdulist = fits.HDUList([fits.PrimaryHDU(), hdu])
-    logger.debug('Writing to a fits file')
-    hdulist.writeto(fname, overwrite=True)
-
-
-def plot_skymap(result, center='120d -40d', nside=512):
-    """ Generate a sky map from a result """
-    import scipy
-    from astropy.units import deg
-    import healpy as hp
-    import ligo.skymap.plot  # noqa
-    import matplotlib.pyplot as plt
-    logger.debug('Generating skymap')
-
-    logger.debug('Reading in ra and dec, creating kde and converting')
-    ra_dec_radians = result.posterior[['ra', 'dec']].values
-    kde = scipy.stats.gaussian_kde(ra_dec_radians.T)
-    npix = hp.nside2npix(nside)
-    ipix = range(npix)
-    theta, phi = hp.pix2ang(nside, ipix)
-    ra = phi
-    dec = 0.5 * np.pi - theta
-
-    logger.debug('Generating posterior')
-    post = kde(np.row_stack([ra, dec]))
-    post /= np.sum(post * hp.nside2pixarea(nside))
-
-    fig = plt.figure(figsize=(5, 5))
-    ax = plt.axes([0.05, 0.05, 0.9, 0.9],
-                  projection='astro globe',
-                  center=center)
-    ax.coords.grid(True, linestyle='--')
-    lon = ax.coords[0]
-    lat = ax.coords[1]
-    lon.set_ticks(exclude_overlapping=True, spacing=45 * deg)
-    lat.set_ticks(spacing=30 * deg)
-
-    lon.set_major_formatter('dd')
-    lat.set_major_formatter('hh')
-    lon.set_ticklabel(color='k')
-    lat.set_ticklabel(color='k')
-
-    logger.debug('Plotting sky map')
-    ax.imshow_hpx(post)
-
-    lon.set_ticks_visible(False)
-    lat.set_ticks_visible(False)
-
-    fig.savefig('{}/{}_skymap.png'.format(result.outdir, result.label))
 
 
 def build_roq_weights(data, basis, deltaF):
@@ -856,3 +787,103 @@ def lalsim_SimInspiralWaveformParamsInsertTidalLambda2(
 
     return lalsim.SimInspiralWaveformParamsInsertTidalLambda2(
         waveform_dictionary, lambda_2)
+
+
+def spline_angle_xform(delta_psi):
+    """
+    Returns the angle in degrees corresponding to the spline
+    calibration parameters delta_psi.
+    Based on the same function in lalinference.bayespputils
+
+    Parameters
+    ----------
+    delta_psi: calibration phase uncertainity
+
+    Returns
+    -------
+    float: delta_psi in degrees
+
+    """
+    rotation = (2.0 + 1.0j * delta_psi) / (2.0 - 1.0j * delta_psi)
+
+    return 180.0 / np.pi * np.arctan2(np.imag(rotation), np.real(rotation))
+
+
+def plot_spline_pos(log_freqs, samples, nfreqs=100, level=0.9, color='k', label=None, xform=None):
+    """
+    Plot calibration posterior estimates for a spline model in log space.
+    Adapted from the same function in lalinference.bayespputils
+
+    Parameters
+    ----------
+        log_freqs: The (log) location of spline control points.
+        samples: List of posterior draws of function at control points ``log_freqs``
+        nfreqs: Number of points to evaluate spline at for plotting.
+        level: Credible level to fill in.
+        color: Color to plot with.
+        label: Label for plot.
+        xform: Function to transform the spline into plotted values.
+
+    """
+    freq_points = np.exp(log_freqs)
+    freqs = np.logspace(min(log_freqs), max(log_freqs), nfreqs, base=np.exp(1))
+
+    data = np.zeros((samples.shape[0], nfreqs))
+
+    if xform is None:
+        scaled_samples = samples
+    else:
+        scaled_samples = xform(samples)
+
+    scaled_samples_summary = SamplesSummary(scaled_samples, average='mean')
+    data_summary = SamplesSummary(data, average='mean')
+
+    plt.errorbar(freq_points, scaled_samples_summary.average,
+                 yerr=[-scaled_samples_summary.lower_relative_credible_interval,
+                       scaled_samples_summary.upper_relative_credible_interval],
+                 fmt='.', color=color, lw=4, alpha=0.5, capsize=0)
+
+    for i, sample in enumerate(samples):
+        temp = interpolate.spline(log_freqs, sample, np.log(freqs))
+        if xform is None:
+            data[i] = temp
+        else:
+            data[i] = xform(temp)
+
+    line, = plt.plot(freqs, np.mean(data, axis=0), color=color, label=label)
+    color = line.get_color()
+    plt.fill_between(freqs, data_summary.lower_absolute_credible_interval,
+                     data_summary.upper_absolute_credible_interval,
+                     color=color, alpha=.1, linewidth=0.1)
+    plt.xlim(freq_points.min() - .5, freq_points.max() + 50)
+
+
+class PropertyAccessor(object):
+    """
+    Generic descriptor class that allows handy access of properties without long
+    boilerplate code. The properties of Interferometer are defined as instances
+    of this class.
+
+    This avoids lengthy code like
+    ```
+    @property
+    def length(self):
+        return self.geometry.length
+
+    @length_setter
+    def length(self, length)
+        self.geometry.length = length
+
+    in the Interferometer class
+    ```
+    """
+
+    def __init__(self, container_instance_name, property_name):
+        self.property_name = property_name
+        self.container_instance_name = container_instance_name
+
+    def __get__(self, instance, owner):
+        return getattr(getattr(instance, self.container_instance_name), self.property_name)
+
+    def __set__(self, instance, value):
+        setattr(getattr(instance, self.container_instance_name), self.property_name, value)

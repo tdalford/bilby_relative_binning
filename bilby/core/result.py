@@ -1,8 +1,9 @@
 from __future__ import division
 
 import os
-from distutils.version import LooseVersion
 from collections import OrderedDict, namedtuple
+from copy import copy
+from distutils.version import LooseVersion
 from itertools import product
 
 import numpy as np
@@ -10,10 +11,13 @@ import pandas as pd
 import pickle
 import corner
 import json
-import scipy.stats
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import lines as mpllines
+import numpy as np
+import pandas as pd
+import scipy.stats
+from scipy.special import logsumexp
 
 from . import utils
 from .utils import (logger, infer_parameters_from_function,
@@ -101,7 +105,7 @@ class Result(object):
                  log_evidence_err=np.nan, log_noise_evidence=np.nan,
                  log_bayes_factor=np.nan, log_likelihood_evaluations=None,
                  log_prior_evaluations=None, sampling_time=None, nburn=None,
-                 walkers=None, max_autocorrelation_time=None,
+                 walkers=None, max_autocorrelation_time=None, use_ratio=None,
                  parameter_labels=None, parameter_labels_with_unit=None,
                  version=None):
         """ A class to store the results of the sampling run
@@ -140,6 +144,9 @@ class Result(object):
             The samplers taken by a ensemble MCMC samplers
         max_autocorrelation_time: float
             The estimated maximum autocorrelation time for MCMC samplers
+        use_ratio: bool
+            A boolean stating whether the likelihood ratio, as opposed to the
+            likelihood was used during sampling
         parameter_labels, parameter_labels_with_unit: list
             Lists of the latex-formatted parameter labels
         version: str,
@@ -170,6 +177,7 @@ class Result(object):
         self.nested_samples = nested_samples
         self.walkers = walkers
         self.nburn = nburn
+        self.use_ratio = use_ratio
         self.log_evidence = log_evidence
         self.log_evidence_err = log_evidence_err
         self.log_noise_evidence = log_noise_evidence
@@ -462,7 +470,7 @@ class Result(object):
             'log_noise_evidence', 'log_bayes_factor', 'priors', 'posterior',
             'injection_parameters', 'meta_data', 'search_parameter_keys',
             'fixed_parameter_keys', 'constraint_parameter_keys',
-            'sampling_time', 'sampler_kwargs',
+            'sampling_time', 'sampler_kwargs', 'use_ratio',
             'log_likelihood_evaluations', 'log_prior_evaluations', 'samples',
             'nested_samples', 'walkers', 'nburn', 'parameter_labels',
             'parameter_labels_with_unit', 'version']
@@ -475,12 +483,15 @@ class Result(object):
                 pass
         return dictionary
 
-    def save_to_file(self, overwrite=False, outdir=None, extension='json', gzip=False):
+    def save_to_file(self, filename=None, overwrite=False, outdir=None,
+                     extension='json', gzip=False):
         """
         Writes the Result to a json or deepdish h5 file
 
         Parameters
         ----------
+        filename: optional,
+            Filename to write to (overwrites the default)
         overwrite: bool, optional
             Whether or not to overwrite an existing result file.
             default=False
@@ -498,19 +509,20 @@ class Result(object):
             extension = "json"
 
         outdir = self._safe_outdir_creation(outdir, self.save_to_file)
-        file_name = result_file_name(outdir, self.label, extension, gzip)
+        if filename is None:
+            filename = result_file_name(outdir, self.label, extension, gzip)
 
-        if os.path.isfile(file_name):
+        if os.path.isfile(filename):
             if overwrite:
-                logger.debug('Removing existing file {}'.format(file_name))
-                os.remove(file_name)
+                logger.debug('Removing existing file {}'.format(filename))
+                os.remove(filename)
             else:
                 logger.debug(
-                    'Renaming existing file {} to {}.old'.format(file_name,
-                                                                 file_name))
-                os.rename(file_name, file_name + '.old')
+                    'Renaming existing file {} to {}.old'.format(filename,
+                                                                 filename))
+                os.rename(filename, filename + '.old')
 
-        logger.debug("Saving result to {}".format(file_name))
+        logger.debug("Saving result to {}".format(filename))
 
         # Convert the prior to a string representation for saving on disk
         dictionary = self._get_save_data_dictionary()
@@ -529,17 +541,17 @@ class Result(object):
                     import gzip
                     # encode to a string
                     json_str = json.dumps(dictionary, cls=BilbyJsonEncoder).encode('utf-8')
-                    with gzip.GzipFile(file_name, 'w') as file:
+                    with gzip.GzipFile(filename, 'w') as file:
                         file.write(json_str)
                 else:
-                    with open(file_name, 'w') as file:
+                    with open(filename, 'w') as file:
                         json.dump(dictionary, file, indent=2, cls=BilbyJsonEncoder)
             elif extension == 'hdf5':
                 import deepdish
                 for key in dictionary:
                     if isinstance(dictionary[key], pd.DataFrame):
                         dictionary[key] = dictionary[key].to_dict()
-                deepdish.io.save(file_name, dictionary)
+                deepdish.io.save(filename, dictionary)
             else:
                 raise ValueError("Extension type {} not understood".format(extension))
         except Exception as e:
@@ -607,6 +619,19 @@ class Result(object):
 
         """
         return self.posterior_volume / self.prior_volume(priors)
+
+    @property
+    def bayesian_model_dimensionality(self):
+        """ Characterises how many parameters are effectively constraint by the data
+
+        See <https://arxiv.org/abs/1903.06682>
+
+        Returns
+        -------
+        float: The model dimensionality
+        """
+        return 2 * (np.mean(self.posterior['log_likelihood']**2) -
+                    np.mean(self.posterior['log_likelihood'])**2)
 
     def get_one_dimensional_median_and_error_bar(self, key, fmt='.2f',
                                                  quantiles=(0.16, 0.84)):
@@ -1079,7 +1104,7 @@ class Result(object):
         ----------
         likelihood: bilby.likelihood.GravitationalWaveTransient, optional
             GravitationalWaveTransient likelihood used for sampling.
-        priors: dict, optional
+        priors: bilby.prior.PriorDict, optional
             Dictionary of prior object, used to fill in delta function priors.
         conversion_function: function, optional
             Function which adds in extra parameters to the data frame,
@@ -1094,13 +1119,9 @@ class Result(object):
                 data_frame, priors)
             data_frame['log_likelihood'] = getattr(
                 self, 'log_likelihood_evaluations', np.nan)
-            if self.log_prior_evaluations is None:
-                ln_prior = list()
-                for ii in range(len(data_frame)):
-                    ln_prior.append(
-                        self.priors.ln_prob(dict(
-                            data_frame[self.search_parameter_keys].iloc[ii])))
-                data_frame['log_prior'] = np.array(ln_prior)
+            if self.log_prior_evaluations is None and priors is not None:
+                data_frame['log_prior'] = priors.ln_prob(
+                    dict(data_frame[self.search_parameter_keys]), axis=0)
             else:
                 data_frame['log_prior'] = self.log_prior_evaluations
         if conversion_function is not None:
@@ -1257,6 +1278,161 @@ class Result(object):
                                  "keyword argument, e.g. " + caller_func.__name__ + "(outdir='.')")
         return outdir
 
+    def get_weights_by_new_prior(self, old_prior, new_prior, prior_names=None):
+        """ Calculate a list of sample weights based on the ratio of new to old priors
+
+            Parameters
+            ----------
+            old_prior: PriorDict,
+                The prior used in the generation of the original samples.
+
+            new_prior: PriorDict,
+                The prior to use to reweight the samples.
+
+            prior_names: list
+                A list of the priors to include in the ratio during reweighting.
+
+            Returns
+            -------
+            weights: array-like,
+                A list of sample weights.
+
+                """
+        weights = []
+
+        # Shared priors - these will form a ratio
+        if prior_names is not None:
+            shared_parameters = {key: self.posterior[key] for key in new_prior if
+                                 key in old_prior and key in prior_names}
+        else:
+            shared_parameters = {key: self.posterior[key] for key in new_prior if key in old_prior}
+        parameters = [{key: self.posterior[key][i] for key in shared_parameters.keys()}
+                      for i in range(len(self.posterior))]
+
+        for i in range(len(self.posterior)):
+            weight = 1
+            for prior_key in shared_parameters.keys():
+                val = self.posterior[prior_key][i]
+                weight *= new_prior.evaluate_constraints(parameters[i])
+                weight *= new_prior[prior_key].prob(val) / old_prior[prior_key].prob(val)
+
+            weights.append(weight)
+
+        return weights
+
+
+class ResultList(list):
+
+    def __init__(self, results=None):
+        """ A class to store a list of :class:`bilby.core.result.Result` objects
+        from equivalent runs on the same data. This provides methods for
+        outputing combined results.
+
+        Parameters
+        ----------
+        results: list
+            A list of `:class:`bilby.core.result.Result`.
+        """
+        list.__init__(self)
+        for result in results:
+            self.append(result)
+
+    def append(self, result):
+        """
+        Append a :class:`bilby.core.result.Result`, or set of results, to the
+        list.
+
+        Parameters
+        ----------
+        result: :class:`bilby.core.result.Result` or filename
+            pointing to a result object, to append to the list.
+        """
+
+        if isinstance(result, Result):
+            super(ResultList, self).append(result)
+        elif isinstance(result, str):
+            super(ResultList, self).append(read_in_result(result))
+        else:
+            raise TypeError("Could not append a non-Result type")
+
+    def combine(self):
+        """
+        Return the combined results in a :class:bilby.core.result.Result`
+        object.
+        """
+        if len(self) == 0:
+            return Result()
+        elif len(self) == 1:
+            return copy(self[0])
+        else:
+            result = copy(self[0])
+
+        if result.label is not None:
+            result.label += '_combined'
+
+        self._check_consistent_sampler()
+        self._check_consistent_data()
+        self._check_consistent_parameters()
+        self._check_consistent_priors()
+
+        # check which kind of sampler was used: MCMC or Nested Sampling
+        if result.nested_samples is not None:
+            posteriors, result = self._combine_nested_sampled_runs(result)
+        else:
+            posteriors = [res.posterior for res in self]
+
+        combined_posteriors = pd.concat(posteriors, ignore_index=True)
+        result.posterior = combined_posteriors.sample(len(combined_posteriors))  # shuffle
+        return result
+
+    def _combine_nested_sampled_runs(self, result):
+        self._check_nested_samples()
+        log_evidences = np.array([res.log_evidence for res in self])
+        result.log_evidence = logsumexp(log_evidences, b=1. / len(self))
+        if result.use_ratio:
+            result.log_bayes_factor = result.log_evidence
+            result.log_evidence = result.log_evidence + result.log_noise_evidence
+        else:
+            result.log_bayes_factor = result.log_evidence - result.log_noise_evidence
+        log_errs = [res.log_evidence_err for res in self if np.isfinite(res.log_evidence_err)]
+        result.log_evidence_err = logsumexp(2 * np.array(log_errs), b=1. / len(self))
+        result_weights = np.exp(log_evidences - np.max(log_evidences))
+        posteriors = []
+        for res, frac in zip(self, result_weights):
+            selected_samples = (np.random.uniform(size=len(res.posterior)) < frac)
+            posteriors.append(res.posterior[selected_samples])
+        # remove original nested_samples
+        result.nested_samples = None
+        result.sampler_kwargs = None
+        return posteriors, result
+
+    def _check_nested_samples(self):
+        for res in self:
+            try:
+                res.nested_samples
+            except ValueError:
+                raise CombineResultError("Cannot combine results: No nested samples available "
+                                         "in all results")
+
+    def _check_consistent_priors(self):
+        for res in self:
+            for p in self[0].priors.keys():
+                if not self[0].priors[p] == res.priors[p] or len(self[0].priors) != len(res.priors):
+                    raise CombineResultError("Cannot combine results: inconsistent priors")
+
+    def _check_consistent_parameters(self):
+        if not np.all([set(self[0].search_parameter_keys) == set(res.search_parameter_keys) for res in self]):
+            raise CombineResultError("Cannot combine results: inconsistent parameters")
+
+    def _check_consistent_data(self):
+        if not np.all([res.log_noise_evidence == self[0].log_noise_evidence for res in self])\
+                and not np.all([np.isnan(res.log_noise_evidence) for res in self]):
+            raise CombineResultError("Cannot combine results: inconsistent data")
+
+    def _check_consistent_sampler(self):
+        if not np.all([res.sampler == self[0].sampler for res in self]):
+            raise CombineResultError("Cannot combine results: inconsistent samplers")
+
 
 def plot_multiple(results, filename=None, labels=None, colours=None,
                   save=True, evidences=False, **kwargs):
@@ -1342,7 +1518,8 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
 
 
 def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
-                 lines=None, legend_fontsize=9, keys=None, **kwargs):
+                 lines=None, legend_fontsize=9, keys=None, title=True,
+                 **kwargs):
     """
     Make a P-P plot for a set of runs with injected signals.
 
@@ -1368,8 +1545,9 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
 
     Returns
     -------
-    fig:
-        matplotlib figure
+    fig, pvals:
+        matplotlib figure and a NamedTuple with attributes `combined_pvalue`,
+        `pvalues`, and `names`.
     """
 
     credible_levels = pd.DataFrame()
@@ -1399,12 +1577,26 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
 
     ax.fill_between(x_values, lower, upper, alpha=0.2, color='k')
 
+    pvalues = []
+    logger.info("Key: KS-test p-value")
     for ii, key in enumerate(credible_levels):
         pp = np.array([sum(credible_levels[key].values < xx) /
                        len(credible_levels) for xx in x_values])
         plt.plot(x_values, pp, lines[ii], label=key, **kwargs)
+        pvalue = scipy.stats.kstest(credible_levels[key], 'uniform').pvalue
+        pvalues.append(pvalue)
+        logger.info("{}: {}".format(key, pvalue))
 
-    ax.legend(fontsize=legend_fontsize)
+    Pvals = namedtuple('pvals', ['combined_pvalue', 'pvalues', 'names'])
+    pvals = Pvals(combined_pvalue=scipy.stats.combine_pvalues(pvalues)[1],
+                  pvalues=pvalues,
+                  names=list(credible_levels.keys()))
+    logger.info(
+        "Combined p-value: {}".format(pvals.combined_pvalue))
+
+    if title:
+        ax.set_title("p-value = {:2.4f}".format(pvals.combined_pvalue))
+    ax.legend(linewidth=1, labelspacing=0.25)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     fig.tight_layout()
@@ -1412,11 +1604,16 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
         if filename is None:
             filename = 'outdir/pp.png'
         fig.savefig(filename, dpi=500)
-    return fig
+
+    return fig, pvals
 
 
 class ResultError(Exception):
     """ Base exception for all Result related errors """
+
+
+class CombineResultError(ResultError):
+    """ For Errors occuring during combining results. """
 
 
 class FileMovedError(ResultError):
