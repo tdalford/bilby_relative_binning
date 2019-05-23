@@ -445,11 +445,11 @@ class NestedSampler(Sampler):
 
     @staticmethod
     def reorder_loglikelihoods(unsorted_loglikelihoods, unsorted_samples, sorted_samples):
-        """ Reorders the stored log-likelihood after they have been reweighed
+        """ Reorders the stored log-likelihood after they have been reweighted
 
-        This creates a sorting index by matching the reweighs `result.samples`
+        This creates a sorting index by matching the reweights `result.samples`
         against the raw samples, then uses this index to sort the
-        log-likelihoods
+        loglikelihoods
 
         Parameters
         ----------

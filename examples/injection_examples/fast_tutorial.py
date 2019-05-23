@@ -70,7 +70,7 @@ priors['geocent_time'] = bilby.core.prior.Uniform(
     maximum=injection_parameters['geocent_time'] + 1,
     name='geocent_time', latex_label='$t_c$', unit='$s$')
 for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl', 'psi', 'ra',
-            'dec', 'geocent_time', 'phase']:
+            'dec', 'geocent_time', 'phase', 'luminosity_distance', 'mass_2', 'theta_jn']:
     priors[key] = injection_parameters[key]
 
 # Initialise the likelihood by passing in the interferometer data (ifos) and
@@ -80,8 +80,9 @@ likelihood = bilby.gw.GravitationalWaveTransient(
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='dynesty', npoints=1000,
+    likelihood=likelihood, priors=priors, sampler='pypolychord', npoints=20,
     injection_parameters=injection_parameters, outdir=outdir, label=label)
-
 # Make a corner plot.
 result.plot_corner()
+print(result.log_evidence)
+print(result.log_evidence_err)
