@@ -1,14 +1,14 @@
 from __future__ import absolute_import
 
 import os
-import sys
 import pickle
 import signal
+import sys
 
 import numpy as np
 
 from .base_sampler import Sampler, NestedSampler
-from ..result import Result, read_in_result
+from ..result import Result
 from ..utils import logger, check_directory_exists_and_if_not_mkdir
 
 
