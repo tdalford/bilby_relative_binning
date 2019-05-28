@@ -1,5 +1,6 @@
 from __future__ import division
 
+from importlib import import_module
 import logging
 import os
 from math import fmod
@@ -27,6 +28,19 @@ solar_mass = 1.9885469549614615e+30  # Kg
 radius_of_earth = 6378136.6  # m
 
 _TOL = 14
+
+
+def import_from_string(cls):
+    if '.' in cls:
+        module = '.'.join(cls.split('.')[:-1])
+        cls = cls.split('.')[-1]
+    else:
+        module = __name__
+    try:
+        return getattr(import_module(module), cls)
+    except (ImportError, AttributeError):
+        raise AttributeError(
+            'Cannot find {}'.format(cls))
 
 
 def infer_parameters_from_function(func):
