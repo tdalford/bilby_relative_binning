@@ -224,7 +224,7 @@ class GravitationalWaveTransient(likelihood.Likelihood):
 
         d_inner_h = 0.
         optimal_snr_squared = 0.
-        complex_matched_filter_snr = 0.
+        complex_matched_filter_snr_squared = 0.
         if self.time_marginalization:
             d_inner_h_tc_array = np.zeros(
                 self.interferometers.frequency_array[0:-1].shape,
@@ -237,7 +237,7 @@ class GravitationalWaveTransient(likelihood.Likelihood):
 
             d_inner_h += per_detector_snr.d_inner_h
             optimal_snr_squared += np.real(per_detector_snr.optimal_snr_squared)
-            complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
+            complex_matched_filter_snr_squared += per_detector_snr.complex_matched_filter_snr**2
 
             if self.time_marginalization:
                 d_inner_h_tc_array += per_detector_snr.d_inner_h_squared_tc_array
@@ -246,9 +246,8 @@ class GravitationalWaveTransient(likelihood.Likelihood):
             self.derived[interferometer.name + '_matched_filter_snr_phase'] = np.angle(per_detector_snr.complex_matched_filter_snr)
             self.derived[interferometer.name + '_optimal_snr'] = per_detector_snr.optimal_snr_squared.real**0.5
 
-
-        self.derived['matched_filter_snr_amp'] = abs(complex_matched_filter_snr)
-        self.derived['matched_filter_snr_phase'] = np.angle(complex_matched_filter_snr)
+        self.derived['matched_filter_snr_amp'] = abs(complex_matched_filter_snr_squared**0.5)
+        self.derived['matched_filter_snr_phase'] = np.angle(complex_matched_filter_snr_squared**0.5)
         self.derived['optimal_snr'] = optimal_snr_squared.real**0.5
 
         if self.time_marginalization:
