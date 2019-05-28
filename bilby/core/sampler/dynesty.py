@@ -7,7 +7,7 @@ import signal
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pandas import DataFrame
+from pandas import concat, DataFrame
 
 from ..utils import logger, check_directory_exists_and_if_not_mkdir
 from .base_sampler import Sampler, NestedSampler
@@ -117,6 +117,8 @@ class Dynesty(NestedSampler):
 
         self.resume_file = '{}/{}_resume.pickle'.format(self.outdir, self.label)
 
+        self.blobs = DataFrame()
+
         signal.signal(signal.SIGTERM, self.write_current_state_and_exit)
         signal.signal(signal.SIGINT, self.write_current_state_and_exit)
         signal.signal(signal.SIGALRM, self.write_current_state_and_exit)
@@ -176,6 +178,9 @@ class Dynesty(NestedSampler):
         else:
             key = 'logz'
 
+        self.blobs = self.blobs.append(
+            self.likelihood.derived, ignore_index=True)
+
         # Constructing output.
         raw_string = "\r {}| {}={:6.3f} +/- {:6.3f} | dlogz: {:6.3f} > {:6.3f}"
         print_str = raw_string.format(
@@ -228,6 +233,8 @@ class Dynesty(NestedSampler):
         weights = np.exp(out['logwt'] - out['logz'][-1])
         nested_samples = DataFrame(
             out.samples, columns=self.search_parameter_keys)
+        for key in self.blobs:
+            nested_samples[key] = self.blobs[key]
         nested_samples['weights'] = weights
         nested_samples['log_likelihood'] = out.logl
 
