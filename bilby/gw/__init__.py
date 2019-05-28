@@ -1,4 +1,4 @@
-from . import (conversion, cosmology, detector, likelihood, prior,
+from . import (conversion, cosmology, detector, jacobian, likelihood, prior,
                result, source, utils, waveform_generator)
 
 from .waveform_generator import WaveformGenerator
