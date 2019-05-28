@@ -9,6 +9,7 @@ from ..prior import PriorDict
 from .base_sampler import Sampler
 from .cpnest import Cpnest
 from .dynesty import Dynesty
+from .dynamic_dynesty import DynamicDynesty
 from .emcee import Emcee
 from .nestle import Nestle
 from .polychord import PyPolyChord
@@ -16,11 +17,14 @@ from .ptemcee import Ptemcee
 from .ptmcmc import PTMCMCSampler
 from .pymc3 import Pymc3
 from .pymultinest import Pymultinest
+from .fake_sampler import FakeSampler
+from . import proposal
 
 IMPLEMENTED_SAMPLERS = {
-    'cpnest': Cpnest, 'dynesty': Dynesty, 'emcee': Emcee, 'nestle': Nestle,
+    'cpnest': Cpnest, 'dynamic_dynesty': DynamicDynesty, 'dynesty': Dynesty, 'emcee': Emcee, 'nestle': Nestle,
     'ptemcee': Ptemcee,'ptmcmcsampler' : PTMCMCSampler,
-    'pymc3': Pymc3, 'pymultinest': Pymultinest, 'pypolychord': PyPolyChord }
+    'pymc3': Pymc3, 'pymultinest': Pymultinest, 'pypolychord': PyPolyChord,
+    'fake_sampler': FakeSampler }
 
 if command_line_args.sampler_help:
     sampler = command_line_args.sampler_help
@@ -42,8 +46,8 @@ if command_line_args.sampler_help:
 def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
                 sampler='dynesty', use_ratio=None, injection_parameters=None,
                 conversion_function=None, plot=False, default_priors_file=None,
-                clean=None, meta_data=None, save=True, result_class=None,
-                **kwargs):
+                clean=None, meta_data=None, save=True, gzip=False,
+                result_class=None, **kwargs):
     """
     The primary interface to easy parameter estimation
 
@@ -85,6 +89,9 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         overwritten.
     save: bool
         If true, save the priors and results to disk.
+        If hdf5, save as an hdf5 file instead of json.
+    gzip: bool
+        If true, and save is true, gzip the saved results file.
     result_class: bilby.core.result.Result, or child of
         The result class to use. By default, `bilby.core.result.Result` is used,
         but objects which inherit from this class can be given providing
@@ -176,16 +183,21 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         result.log_bayes_factor = \
             result.log_evidence - result.log_noise_evidence
 
-    if result.injection_parameters is not None:
-        if conversion_function is not None:
-            result.injection_parameters = conversion_function(
-                result.injection_parameters)
-
-    result.samples_to_posterior(likelihood=likelihood, priors=priors,
-                                conversion_function=conversion_function)
+    # Initial save of the sampler in case of failure in post-processing
     if save:
-        result.save_to_file()
-        logger.info("Results saved to {}/".format(outdir))
+        result.save_to_file(extension=save, gzip=gzip)
+
+    if None not in [result.injection_parameters, conversion_function]:
+        result.injection_parameters = conversion_function(
+            result.injection_parameters)
+
+    result.samples_to_posterior(likelihood=likelihood, priors=result.priors,
+                                conversion_function=conversion_function)
+
+    if save:
+        # The overwrite here ensures we overwrite the initially stored data
+        result.save_to_file(overwrite=True, extension=save, gzip=gzip)
+
     if plot:
         result.plot_corner()
     logger.info("Summary of results:\n{}".format(result))

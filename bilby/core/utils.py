@@ -7,9 +7,12 @@ import argparse
 import traceback
 import inspect
 import subprocess
+import json
 
 import numpy as np
 from scipy.interpolate import interp2d
+from scipy.special import logsumexp
+import pandas as pd
 
 logger = logging.getLogger('bilby')
 
@@ -681,6 +684,117 @@ def derivatives(vals, func, releps=1e-3, abseps=None, mineps=1e-9, reltol=1e-3,
     return grads
 
 
+def logtrapzexp(lnf, dx):
+    """
+    Perform trapezium rule integration for the logarithm of a function on a regular grid.
+
+    Parameters
+    ----------
+    lnf: array_like
+        A :class:`numpy.ndarray` of values that are the natural logarithm of a function
+    dx: Union[array_like, float]
+        A :class:`numpy.ndarray` of steps sizes between values in the function, or a
+        single step size value.
+
+    Returns
+    -------
+    The natural logarithm of the area under the function.
+    """
+    return np.log(dx / 2.) + logsumexp([logsumexp(lnf[:-1]), logsumexp(lnf[1:])])
+
+
+class SamplesSummary(object):
+    """ Object to store a set of samples and calculate summary statistics
+
+    Parameters
+    ----------
+    samples: array_like
+        Array of samples
+    average: str {'median', 'mean'}
+        Use either a median average or mean average when calculating relative
+        uncertainties
+    level: float
+        The default confidence interval level, defaults t0 0.9
+
+    """
+    def __init__(self, samples, average='median', confidence_level=.9):
+        self.samples = samples
+        self.average = average
+        self.confidence_level = confidence_level
+
+    @property
+    def samples(self):
+        return self._samples
+
+    @samples.setter
+    def samples(self, samples):
+        self._samples = samples
+
+    @property
+    def confidence_level(self):
+        return self._confidence_level
+
+    @confidence_level.setter
+    def confidence_level(self, confidence_level):
+        if 0 < confidence_level and confidence_level < 1:
+            self._confidence_level = confidence_level
+        else:
+            raise ValueError("Confidence level must be between 0 and 1")
+
+    @property
+    def average(self):
+        if self._average == 'mean':
+            return self.mean
+        elif self._average == 'median':
+            return self.median
+
+    @average.setter
+    def average(self, average):
+        allowed_averages = ['mean', 'median']
+        if average in allowed_averages:
+            self._average = average
+        else:
+            raise ValueError("Average {} not in allowed averages".format(average))
+
+    @property
+    def median(self):
+        return np.median(self.samples, axis=0)
+
+    @property
+    def mean(self):
+        return np.mean(self.samples, axis=0)
+
+    @property
+    def _lower_level(self):
+        """ The credible interval lower quantile value """
+        return (1 - self.confidence_level) / 2.
+
+    @property
+    def _upper_level(self):
+        """ The credible interval upper quantile value """
+        return (1 + self.confidence_level) / 2.
+
+    @property
+    def lower_absolute_credible_interval(self):
+        """ Absolute lower value of the credible interval """
+        return np.quantile(self.samples, self._lower_level, axis=0)
+
+    @property
+    def upper_absolute_credible_interval(self):
+        """ Absolute upper value of the credible interval """
+        return np.quantile(self.samples, self._upper_level, axis=0)
+
+    @property
+    def lower_relative_credible_interval(self):
+        """ Relative (to average) lower value of the credible interval """
+        return self.lower_absolute_credible_interval - self.average
+
+    @property
+    def upper_relative_credible_interval(self):
+        """ Relative (to average) upper value of the credible interval """
+        return self.upper_absolute_credible_interval - self.average
+
+
 def run_commandline(cl, log_level=20, raise_error=True, return_output=True):
     """Run a string cmd as a subprocess, check for errors and return output.
 
@@ -714,16 +828,31 @@ def run_commandline(cl, log_level=20, raise_error=True, return_output=True):
 
 
 class UnsortedInterp2d(interp2d):
-    """
-    Wrapper to scipy.interpolate.interp2d which preserves the input ordering.
 
-    See https://stackoverflow.com/questions/44941271/scipy-interp2d-returned-function-sorts-input-argument-automatically-and-undesira
-    for the implementation details.
-    """
+    def __call__(self, x, y, dx=0, dy=0, assume_sorted=False):
+        """  Wrapper to scipy.interpolate.interp2d which preserves the input ordering.
 
-    def __call__(self, x, y, dx=0, dy=0):
+        See https://stackoverflow.com/questions/44941271/scipy-interp2d-returned-function-sorts-input-argument-automatically-and-undesira
+        for the implementation details.
+
+
+        Parameters
+        ----------
+        x: See superclass
+        y: See superclass
+        dx: See superclass
+        dy: See superclass
+        assume_sorted: bool, optional
+            This is just a place holder to prevent a warning.
+            Overwriting this will not do anything
+
+        Returns
+        ----------
+        array_like: See superclass
+
+        """
         unsorted_idxs = np.argsort(np.argsort(x))
-        return interp2d.__call__(self, x, y, dx=dx, dy=dy)[unsorted_idxs]
+        return interp2d.__call__(self, x, y, dx=dx, dy=dy, assume_sorted=False)[unsorted_idxs]
 
 
 #  Instantiate the default argument parser at runtime
@@ -749,6 +878,27 @@ else:
             break
         except Exception:
             print(traceback.format_exc())
+
+
+class BilbyJsonEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return {'__array__': True, 'content': obj.tolist()}
+        if isinstance(obj, complex):
+            return {'__complex__': True, 'real': obj.real, 'imag': obj.imag}
+        if isinstance(obj, pd.DataFrame):
+            return {'__dataframe__': True, 'content': obj.to_dict(orient='list')}
+        return json.JSONEncoder.default(self, obj)
+
+
+def decode_bilby_json(dct):
+    if dct.get("__array__", False):
+        return np.asarray(dct["content"])
+    if dct.get("__complex__", False):
+        return complex(dct["real"], dct["imag"])
+    if dct.get("__dataframe__", False):
+        return pd.DataFrame(dct['content'])
+    return dct
 
 
 class IllegalDurationAndSamplingFrequencyException(Exception):

@@ -49,8 +49,8 @@ class TestCBCResult(unittest.TestCase):
 
     def test_phase_marginalization_unset(self):
         self.result.meta_data['likelihood'].pop('phase_marginalization')
-        with self.assertRaises(ValueError):
-            self.result.phase_marginalization,
+        with self.assertRaises(AttributeError):
+            self.result.phase_marginalization
 
     def test_time_marginalization(self):
         self.assertEqual(
@@ -59,8 +59,8 @@ class TestCBCResult(unittest.TestCase):
 
     def test_time_marginalization_unset(self):
         self.result.meta_data['likelihood'].pop('time_marginalization')
-        with self.assertRaises(ValueError):
-            self.result.time_marginalization,
+        with self.assertRaises(AttributeError):
+            self.result.time_marginalization
 
     def test_distance_marginalization(self):
         self.assertEqual(
@@ -69,8 +69,8 @@ class TestCBCResult(unittest.TestCase):
 
     def test_distance_marginalization_unset(self):
         self.result.meta_data['likelihood'].pop('distance_marginalization')
-        with self.assertRaises(ValueError):
-            self.result.distance_marginalization,
+        with self.assertRaises(AttributeError):
+            self.result.distance_marginalization
 
     def test_reference_frequency(self):
         self.assertEqual(
@@ -79,8 +79,8 @@ class TestCBCResult(unittest.TestCase):
 
     def test_reference_frequency_unset(self):
         self.result.meta_data['likelihood']['waveform_arguments'].pop('reference_frequency')
-        with self.assertRaises(ValueError):
-            self.result.reference_frequency,
+        with self.assertRaises(AttributeError):
+            self.result.reference_frequency
 
     def test_waveform_approximant(self):
         self.assertEqual(
@@ -89,8 +89,13 @@ class TestCBCResult(unittest.TestCase):
 
     def test_waveform_approximant_unset(self):
         self.result.meta_data['likelihood']['waveform_arguments'].pop('waveform_approximant')
-        with self.assertRaises(ValueError):
-            self.result.waveform_approximant,
+        with self.assertRaises(AttributeError):
+            self.result.waveform_approximant
+
+    def test_waveform_arguments(self):
+        self.assertEqual(
+            self.result.waveform_arguments,
+            self.meta_data['likelihood']['waveform_arguments'])
 
     def test_frequency_domain_source_model(self):
         self.assertEqual(
@@ -99,8 +104,13 @@ class TestCBCResult(unittest.TestCase):
 
     def test_frequency_domain_source_model_unset(self):
         self.result.meta_data['likelihood'].pop('frequency_domain_source_model')
-        with self.assertRaises(ValueError):
+        with self.assertRaises(AttributeError):
             self.result.frequency_domain_source_model
+
+    def test_interferometer_names(self):
+        self.assertEqual(
+            self.result.interferometers,
+            [name for name in self.meta_data['likelihood']['interferometers']])
 
     def test_detector_injection_properties(self):
         self.assertEqual(

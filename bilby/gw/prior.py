@@ -4,8 +4,12 @@ import numpy as np
 from scipy.interpolate import UnivariateSpline
 
 from ..core.prior import (PriorDict, Uniform, Prior, DeltaFunction, Gaussian,
-                          Interped)
+                          Interped, Constraint)
 from ..core.utils import infer_args_from_method, logger
+from .conversion import (
+    convert_to_lal_binary_black_hole_parameters,
+    convert_to_lal_binary_neutron_star_parameters, generate_mass_parameters,
+    generate_tidal_parameters, fill_from_fixed_priors)
 from .cosmology import get_cosmology
 
 try:
@@ -27,7 +31,7 @@ class Cosmological(Interped):
                 name='comoving_distance', latex_label='$d_C$', unit=units.Mpc))
 
     def __init__(self, minimum, maximum, cosmology=None, name=None,
-                 latex_label=None, unit=None):
+                 latex_label=None, unit=None, boundary=None):
         self.cosmology = get_cosmology(cosmology)
         if name not in self._default_args_dict:
             raise ValueError(
@@ -55,7 +59,7 @@ class Cosmological(Interped):
         else:
             raise ValueError('Name {} not recognized.'.format(name))
         Interped.__init__(self, xx=xx, yy=yy, minimum=minimum, maximum=maximum,
-                          **label_args)
+                          boundary=boundary, **label_args)
 
     @property
     def minimum(self):
@@ -84,8 +88,10 @@ class Cosmological(Interped):
                 self._minimum['redshift'] = cosmo.z_at_value(
                     cosmology.comoving_distance, minimum * self.unit)
             self._minimum['luminosity_distance'] = self._minimum['redshift']
-        if getattr(self._maximum, self.name, np.inf) < np.inf:
-            self.__update_instance()
+        try:
+            self._update_instance()
+        except (AttributeError, KeyError):
+            pass
 
     @property
     def maximum(self):
@@ -108,8 +114,10 @@ class Cosmological(Interped):
             self._maximum['redshift'] = cosmo.z_at_value(
                 cosmology.comoving_distance, maximum * self.unit)
             self._maximum['luminosity_distance'] = self._maximum['redshift']
-        if getattr(self._minimum, self.name, np.inf) < np.inf:
-            self.__update_instance()
+        try:
+            self._update_instance()
+        except (AttributeError, KeyError):
+            pass
 
     def get_corresponding_prior(self, name=None, unit=None):
         subclass_args = infer_args_from_method(self.__init__)
@@ -151,10 +159,26 @@ class UniformComovingVolume(Cosmological):
         return zs, p_dz
 
 
+class UniformSourceFrame(Cosmological):
+    """
+    Prior for redshift which is uniform in comoving volume and source frame
+    time.
+
+    For redshift this is p(z) \propto dVc/dz 1 / (1 + z), where the extra 1+z
+    is due to doppler shifting of the source frame time.
+    """
+
+    def _get_redshift_arrays(self):
+        zs = np.linspace(self._minimum['redshift'] * 0.99,
+                         self._maximum['redshift'] * 1.01, 1000)
+        p_dz = self.cosmology.differential_comoving_volume(zs).value / (1 + zs)
+        return zs, p_dz
+
+
 class AlignedSpin(Interped):
 
     def __init__(self, a_prior=Uniform(0, 1), z_prior=Uniform(-1, 1),
-                 name=None, latex_label=None, unit=None):
+                 name=None, latex_label=None, unit=None, boundary=None):
         """
         Prior distribution for the aligned (z) component of the spin.
 
@@ -185,11 +209,13 @@ class AlignedSpin(Interped):
         yy = [np.trapz(np.nan_to_num(a_prior.prob(aas) / aas *
                                      z_prior.prob(x / aas)), aas) for x in xx]
         Interped.__init__(self, xx=xx, yy=yy, name=name,
-                          latex_label=latex_label, unit=unit)
+                          latex_label=latex_label, unit=unit,
+                          boundary=boundary)
 
 
 class BBHPriorDict(PriorDict):
-    def __init__(self, dictionary=None, filename=None):
+    def __init__(self, dictionary=None, filename=None, aligned_spin=False,
+                 conversion_function=None):
         """ Initialises a Prior set for Binary Black holes
 
         Parameters
@@ -198,77 +224,105 @@ class BBHPriorDict(PriorDict):
             See superclass
         filename: str, optional
             See superclass
+        conversion_function: func
+            Function to convert between sampled parameters and constraints.
+            By default this generates many additional parameters, see
+            BBHPriorDict.default_conversion_function
         """
+        basedir = os.path.join(os.path.dirname(__file__), 'prior_files')
         if dictionary is None and filename is None:
-            filename = os.path.join(os.path.dirname(__file__), 'prior_files', 'binary_black_holes.prior')
+            fname = 'binary_black_holes.prior'
+            if aligned_spin:
+                fname = 'aligned_spin_' + fname
+                logger.info('Using aligned spin prior')
+            filename = os.path.join(basedir, fname)
             logger.info('No prior given, using default BBH priors in {}.'.format(filename))
         elif filename is not None:
             if not os.path.isfile(filename):
                 filename = os.path.join(os.path.dirname(__file__), 'prior_files', filename)
-        PriorDict.__init__(self, dictionary=dictionary, filename=filename)
+        PriorDict.__init__(self, dictionary=dictionary, filename=filename,
+                           conversion_function=conversion_function)
 
-    def test_redundancy(self, key):
+    def default_conversion_function(self, sample):
+        """
+        Default parameter conversion function for BBH signals.
+
+        This generates:
+        - the parameters passed to source.lal_binary_black_hole
+        - all mass parameters
+
+        It does not generate:
+        - component spins
+        - source-frame parameters
+
+        Parameters
+        ----------
+        sample: dict
+            Dictionary to convert
+
+        Returns
+        -------
+        sample: dict
+            Same as input
+        """
+        out_sample = fill_from_fixed_priors(sample, self)
+        out_sample, _ = convert_to_lal_binary_black_hole_parameters(out_sample)
+        out_sample = generate_mass_parameters(out_sample)
+
+        return out_sample
+
+    def test_redundancy(self, key, disable_logging=False):
         """
         Test whether adding the key would add be redundant.
+        Already existing keys return True.
 
         Parameters
         ----------
         key: str
             The key to test.
+        disable_logging: bool, optional
+            Disable logging in this function call. Default is False.
 
         Return
         ------
         redundant: bool
             Whether the key is redundant or not
         """
-        redundant = False
         if key in self:
             logger.debug('{} already in prior'.format(key))
-            return redundant
+            return True
+
+        sampling_parameters = {key for key in self if not isinstance(
+            self[key], (DeltaFunction, Constraint))}
+
         mass_parameters = {'mass_1', 'mass_2', 'chirp_mass', 'total_mass', 'mass_ratio', 'symmetric_mass_ratio'}
-        spin_magnitude_parameters = {'a_1', 'a_2'}
         spin_tilt_1_parameters = {'tilt_1', 'cos_tilt_1'}
         spin_tilt_2_parameters = {'tilt_2', 'cos_tilt_2'}
         spin_azimuth_parameters = {'phi_1', 'phi_2', 'phi_12', 'phi_jl'}
-        inclination_parameters = {'iota', 'cos_iota'}
+        inclination_parameters = {'theta_jn', 'cos_theta_jn'}
         distance_parameters = {'luminosity_distance', 'comoving_distance', 'redshift'}
 
-        for parameter_set in [mass_parameters, spin_magnitude_parameters, spin_azimuth_parameters]:
+        for independent_parameters, parameter_set in \
+                zip([2, 2, 1, 1, 1, 1],
+                    [mass_parameters, spin_azimuth_parameters,
+                     spin_tilt_1_parameters, spin_tilt_2_parameters,
+                     inclination_parameters, distance_parameters]):
             if key in parameter_set:
-                if len(parameter_set.intersection(self)) > 2:
-                    redundant = True
-                    logger.warning('{} in prior. This may lead to unexpected behaviour.'.format(
-                        parameter_set.intersection(self)))
-                    break
-            elif len(parameter_set.intersection(self)) == 2:
-                redundant = True
-                break
-        for parameter_set in [inclination_parameters, distance_parameters, spin_tilt_1_parameters,
-                              spin_tilt_2_parameters]:
-            if key in parameter_set:
-                if len(parameter_set.intersection(self)) > 1:
-                    redundant = True
-                    logger.warning('{} in prior. This may lead to unexpected behaviour.'.format(
-                        parameter_set.intersection(self)))
-                    break
-                elif len(parameter_set.intersection(self)) == 1:
-                    redundant = True
-                    break
-
-        return redundant
-
-
-class BBHPriorSet(BBHPriorDict):
-
-    def __init__(self, dictionary=None, filename=None):
-        """ DEPRECATED: USE BBHPriorDict INSTEAD"""
-        logger.warning("The name 'BBHPriorSet' is deprecated use 'BBHPriorDict' instead")
-        super(BBHPriorSet, self).__init__(dictionary, filename)
+                if len(parameter_set.intersection(
+                        sampling_parameters)) >= independent_parameters:
+                    logger.disabled = disable_logging
+                    logger.warning('{} already in prior. '
+                                   'This may lead to unexpected behaviour.'
+                                   .format(parameter_set.intersection(self)))
+                    logger.disabled = False
+                    return True
+        return False
 
 
 class BNSPriorDict(PriorDict):
 
-    def __init__(self, dictionary=None, filename=None):
+    def __init__(self, dictionary=None, filename=None, aligned_spin=True,
+                 conversion_function=None):
         """ Initialises a Prior set for Binary Neutron Stars
 
         Parameters
@@ -277,41 +331,78 @@ class BNSPriorDict(PriorDict):
             See superclass
         filename: str, optional
             See superclass
+        conversion_function: func
+            Function to convert between sampled parameters and constraints.
+            By default this generates many additional parameters, see
+            BNSPriorDict.default_conversion_function
         """
+        if not aligned_spin:
+            logger.warning('Non-aligned spins not yet supported for BNS.')
         if dictionary is None and filename is None:
             filename = os.path.join(os.path.dirname(__file__), 'prior_files', 'binary_neutron_stars.prior')
             logger.info('No prior given, using default BNS priors in {}.'.format(filename))
         elif filename is not None:
             if not os.path.isfile(filename):
                 filename = os.path.join(os.path.dirname(__file__), 'prior_files', filename)
-        PriorDict.__init__(self, dictionary=dictionary, filename=filename)
+        PriorDict.__init__(self, dictionary=dictionary, filename=filename,
+                           conversion_function=conversion_function)
 
-    def test_redundancy(self, key):
-        logger.info("Performing redundancy check using BBHPriorDict().test_redundancy")
-        bbh_redundancy = BBHPriorDict().test_redundancy(key)
+    def default_conversion_function(self, sample):
+        """
+        Default parameter conversion function for BNS signals.
+
+        This generates:
+        - the parameters passed to source.lal_binary_neutron_star
+        - all mass parameters
+        - all tidal parameters
+
+        It does not generate:
+        - component spins
+        - source-frame parameters
+
+        Parameters
+        ----------
+        sample: dict
+            Dictionary to convert
+
+        Returns
+        -------
+        sample: dict
+            Same as input
+        """
+        out_sample = fill_from_fixed_priors(sample, self)
+        out_sample, _ = convert_to_lal_binary_neutron_star_parameters(out_sample)
+        out_sample = generate_mass_parameters(out_sample)
+        out_sample = generate_tidal_parameters(out_sample)
+        return out_sample
+
+    def test_redundancy(self, key, disable_logging=False):
+        logger.disabled = disable_logging
+        logger.info("Performing redundancy check using BBHPriorDict(self).test_redundancy")
+        logger.disabled = False
+        bbh_redundancy = BBHPriorDict(self).test_redundancy(key)
+
         if bbh_redundancy:
             return True
         redundant = False
 
-        tidal_parameters =\
+        sampling_parameters = {key for key in self if not isinstance(
+            self[key], (DeltaFunction, Constraint))}
+
+        tidal_parameters = \
             {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda'}
 
         if key in tidal_parameters:
-            if len(tidal_parameters.intersection(self)) > 2:
+            if len(tidal_parameters.intersection(sampling_parameters)) > 2:
                 redundant = True
-                logger.warning('{} in prior. This may lead to unexpected behaviour.'.format(
-                    tidal_parameters.intersection(self)))
-            elif len(tidal_parameters.intersection(self)) == 2:
+                logger.disabled = disable_logging
+                logger.warning('{} already in prior. '
+                               'This may lead to unexpected behaviour.'
+                               .format(tidal_parameters.intersection(self)))
+                logger.disabled = False
+            elif len(tidal_parameters.intersection(sampling_parameters)) == 2:
                 redundant = True
         return redundant
-
-
-class BNSPriorSet(BNSPriorDict):
-
-    def __init__(self, dictionary=None, filename=None):
-        """ DEPRECATED: USE BNSPriorDict INSTEAD"""
-        super(BNSPriorSet, self).__init__(dictionary, filename)
-        logger.warning("The name 'BNSPriorSet' is deprecated use 'BNSPriorDict' instead")
 
 
 Prior._default_latex_labels = {
@@ -334,6 +425,8 @@ Prior._default_latex_labels = {
     'ra': '$\mathrm{RA}$',
     'iota': '$\iota$',
     'cos_iota': '$\cos\iota$',
+    'theta_jn': '$\\theta_{JN}$',
+    'cos_theta_jn': '$\cos\\theta_{JN}$',
     'psi': '$\psi$',
     'phase': '$\phi$',
     'geocent_time': '$t_c$',
@@ -410,21 +503,21 @@ class CalibrationPriorDict(PriorDict):
         """
         calibration_data = np.genfromtxt(envelope_file).T
         frequency_array = calibration_data[0]
-        amplitude_median = 1 - calibration_data[1]
+        amplitude_median = calibration_data[1] - 1
         phase_median = calibration_data[2]
-        amplitude_sigma = (calibration_data[4] - calibration_data[2]) / 2
-        phase_sigma = (calibration_data[5] - calibration_data[3]) / 2
+        amplitude_sigma = (calibration_data[5] - calibration_data[3]) / 2
+        phase_sigma = (calibration_data[6] - calibration_data[4]) / 2
 
         nodes = np.logspace(np.log10(minimum_frequency),
                             np.log10(maximum_frequency), n_nodes)
 
-        amplitude_mean_nodes =\
+        amplitude_mean_nodes = \
             UnivariateSpline(frequency_array, amplitude_median)(nodes)
-        amplitude_sigma_nodes =\
+        amplitude_sigma_nodes = \
             UnivariateSpline(frequency_array, amplitude_sigma)(nodes)
-        phase_mean_nodes =\
+        phase_mean_nodes = \
             UnivariateSpline(frequency_array, phase_median)(nodes)
-        phase_sigma_nodes =\
+        phase_sigma_nodes = \
             UnivariateSpline(frequency_array, phase_sigma)(nodes)
 
         prior = CalibrationPriorDict()
@@ -433,13 +526,15 @@ class CalibrationPriorDict(PriorDict):
             latex_label = "$A^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
-                                   name=name, latex_label=latex_label)
+                                   name=name, latex_label=latex_label,
+                                   boundary=None)
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
-                                   name=name, latex_label=latex_label)
+                                   name=name, latex_label=latex_label,
+                                   boundary=None)
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
@@ -492,13 +587,15 @@ class CalibrationPriorDict(PriorDict):
             latex_label = "$A^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
-                                   name=name, latex_label=latex_label)
+                                   name=name, latex_label=latex_label,
+                                   boundary=None)
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
-                                   name=name, latex_label=latex_label)
+                                   name=name, latex_label=latex_label,
+                                   boundary=None)
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
@@ -506,11 +603,3 @@ class CalibrationPriorDict(PriorDict):
                                         latex_label=latex_label)
 
         return prior
-
-
-class CalibrationPriorSet(CalibrationPriorDict):
-
-    def __init__(self, dictionary=None, filename=None):
-        """ DEPRECATED: USE BNSPriorDict INSTEAD"""
-        super(CalibrationPriorSet, self).__init__(dictionary, filename)
-        logger.warning("The name 'CalibrationPriorSet' is deprecated use 'CalibrationPriorDict' instead")

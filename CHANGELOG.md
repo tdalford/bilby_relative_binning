@@ -3,10 +3,112 @@
 ## Unreleased
 
 ### Added
--
+- 
+### Changed
+- 
+### Removed
+- 
+
+## [0.5.0] 2019-05-08
+
+### Added
+- A plot_skymap method to the CBCResult object based on ligo.skymap
+- A plot_calibration_posterior method to the CBCResult object
+- Method to merge results
 
 ### Changed
+- Significant refactoring of detector module: this should be backward conmpatible. This work was done to break the large detector.py file into smaller, more manageable chunks. 
+- The `periodic_boundary` option to the prior classes has been changed to `boundary`.
+*This breaks backward compatibility*.
+The options to `boundary` are `{'periodic', 'reflective', None}`.
+Periodic boundaries are supported as before.
+Reflective boundaries are supported in `dynesty` and `cpnest`.  
+- Minor speed improvements by caching intermediate steps
+- Added state plotting for dynesty. Use `check_point_plot=True` in the `run_sampler` 
+function to create trace plots during the dynesty checkpoints
+- Dynesty now prints the progress to STDOUT rather than STDERR
+- `detector` module refactored into subpackage. Maintains backward compatibility.
+- Specifying alternative frequency bounds for the ROQ now possible if the appropriate
+`params.dat` file is passed.
+
+### Removed
+- Obsolete (and potentially incorrect) plot_skymap methods from gw.utils
+
+## [0.4.5] 2019-04-03
+
+### Added
+- Calibration method and plotting
+- Multivariate Gaussian prior
+- Bayesian model diminsionality calculator
+- Dynamic dynesty (note: this is in an alpha stage)
+- Waveform caching
+
+### Changes
+- Fixed bugs in the ROQ time resolution
+- Fixed bugs in the gracedb wrapper-method
+- Improvements to the pp-plot method
+- Improved checkpointing for emcee/ptemcee
+- Various perforance-related improvements
+
+## [0.4.4] 2019-04-03
+
+### Added
+- Infrastucture for custom jump proposals (cpnest-only)
+- Evidence uncertainty estimate to cpnest
+
+### Changed
+- Bug fix to close figures after creation
+- Improved the frequency-mask to entirely remove values outside the mask rather
+  than simply set them to zero
+- Fix problem with Prior prob and ln_prob if passing multiple samples
+- Improved cpnest prior sampling
+
+### Removed
 -
+
+## [0.4.3] 2019-03-21
+
+### Added
+- Constraint prior: in prior files you can now add option of a constraint based
+on other parameters. Currently implements mass-constraints only.
+- Grid likelihood: module to evaluate the likelihood on a grid
+
+### Changed
+- The GWTransientLikelihood no longer returns -inf for  m2 > m1. It will evaluate
+the likelihood as-is. To implement the constraint, use the Constraint priors.
+
+## [0.4.2] 2019-03-21
+
+### Added
+- Fermi-Dirac and SymmetricLogUniform prior distributions
+- Multivariate Gaussian example and BNS example
+- Added standard GWOSC channel names
+- Initial work on a fake sampler for testing
+- Option for aligned spins
+- Results file command line interface
+- Full reconstruction of marginalized parameters
+
+### Changed
+- Fixed scheduled tests and simplify testing environment
+- JSON result files can now be gzipped
+- Reduced ROQ memory usage
+- Default checkpointing in cpnest
+
+## [0.4.1] 2019-03-04
+
+### Added
+- Support for JSON result files
+- Before sampling a test is performed for redundant priors
+
+### Changed
+- Fixed the definition of iota to theta_jn. WARNING: this breaks backward compatibility. Previously, the CBC parameter iota was used in prior files, but was ill-defined. This fixes that, requiring all scripts to use `theta_jn` in place of `iota`
+- Changed the default result file store to JSON rather than hdf5. Reading/writing of hdf5 files is still intact. The read_in_result function will still read in hdf5 files for backward compatibility
+- Minor fixes to the way PSDs are calculated
+- Fixed a bug in the CBC result where the frequency_domain model was pickled
+- Use pickling to store the dynesty resume file and add a write-to-resume on SIGINT/SIGKILL
+- Bug fix in ROQ likelihood
+- Distance and phase marginalisation work with ROQ likelihood
+- Cpnest now creates checkpoints (resume files) by default
 
 ### Removed
 -
@@ -14,6 +116,7 @@
 ## [0.4.0] 2019-02-15
 
 ### Changed
+- Changed the logic around redundancy tests in the `PriorDict` classes
 - Fixed an accidental addition of astropy as a first-class dependency and added a check for missing dependencies to the C.I.
 - Fixed a bug in the "create-your-own-time-domain-model" example
 - Added citation guide to the readme
@@ -33,7 +136,7 @@
 - Improve the load_data_from_cache_file method
 
 ### Removed
--
+- Removed deprecated `PriorSet` classes. Use `PriorDict` instead.
 
 ## [0.3.5] 2019-01-25
 

@@ -4,7 +4,7 @@ import numpy as np
 from pandas import DataFrame
 
 from ..core.utils import logger, solar_mass
-from ..core.prior import DeltaFunction, Interped
+from ..core.prior import DeltaFunction
 from .utils import lalsim_SimInspiralTransformPrecessingNewInitialConditions
 from .cosmology import get_cosmology
 
@@ -48,6 +48,25 @@ def luminosity_distance_to_comoving_distance(distance, cosmology=None):
     cosmology = get_cosmology(cosmology)
     redshift = luminosity_distance_to_redshift(distance, cosmology)
     return redshift_to_comoving_distance(redshift, cosmology)
+
+
+def bilby_to_lalsimulation_spins(
+        theta_jn, phi_jl, tilt_1, tilt_2, phi_12, a_1, a_2, mass_1, mass_2,
+        reference_frequency, phase):
+    if tilt_1 in [0, np.pi] and tilt_2 in [0, np.pi]:
+        spin_1x = 0
+        spin_1y = 0
+        spin_1z = a_1 * np.cos(tilt_1)
+        spin_2x = 0
+        spin_2y = 0
+        spin_2z = a_2 * np.cos(tilt_2)
+        iota = theta_jn
+    else:
+        iota, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z = \
+            transform_precessing_spins(
+                theta_jn, phi_jl, tilt_1, tilt_2, phi_12, a_1, a_2, mass_1,
+                mass_2, reference_frequency, phase)
+    return iota, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z
 
 
 @np.vectorize
@@ -215,7 +234,7 @@ def convert_to_lal_binary_black_hole_parameters(parameters):
             converted_parameters['phi_jl'] = 0.0
             converted_parameters['phi_12'] = 0.0
 
-    for angle in ['tilt_1', 'tilt_2', 'iota']:
+    for angle in ['tilt_1', 'tilt_2', 'theta_jn']:
         cos_angle = str('cos_' + angle)
         if cos_angle in converted_parameters.keys():
             converted_parameters[angle] =\
@@ -652,17 +671,21 @@ def _generate_all_cbc_parameters(sample, defaults, base_conversion,
         except (KeyError, AttributeError):
             default = waveform_defaults[key]
             output_sample[key] = default
-            logger.warning('Assuming {} = {}'.format(key, default))
+            logger.debug('Assuming {} = {}'.format(key, default))
 
     output_sample = fill_from_fixed_priors(output_sample, priors)
     output_sample, _ = base_conversion(output_sample)
+    if likelihood is not None:
+        generate_posterior_samples_from_marginalized_likelihood(
+            samples=output_sample, likelihood=likelihood)
+        if priors is not None:
+            for par, name in zip(
+                    ['distance', 'phase', 'time'],
+                    ['luminosity_distance', 'phase', 'geocent_time']):
+                if getattr(likelihood, '{}_marginalization'.format(par), False):
+                    priors[name] = likelihood.priors[name]
     output_sample = generate_mass_parameters(output_sample)
     output_sample = generate_spin_parameters(output_sample)
-    if likelihood is not None:
-        if likelihood.distance_marginalization:
-            output_sample = \
-                generate_distance_samples_from_marginalized_likelihood(
-                    output_sample, likelihood)
     output_sample = generate_source_frame_parameters(output_sample)
     compute_snrs(output_sample, likelihood)
     return output_sample
@@ -782,7 +805,7 @@ def generate_spin_parameters(sample):
     Add all spin parameters to the data frame/dictionary.
 
     We add:
-        cartestian spin components, chi_eff, chi_p cos tilt 1, cos tilt 2
+        cartesian spin components, chi_eff, chi_p cos tilt 1, cos tilt 2
 
     Parameters
     ----------
@@ -827,7 +850,7 @@ def generate_component_spins(sample):
     Parameters
     ----------
     sample: A dictionary with the necessary spin conversion parameters:
-    'iota', 'phi_jl', 'tilt_1', 'tilt_2', 'phi_12', 'a_1', 'a_2', 'mass_1',
+    'theta_jn', 'phi_jl', 'tilt_1', 'tilt_2', 'phi_12', 'a_1', 'a_2', 'mass_1',
     'mass_2', 'reference_frequency', 'phase'
 
     Returns
@@ -837,15 +860,15 @@ def generate_component_spins(sample):
     """
     output_sample = sample.copy()
     spin_conversion_parameters =\
-        ['iota', 'phi_jl', 'tilt_1', 'tilt_2', 'phi_12', 'a_1', 'a_2', 'mass_1',
-         'mass_2', 'reference_frequency', 'phase']
+        ['theta_jn', 'phi_jl', 'tilt_1', 'tilt_2', 'phi_12', 'a_1', 'a_2',
+         'mass_1', 'mass_2', 'reference_frequency', 'phase']
     if all(key in output_sample.keys() for key in spin_conversion_parameters):
         output_sample['iota'], output_sample['spin_1x'],\
             output_sample['spin_1y'], output_sample['spin_1z'], \
             output_sample['spin_2x'], output_sample['spin_2y'],\
             output_sample['spin_2z'] =\
             transform_precessing_spins(
-                output_sample['iota'], output_sample['phi_jl'],
+                output_sample['theta_jn'], output_sample['phi_jl'],
                 output_sample['tilt_1'], output_sample['tilt_2'],
                 output_sample['phi_12'], output_sample['a_1'],
                 output_sample['a_2'],
@@ -866,7 +889,6 @@ def generate_component_spins(sample):
         output_sample['spin_2z'] = output_sample['chi_2']
     else:
         logger.warning("Component spin extraction failed.")
-        logger.warning(output_sample.keys())
 
     return output_sample
 
@@ -951,23 +973,27 @@ def compute_snrs(sample, likelihood):
                     ifo.matched_filter_snr(signal=signal)
                 sample['{}_optimal_snr'.format(ifo.name)] = \
                     ifo.optimal_snr_squared(signal=signal) ** 0.5
+
         else:
             logger.info(
                 'Computing SNRs for every sample, this may take some time.')
-            all_interferometers = likelihood.interferometers
-            matched_filter_snrs = {ifo.name: [] for ifo in all_interferometers}
-            optimal_snrs = {ifo.name: [] for ifo in all_interferometers}
+
+            matched_filter_snrs = {
+                ifo.name: [] for ifo in likelihood.interferometers}
+            optimal_snrs = {ifo.name: [] for ifo in likelihood.interferometers}
+
             for ii in range(len(sample)):
                 signal_polarizations =\
                     likelihood.waveform_generator.frequency_domain_strain(
                         dict(sample.iloc[ii]))
-                for ifo in all_interferometers:
-                    signal = ifo.get_detector_response(
-                        signal_polarizations, sample.iloc[ii])
+                likelihood.parameters.update(sample.iloc[ii])
+                for ifo in likelihood.interferometers:
+                    per_detector_snr = likelihood.calculate_snrs(
+                        signal_polarizations, ifo)
                     matched_filter_snrs[ifo.name].append(
-                        ifo.matched_filter_snr(signal=signal))
+                        per_detector_snr.complex_matched_filter_snr)
                     optimal_snrs[ifo.name].append(
-                        ifo.optimal_snr_squared(signal=signal) ** 0.5)
+                        per_detector_snr.optimal_snr_squared.real ** 0.5)
 
             for ifo in likelihood.interferometers:
                 sample['{}_matched_filter_snr'.format(ifo.name)] =\
@@ -975,87 +1001,50 @@ def compute_snrs(sample, likelihood):
                 sample['{}_optimal_snr'.format(ifo.name)] =\
                     optimal_snrs[ifo.name]
 
-            likelihood.interferometers = all_interferometers
-
     else:
         logger.debug('Not computing SNRs.')
 
 
-def generate_distance_samples_from_marginalized_likelihood(samples, likelihood):
+def generate_posterior_samples_from_marginalized_likelihood(
+        samples, likelihood):
     """
     Reconstruct the distance posterior from a run which used a likelihood which
-    explicitly marginalised over distance.
+    explicitly marginalised over time/distance/phase.
 
     See Eq. (C29-C32) of https://arxiv.org/abs/1809.02293
 
     Parameters
     ----------
     samples: DataFrame
-        Posterior from run with distance marginalisation turned on.
+        Posterior from run with a marginalised likelihood.
     likelihood: bilby.gw.likelihood.GravitationalWaveTransient
         Likelihood used during sampling.
 
     Return
     ------
     sample: DataFrame
-        Returns the posterior with distance samples.
+        Returns the posterior with new samples.
     """
-    if not likelihood.distance_marginalization:
+    if not any([likelihood.phase_marginalization,
+                likelihood.distance_marginalization,
+                likelihood.time_marginalization]):
         return samples
-    if likelihood.phase_marginalization or likelihood.time_marginalization:
-        logger.warning('Cannot currently reconstruct distance posterior '
-                       'when other marginalizations are turned on.')
-        return samples
+    else:
+        logger.info('Reconstructing marginalised parameters.')
     if isinstance(samples, dict):
         pass
     elif isinstance(samples, DataFrame):
+        new_time_samples = list()
+        new_distance_samples = list()
+        new_phase_samples = list()
         for ii in range(len(samples)):
-            temp = _generate_distance_sample_from_marginalized_likelihood(
-                dict(samples.iloc[ii]), likelihood)
-            samples['luminosity_distance'][ii] = temp['luminosity_distance']
+            sample = dict(samples.iloc[ii]).copy()
+            likelihood.parameters.update(sample)
+            new_sample = likelihood.generate_posterior_sample_from_marginalized_likelihood()
+            new_time_samples.append(new_sample['geocent_time'])
+            new_distance_samples.append(new_sample['luminosity_distance'])
+            new_phase_samples.append(new_sample['phase'])
+        samples['geocent_time'] = new_time_samples
+        samples['luminosity_distance'] = new_distance_samples
+        samples['phase'] = new_phase_samples
     return samples
-
-
-def _generate_distance_sample_from_marginalized_likelihood(sample, likelihood):
-    """
-    Generate a single sample from the posterior distribution for luminosity
-    distance when using a likelihood which explicitly marginalises over
-    distance.
-
-    See Eq. (C29-C32) of https://arxiv.org/abs/1809.02293
-
-    Parameters
-    ----------
-    sample: dict
-        The set of parameters used with the marginalised likelihood.
-    likelihood: bilby.gw.likelihood.GravitationalWaveTransient
-        The likelihood used.
-
-    Returns
-    -------
-    sample: dict
-        Modifed dictionary with the distance sampled from the posterior.
-    """
-    signal_polarizations = \
-        likelihood.waveform_generator.frequency_domain_strain(sample)
-    d_inner_h = 0
-    rho_opt_sq = 0
-    for ifo in likelihood.interferometers:
-        signal = ifo.get_detector_response(signal_polarizations, sample)
-        d_inner_h += ifo.inner_product(signal=signal)
-        rho_opt_sq += ifo.optimal_snr_squared(signal=signal)
-
-    d_inner_h_dist = (d_inner_h * sample['luminosity_distance'] /
-                      likelihood._distance_array)
-
-    rho_opt_sq_dist = (rho_opt_sq * sample['luminosity_distance']**2 /
-                       likelihood._distance_array**2)
-
-    distance_log_like = (d_inner_h_dist.real - rho_opt_sq_dist.real / 2)
-
-    distance_post = np.exp(distance_log_like - max(distance_log_like)) *\
-        likelihood.distance_prior_array
-
-    sample['luminosity_distance'] = Interped(
-        likelihood._distance_array, distance_post).sample()
-    return sample

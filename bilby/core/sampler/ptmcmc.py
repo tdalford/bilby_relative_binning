@@ -76,7 +76,14 @@ class PTMCMCSampler(MCMCSampler):
                 "Sampler {} is not installed on this system".format(external_sampler_name))
 
     def _translate_kwargs(self, kwargs):
-        pass
+        if 'Niter' not in kwargs:
+            for equiv in self.nwalkers_equiv_kwargs:
+                if equiv in kwargs:
+                    kwargs['Niter'] = kwargs.pop(equiv)
+        if 'burn' not in kwargs:
+            for equiv in self.nburn_equiv_kwargs:
+                if equiv in kwargs:
+                    kwargs['burn'] = kwargs.pop(equiv)
 
     @property
     def custom_proposals(self):
