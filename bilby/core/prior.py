@@ -13,7 +13,9 @@ from scipy.special import erf, erfinv
 
 # Keep import bilby statement, it is necessary for some eval() statements
 import bilby  # noqa
-from .utils import logger, infer_args_from_method, check_directory_exists_and_if_not_mkdir
+from .utils import (
+    import_from_string, logger, infer_args_from_method,
+    check_directory_exists_and_if_not_mkdir)
 
 
 class PriorDict(OrderedDict):
@@ -57,10 +59,8 @@ class PriorDict(OrderedDict):
         self._total_samples = 0
         self._accepted_samples = 0
 
-        if jacobian is not None:
+        if jacobian is not None or not hasattr(self, 'jacobian'):
             self.jacobian = jacobian
-        else:
-            self.jacobian = lambda x: np.ones_like(x[list(x)[0]])
 
     def evaluate_constraints(self, sample):
         out_sample = self.conversion_function(sample)
@@ -124,15 +124,32 @@ class PriorDict(OrderedDict):
             for line in f:
                 if line[0] in comments:
                     continue
+                line = line.replace(' ', '').strip()
                 elements = line.split('=')
-                key = elements[0].replace(' ', '')
-                val = '='.join(elements[1:])
-                try:
-                    prior[key] = eval(val)
-                except TypeError as e:
-                    raise TypeError(
-                        "Unable to parse dictionary file {}, bad line: {} = {}. Error message {}"
-                        .format(filename, key, val, e))
+                key = elements[0]
+                if key == 'jacobian':
+                    try:
+                        self.jacobian = import_from_string(elements[1])
+                    except AttributeError:
+                        raise AttributeError(
+                            'Cannot find jacobian {}'.format(elements[1]))
+                elif key == 'conversion':
+                    try:
+                        self.conversion_function = import_from_string(
+                            elements[1])
+                    except AttributeError:
+                        raise AttributeError(
+                            'Cannot find conversion function {}'.format(
+                                elements[1]))
+                else:
+                    val = '='.join(elements[1:])
+                    try:
+                        prior[key] = eval(val)
+                    except TypeError as e:
+                        raise TypeError(
+                            "Unable to parse dictionary file {}, bad line: "
+                            "{} = {}. Error message {}".format(
+                                filename, key, val, e))
         self.update(prior)
 
     def from_dictionary(self, dictionary):
@@ -248,6 +265,22 @@ class PriorDict(OrderedDict):
         return samples
 
     def sample_subset_constrained(self, keys=iter([]), size=None):
+        """
+        Sample for the specified parameters while applying any constraints and
+        applying the jacobian if applicable.
+
+        Parameters
+        ----------
+        keys: list
+            names of the priors to sample from
+        size: (int, tuple, optional)
+            shape of the samples to return, default is one sample
+
+        Returns
+        -------
+        all_samples: dict
+            dictionary of samples from the prior
+        """
         if size is None or size == 1:
             while True:
                 sample = self.sample_subset(keys=keys, size=size)
@@ -262,16 +295,17 @@ class PriorDict(OrderedDict):
                 samples = self.sample_subset(keys=keys, size=n_samples)
                 constraint = np.array(
                     self.evaluate_constraints(samples), dtype=bool)
-                jacobians = self.jacobian(samples)
-                jacobian_cut = (jacobians > np.random.uniform(
-                    0, max(jacobians), len(jacobians)))
-                keep = constraint & jacobian_cut
+                if self.jacobian is not None:
+                    jacobians = self.jacobian(samples)
+                    jacobian_cut = jacobians > np.random.uniform(
+                        0, max(jacobians), len(jacobians))
+                    constraint = constraint & jacobian_cut
                 for key in samples:
                     all_samples[key] = np.hstack(
-                        [all_samples[key], samples[key][keep].flatten()])
+                        [all_samples[key], samples[key][constraint].flatten()])
                 self._total_samples += n_samples
-                self._accepted_samples += sum(keep)
-                generated += sum(keep)
+                self._accepted_samples += sum(constraint)
+                generated += sum(constraint)
             all_samples = {key: np.reshape(all_samples[key][:needed], size)
                            for key in all_samples
                            if not isinstance(self[key], Constraint)}
@@ -303,7 +337,8 @@ class PriorDict(OrderedDict):
         prob = np.product([self[key].prob(sample[key])
                            for key in sample], **kwargs)
 
-        prob *= self.jacobian(sample)
+        if self.jacobian is not None:
+            prob *= self.jacobian(sample)
 
         if np.all(prob == 0.):
             return prob
@@ -338,7 +373,8 @@ class PriorDict(OrderedDict):
         ln_prob = np.sum([self[key].ln_prob(sample[key])
                           for key in sample], axis=axis)
 
-        ln_prob += np.log(self.jacobian(sample))
+        if self.jacobian is not None:
+            ln_prob += np.log(self.jacobian(sample))
 
         if np.all(np.isinf(ln_prob)):
             return ln_prob
