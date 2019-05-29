@@ -817,6 +817,65 @@ class PowerLaw(Prior):
             1. * self.is_in_prior_range(val))
 
 
+class SummedPowerLaw(Prior):
+    def __init__(self, alpha0, alpha1, xi, minimum, maximum, name=None,
+                 latex_label=None, unit=None, ngrid_points=10000):
+        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
+                       maximum=maximum, minimum=minimum)
+        self.alpha0 = alpha0
+        self.alpha1 = alpha1
+        self.xi = xi
+        self.icdf_array = np.linspace(minimum, maximum, ngrid_points)
+
+    @property
+    def a0(self):
+        if self.alpha0 != -1:
+            return (
+                self.maximum ** (self.alpha0 + 1) -
+                self.minimum ** (self.alpha0 + 1)) / (1 + self.alpha0)
+        else:
+            return np.log(self.maximum / self.minimum)
+
+    @property
+    def a1(self):
+        if self.alpha1 != -1:
+            return (
+                self.maximum ** (self.alpha1 + 1) -
+                self.minimum ** (self.alpha1 + 1)) / (1 + self.alpha1)
+        else:
+            return np.log(self.maximum / self.minimum)
+
+    def prob(self, val):
+        return (
+            self.xi / self.a0 * val ** self.alpha0 +
+            (1 - self.xi) / self.a1 * val ** self.alpha1)
+
+    def cdf(self, val):
+        minimum = self.minimum
+
+        term1 = self.xi / self.a0
+        if self.alpha0 != -1:
+            term1 *= (val ** (self.alpha0 + 1) - minimum ** (self.alpha0 + 1)) / (1 + self.alpha0)
+        else:
+            term1 *= np.log(val / minimum)
+
+        term2 = (1 - self.xi) / self.a1
+        if self.alpha1 != -1:
+            term2 *= (val ** (self.alpha1 + 1) - minimum ** (self.alpha1 + 1)) / (1 + self.alpha1)
+        else:
+            term2 *= np.log(val / minimum)
+
+        return term1 + term2
+
+    def icdf(self, u):
+        cdf_at_val_array = self.cdf(self.icdf_array)
+        idx = np.argmin(np.abs(cdf_at_val_array[:, np.newaxis] - u), axis=0)
+        return self.icdf_array[idx]
+
+    def rescale(self, val):
+        return self.icdf(val)
+
+
 class Uniform(Prior):
 
     def __init__(self, minimum, maximum, name=None, latex_label=None,
