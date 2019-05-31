@@ -825,7 +825,11 @@ class SummedPowerLaw(Prior):
         self.alpha0 = alpha0
         self.alpha1 = alpha1
         self.xi = xi
+        self.ngrid_points = ngrid_points
         self.icdf_array = np.linspace(minimum, maximum, ngrid_points)
+
+    def __repr__(self):
+        return ""
 
     @property
     def a0(self):
@@ -846,6 +850,8 @@ class SummedPowerLaw(Prior):
             return np.log(self.maximum / self.minimum)
 
     def prob(self, val):
+        if self.alpha0 > self.alpha1:
+            return 1e-300
         return (
             self.xi / self.a0 * val ** self.alpha0 +
             (1 - self.xi) / self.a1 * val ** self.alpha1)
