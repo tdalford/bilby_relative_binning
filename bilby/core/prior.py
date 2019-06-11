@@ -13,6 +13,7 @@ from scipy.special import erf, erfinv
 
 # Keep import bilby statement, it is necessary for some eval() statements
 import bilby  # noqa
+from .jacobian import null_jacobian
 from .utils import (
     import_from_string, logger, infer_args_from_method,
     check_directory_exists_and_if_not_mkdir)
@@ -59,7 +60,9 @@ class PriorDict(OrderedDict):
         self._total_samples = 0
         self._accepted_samples = 0
 
-        if jacobian is not None or not hasattr(self, 'jacobian'):
+        if jacobian is None:
+            self.jacobian = null_jacobian
+        elif not hasattr(self, 'jacobian'):
             self.jacobian = jacobian
 
     def evaluate_constraints(self, sample):
