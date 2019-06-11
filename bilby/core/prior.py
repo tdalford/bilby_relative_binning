@@ -67,7 +67,7 @@ class PriorDict(OrderedDict):
 
     def evaluate_constraints(self, sample):
         out_sample = self.conversion_function(sample)
-        prob = 1
+        prob = np.ones_like(list(sample.values())[0])
         for key in self:
             if isinstance(self[key], Constraint) and key in out_sample:
                 prob *= self[key].prob(out_sample[key])
