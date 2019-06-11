@@ -119,6 +119,8 @@ class PriorDict(OrderedDict):
         Notes
         -----
         Lines beginning with '#' or empty lines will be ignored.
+
+        The conversion function and jacobian will be set from those names.
         """
 
         comments = ['#', '\n']
@@ -130,20 +132,13 @@ class PriorDict(OrderedDict):
                 line = line.replace(' ', '').strip()
                 elements = line.split('=')
                 key = elements[0]
-                if key == 'jacobian':
+                if key in ["conversion_function", "jacobian"]:
                     try:
-                        self.jacobian = import_from_string(elements[1])
+                        func = import_from_string(elements[1])
+                        setattr(self, key, func)
                     except AttributeError:
                         raise AttributeError(
-                            'Cannot find jacobian {}'.format(elements[1]))
-                elif key == 'conversion':
-                    try:
-                        self.conversion_function = import_from_string(
-                            elements[1])
-                    except AttributeError:
-                        raise AttributeError(
-                            'Cannot find conversion function {}'.format(
-                                elements[1]))
+                            'Cannot find {} {}'.format(key, elements[1]))
                 else:
                     val = '='.join(elements[1:])
                     try:
