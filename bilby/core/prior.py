@@ -360,6 +360,10 @@ class PriorDict(OrderedDict):
         Sample for the specified parameters while applying any constraints and
         applying the jacobian if applicable.
 
+        If multiple samples are requested the number of samples generated is
+        increased by a factor of the previous sampling efficiency and a
+        (somewhat arbitrary) expansion factor.
+
         Parameters
         ----------
         keys: list
@@ -381,8 +385,10 @@ class PriorDict(OrderedDict):
             needed = np.prod(size)
             generated = 0
             all_samples = {key: np.array([]) for key in keys}
+            expansion = 1.1
             while generated < needed:
-                n_samples = int((needed - generated) / self.acceptance * 1.1)
+                n_samples = int(
+                    (needed - generated) / self.acceptance * expansion)
                 samples = self.sample_subset(keys=keys, size=n_samples)
                 constraint = np.array(
                     self.evaluate_constraints(samples), dtype=bool)
