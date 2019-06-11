@@ -16,7 +16,7 @@ from scipy.special import erf, erfinv, xlogy, log1p,\
     gammaln, gammainc, gammaincinv, stdtr, stdtrit, betaln, btdtr, btdtri
 from matplotlib.cbook import flatten
 
-# Keep import bilby statement, it is necessary for some eval() statements
+from .jacobian import null_jacobian
 from .utils import BilbyJsonEncoder, decode_bilby_json
 from .utils import (
     check_directory_exists_and_if_not_mkdir,
@@ -65,7 +65,9 @@ class PriorDict(OrderedDict):
         self._total_samples = 0
         self._accepted_samples = 0
 
-        if jacobian is not None or not hasattr(self, 'jacobian'):
+        if jacobian is None:
+            self.jacobian = null_jacobian
+        elif not hasattr(self, 'jacobian'):
             self.jacobian = jacobian
 
     def evaluate_constraints(self, sample):
