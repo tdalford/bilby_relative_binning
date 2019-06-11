@@ -109,3 +109,7 @@ class Pymultinest(NestedSampler):
         self.result.log_evidence_err = out['logZerr']
         self.result.outputfiles_basename = self.kwargs['outputfiles_basename']
         return self.result
+
+    def log_likelihood(self, theta):
+        return super(Pymultinest, self).log_likelihood(
+            theta, apply_jacobian=True)

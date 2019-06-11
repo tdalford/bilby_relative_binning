@@ -93,3 +93,6 @@ class Nestle(NestedSampler):
         self.result.log_evidence = np.nan
         self.result.log_evidence_err = np.nan
         return self.result
+    
+    def log_likelihood(self, theta):
+        return super(Nestle, self).log_likelihood(theta, apply_jacobian=True)

@@ -467,3 +467,6 @@ class Dynesty(NestedSampler):
         theta[self._reflective] = np.minimum(
             np.maximum(theta_ref, abs(theta_ref)), 2 - theta_ref)
         return self.priors.rescale(self._search_parameter_keys, theta)
+
+    def log_likelihood(self, theta):
+        return super(Dynesty, self).log_likelihood(theta, apply_jacobian=True)

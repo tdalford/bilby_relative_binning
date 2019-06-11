@@ -348,7 +348,7 @@ class Sampler(object):
         """
         params = {
             key: t for key, t in zip(self._search_parameter_keys, theta)}
-        return self.priors.ln_prob(params)
+        return self.priors.ln_prob(params) + self.log_jacobian(params)
 
     def log_likelihood(self, theta):
         """
@@ -506,6 +506,12 @@ class Sampler(object):
             logger.info("Using sampler {} with kwargs {}".format(
                 self.__class__.__name__, kwargs_print))
 
+    def log_jacobian(self, theta_dict):
+        if self.priors.jacobian is None:
+            return 0
+        else:
+            return np.log(self.priors.jacobian(theta_dict))
+
 
 class NestedSampler(Sampler):
     npoints_equiv_kwargs = ['nlive', 'nlives', 'n_live_points', 'npoints', 'npoint', 'Nlive']
@@ -546,14 +552,19 @@ class NestedSampler(Sampler):
             idxs.append(idx[0])
         return unsorted_loglikelihoods[idxs]
 
-    def log_likelihood(self, theta):
+    def log_likelihood(self, theta, apply_jacobian=False):
         """
         Since some nested samplers don't call the log_prior method, evaluate
         the prior constraint here.
 
         Parameters
+        ----------
         theta: array_like
             Parameter values at which to evaluate likelihood
+        apply_jacobian: bool
+            Whether the prior jacobian needs to be applied here.
+            This is necessary for samplers which don't evaluate the prior
+            probability.
 
         Returns
         -------
@@ -561,8 +572,11 @@ class NestedSampler(Sampler):
         """
         theta_dict = {key: theta[ii] for ii, key in
                       enumerate(self.search_parameter_keys)}
+        if apply_jacobian:
+            log_jacobian = self.log_jacobian(theta_dict)
+        else:
+            log_jacobian = 0
         if self.priors.evaluate_constraints(theta_dict):
-            log_jacobian = np.log(self.priors.jacobian(theta_dict))
             return Sampler.log_likelihood(self, theta) + log_jacobian
         else:
             return np.nan_to_num(-np.inf)
