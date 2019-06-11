@@ -158,6 +158,8 @@ class PriorDict(OrderedDict):
             floats, e.g.,                 foo = 1
             bilby.gw.prior as, e.g.,      foo = bilby.gw.prior.AlignedSpin()
             other external modules, e.g., foo = my.module.CustomPrior(...)
+
+        The conversion function and jacobian will be set from those names.
         """
 
         comments = ['#', '\n']
