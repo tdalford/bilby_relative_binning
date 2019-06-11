@@ -16,7 +16,6 @@ from scipy.special import erf, erfinv, xlogy, log1p,\
     gammaln, gammainc, gammaincinv, stdtr, stdtrit, betaln, btdtr, btdtri
 from matplotlib.cbook import flatten
 
-from .jacobian import null_jacobian
 from .utils import BilbyJsonEncoder, decode_bilby_json
 from .utils import (
     check_directory_exists_and_if_not_mkdir,
@@ -38,11 +37,14 @@ class PriorDict(OrderedDict):
         conversion_function: func
             Function to convert between sampled parameters and constraints.
             Default is no conversion.
-        jacobian: func
-            If the prior is not separable, this can add some degeneracies.
-            Care should be taken with the rescaling, as this will break down
-            with a non-trivial Jacobian.
-            The function should take a dictionary and return the Jacobian.
+        jacobian: func, optional
+            Jacobian for converting parameters defined in the prior to
+            parameters used during sampling. The function should take a
+            dictionary and return the determinant of the Jacobian matrix.
+            Note, if the prior is not separable, this can add degeneracy.
+            Rescaling of the prior will probably no longer make sense when
+            using non-trivial Jacobians.
+            Default is None will not apply a Jacobian
         """
         super(PriorDict, self).__init__()
         if isinstance(dictionary, dict):
@@ -65,9 +67,7 @@ class PriorDict(OrderedDict):
         self._total_samples = 0
         self._accepted_samples = 0
 
-        if jacobian is None:
-            self.jacobian = null_jacobian
-        elif not hasattr(self, 'jacobian'):
+        if not hasattr(self, 'jacobian'):
             self.jacobian = jacobian
 
     def evaluate_constraints(self, sample):
