@@ -186,8 +186,10 @@ class TestBNSPriorDict(unittest.TestCase):
             self.assertTrue(self.bns_prior_dict.test_redundancy(prior))
 
     def test_correct_not_redundant_priors_masses(self):
-        del self.bns_prior_dict['mass_2']
-        for prior in ['mass_2', 'chirp_mass', 'total_mass',  'symmetric_mass_ratio']:
+        del (self.bns_prior_dict['mass_ratio'], self.bns_prior_dict['mass_1'],
+             self.bns_prior_dict['mass_2'])
+        for prior in ['mass_1', 'mass_2', 'total_mass',  'symmetric_mass_ratio']:
+            print(prior, self.bns_prior_dict.test_redundancy(prior))
             self.assertFalse(self.bns_prior_dict.test_redundancy(prior))
 
     def test_correct_not_redundant_priors_spin_magnitudes(self):
@@ -215,15 +217,15 @@ class TestBNSPriorDict(unittest.TestCase):
 
     def test_test_has_redundant_priors(self):
         self.assertFalse(self.bns_prior_dict.test_has_redundant_keys())
-        for prior in ['chirp_mass', 'total_mass', 'mass_ratio', 'symmetric_mass_ratio',
+        for prior in ['mass_1', 'total_mass', 'mass_2', 'symmetric_mass_ratio',
                       'cos_theta_jn', 'comoving_distance', 'redshift']:
             self.bns_prior_dict[prior] = 0
             self.assertTrue(self.bns_prior_dict.test_has_redundant_keys())
             del self.bns_prior_dict[prior]
 
     def test_add_constraint_prior_not_redundant(self):
-        self.bns_prior_dict['chirp_mass'] = bilby.prior.Constraint(
-            minimum=1, maximum=2, name='chirp_mass')
+        self.bns_prior_dict['mass_1'] = bilby.prior.Constraint(
+            minimum=1, maximum=2, name='mass_1')
         self.assertFalse(self.bns_prior_dict.test_has_redundant_keys())
 
 
