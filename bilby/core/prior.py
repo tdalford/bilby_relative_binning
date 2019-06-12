@@ -817,9 +817,33 @@ class PowerLaw(Prior):
             1. * self.is_in_prior_range(val))
 
 
-class SummedPowerLaw(Prior):
+class DoublePowerLaw(Prior):
     def __init__(self, alpha0, alpha1, xi, minimum, maximum, name=None,
                  latex_label=None, unit=None, ngrid_points=10000):
+        """Mixture model of two power laws
+
+        Parameters
+        ----------
+        alpha0, alpha1: float
+            Power law exponent parameter for the 0th and 1st components
+        xi: float
+            Mixture parameter [0, 1].
+        ngrid_points:
+            Number of grid points to evaluate the inverse CDF on
+        minimum: float
+            See superclass
+        maximum: float
+            See superclass
+        name: str
+            See superclass
+        latex_label: str
+            See superclass
+        unit: str
+            See superclass
+        boundary: str
+            See superclass
+        """
+
         Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
                        maximum=maximum, minimum=minimum)
         self.alpha0 = alpha0
@@ -827,9 +851,6 @@ class SummedPowerLaw(Prior):
         self.xi = xi
         self.ngrid_points = ngrid_points
         self.icdf_array = np.linspace(minimum, maximum, ngrid_points)
-
-    def __repr__(self):
-        return ""
 
     @property
     def a0(self):
