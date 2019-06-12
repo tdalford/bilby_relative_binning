@@ -56,7 +56,7 @@ class InterferometerStrainData(object):
 
         self._times_and_frequencies = CoupledTimeAndFrequencySeries()
 
-        self._freq_mask_updated = False
+        self._frequency_mask_updated = False
         self._frequency_mask = None
         self._frequency_domain_strain = None
         self._time_domain_strain = None
@@ -107,7 +107,7 @@ class InterferometerStrainData(object):
     @minimum_frequency.setter
     def minimum_frequency(self, minimum_frequency):
         self._minimum_frequency = minimum_frequency
-        self._freq_mask_updated = False
+        self._frequency_mask_updated = False
 
     @property
     def maximum_frequency(self):
@@ -120,7 +120,7 @@ class InterferometerStrainData(object):
     @maximum_frequency.setter
     def maximum_frequency(self, maximum_frequency):
         self._maximum_frequency = maximum_frequency
-        self.__freq_mask_updated = False
+        self._frequency_mask_updated = False
 
     @property
     def frequency_mask(self):
@@ -130,11 +130,12 @@ class InterferometerStrainData(object):
         -------
         array_like: An array of boolean values
         """
-        if not self.__freq_mask_updated:
+        if not self._frequency_mask_updated:
             frequency_array = self._times_and_frequencies.frequency_array
             mask = ((frequency_array >= self.minimum_frequency) &
                     (frequency_array <= self.maximum_frequency))
             self._frequency_mask = mask
+            self._frequency_mask_updated = True
         return self._frequency_mask
 
     @property
@@ -630,14 +631,47 @@ class InterferometerStrainData(object):
 
         """
 
-        self._times_and_frequencies = CoupledTimeAndFrequencySeries(duration=duration,
-                                                                    sampling_frequency=sampling_frequency,
-                                                                    start_time=start_time)
+        self._times_and_frequencies = CoupledTimeAndFrequencySeries(
+            duration=duration, sampling_frequency=sampling_frequency,
+            start_time=start_time)
 
         logger.info('Reading data from frame file {}'.format(frame_file))
         strain = gwutils.read_frame_file(
             frame_file, start_time=start_time, end_time=start_time + duration,
             buffer_time=buffer_time, channel=channel,
             resample=sampling_frequency)
+
+        self.set_from_gwpy_timeseries(strain)
+
+    def set_from_channel_name(self, channel, duration, start_time, sampling_frequency):
+        """ Set the `frequency_domain_strain` by fetching from given channel
+        using gwpy.TimesSeries.get(), which dynamically accesses either frames
+        on disk, or a remote NDS2 server to find and return data. This function
+        also verifies that the specified channel is given in the correct format.
+
+        Parameters
+        ----------
+        channel: str
+            Channel to look for using gwpy in the format `IFO:Channel`
+        duration: float
+            The data duration (in s)
+        start_time: float
+            The GPS start-time of the data
+        sampling_frequency: float
+            The sampling frequency (in Hz)
+
+        """
+        channel_comp = channel.split(':')
+        if len(channel_comp) != 2:
+            raise IndexError('Channel name must have format `IFO:Channel`')
+
+        self._times_and_frequencies = CoupledTimeAndFrequencySeries(
+            duration=duration, sampling_frequency=sampling_frequency,
+            start_time=start_time)
+
+        logger.info('Fetching data using channel {}'.format(channel))
+        strain = gwpy.timeseries.TimeSeries.get(
+            channel, start_time, start_time + duration)
+        strain = strain.resample(sampling_frequency)
 
         self.set_from_gwpy_timeseries(strain)
