@@ -1261,6 +1261,42 @@ class Result(object):
 
         return weights
 
+    def get_weights_by_new_likelihood(self, new_likelihood, use_ratio=False):
+        return np.exp(self.get_log_weights_by_new_likelihood(new_likelihood, use_ratio))
+
+    def get_log_weights_by_new_likelihood(self, new_likelihood, use_ratio=False):
+        log_weights = []
+
+        parameters = [{key: self.posterior[key][i] for key in self.priors.keys()}
+                      for i in range(len(self.posterior))]
+
+        for i in range(len(self.posterior)):
+            old_likelihood = self.posterior['log_likelihood'].iloc[i]
+            new_likelihood.parameters = parameters
+            if use_ratio:
+                log_weights.append(new_likelihood.log_likelihood_ratio() - old_likelihood)
+            else:
+                log_weights.append(new_likelihood.log_likelihood() - old_likelihood)
+        return np.array(log_weights)
+
+    def get_reweighted_log_evidence(self, log_weights):
+        """
+
+        Parameters
+        ----------
+        log_weights: array_like
+
+        Returns
+        -------
+        The reweighted log evidence
+
+        """
+        return self.log_evidence + logsumexp(log_weights) - np.log(len(log_weights))
+
+    def resample_posterior_by_weights(self, weights):
+        from dynesty.utils import resample_equal
+        return resample_equal(self.posterior, weights)
+
 
 class ResultList(list):
 
