@@ -322,7 +322,8 @@ class Result(object):
         return cls(label=label, outdir=outdir, sampler='dynesty',
                    search_parameter_keys=search_parameter_keys, posterior=posterior,
                    samples=samples, nested_samples=nested_samples, log_evidence=log_evidence,
-                   log_evidence_err=log_evidence_err, log_likelihood_evaluations=log_likelihood_evaluations, **kwargs)
+                   log_evidence_err=log_evidence_err, log_likelihood_evaluations=log_likelihood_evaluations,
+                   **kwargs)
 
     @classmethod
     def from_dynesty_result_file(cls, outdir, label, search_parameter_keys, **kwargs):

@@ -228,7 +228,7 @@ class Dynesty(NestedSampler):
 
         check_directory_exists_and_if_not_mkdir(self.outdir)
         Dynesty._dump_dynesty_result(dynesty_result, self.label, self.outdir)
-
+        self.calc_likelihood_count()
         self._write_result(dynesty_result=dynesty_result)
 
         if self.plot:
@@ -283,6 +283,7 @@ class Dynesty(NestedSampler):
                                                  sampler_kwargs=self.result.sampler_kwargs,
                                                  meta_data=self.result.meta_data,
                                                  log_prior_evaluations=self.result.log_prior_evaluations,
+                                                 num_likelihood_evaluations=self.result.num_likelihood_evaluations,
                                                  sampling_time=self.result.sampling_time, version=self.result.version)
 
     def read_saved_state(self, continuing=False):
