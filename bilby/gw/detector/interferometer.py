@@ -187,6 +187,28 @@ class Interferometer(object):
             duration=duration, start_time=start_time,
             channel=channel, buffer_time=buffer_time)
 
+    def set_strain_data_from_channel_name(
+            self, channel, sampling_frequency, duration, start_time=0):
+        """
+        Set the `Interferometer.strain_data` by fetching from given channel
+        using strain_data.set_from_channel_name()
+
+        Parameters
+        ----------
+        channel: str
+            Channel to look for using gwpy in the format `IFO:Channel`
+        sampling_frequency: float
+            The sampling frequency (in Hz)
+        duration: float
+            The data duration (in s)
+        start_time: float
+            The GPS start-time of the data
+
+        """
+        self.strain_data.set_from_channel_name(
+            channel=channel, sampling_frequency=sampling_frequency,
+            duration=duration, start_time=start_time)
+
     def set_strain_data_from_csv(self, filename):
         """ Set the `Interferometer.strain_data` from a csv file
 
@@ -287,20 +309,23 @@ class Interferometer(object):
 
         return signal_ifo
 
-    def inject_signal(self, parameters=None, injection_polarizations=None,
+    def inject_signal(self, parameters, injection_polarizations=None,
                       waveform_generator=None):
-        """ Inject a signal into noise
+        """ General signal injection method.
+        Provide the injection parameters and either the injection polarizations
+        or the waveform generator to inject a signal into the detector.
+        Defaults to the injection polarizations is both are given.
 
         Parameters
         ----------
         parameters: dict
             Parameters of the injection.
-        injection_polarizations: dict
+        injection_polarizations: dict, optional
            Polarizations of waveform to inject, output of
            `waveform_generator.frequency_domain_strain()`. If
            `waveform_generator` is also given, the injection_polarizations will
            be calculated directly and this argument can be ignored.
-        waveform_generator: bilby.gw.waveform_generator.WaveformGenerator
+        waveform_generator: bilby.gw.waveform_generator.WaveformGenerator, optional
             A WaveformGenerator instance using the source model to inject. If
             `injection_polarizations` is given, this will be ignored.
 
@@ -313,40 +338,71 @@ class Interferometer(object):
         Returns
         -------
         injection_polarizations: dict
+            The injected polarizations. This is the same as the injection_polarizations parameters
+            if it was passed in. Otherwise it is the return value of waveform_generator.frequency_domain_strain().
 
         """
+        if injection_polarizations is None and waveform_generator is None:
+            raise ValueError(
+                "inject_signal needs one of waveform_generator or "
+                "injection_polarizations.")
+        elif injection_polarizations is not None:
+            self.inject_signal_from_waveform_polarizations(parameters=parameters,
+                                                           injection_polarizations=injection_polarizations)
+        elif waveform_generator is not None:
+            injection_polarizations = self.inject_signal_from_waveform_generator(parameters=parameters,
+                                                                                 waveform_generator=waveform_generator)
+        return injection_polarizations
 
-        if injection_polarizations is None:
-            if waveform_generator is not None:
-                injection_polarizations = \
-                    waveform_generator.frequency_domain_strain(parameters)
-            else:
-                raise ValueError(
-                    "inject_signal needs one of waveform_generator or "
-                    "injection_polarizations.")
+    def inject_signal_from_waveform_generator(self, parameters, waveform_generator):
+        """ Inject a signal using a waveform generator and a set of parameters.
+        Alternative to `inject_signal` and `inject_signal_from_waveform_polarizations`
 
-            if injection_polarizations is None:
-                raise ValueError(
-                    'Trying to inject signal which is None. The most likely cause'
-                    ' is that waveform_generator.frequency_domain_strain returned'
-                    ' None. This can be caused if, e.g., mass_2 > mass_1.')
+        Parameters
+        ----------
+        parameters: dict
+            Parameters of the injection.
+        waveform_generator: bilby.gw.waveform_generator.WaveformGenerator
+            A WaveformGenerator instance using the source model to inject.
 
+        Note
+        -------
+        if your signal takes a substantial amount of time to generate, or
+        you experience buggy behaviour. It is preferable to use the
+        inject_signal_from_waveform_polarizations() method.
+
+        Returns
+        -------
+        injection_polarizations: dict
+            The internally generated injection parameters
+
+        """
+        injection_polarizations = \
+            waveform_generator.frequency_domain_strain(parameters)
+        self.inject_signal_from_waveform_polarizations(parameters=parameters,
+                                                       injection_polarizations=injection_polarizations)
+        return injection_polarizations
+
+    def inject_signal_from_waveform_polarizations(self, parameters, injection_polarizations):
+        """ Inject a signal into the detector from a dict of waveform polarizations.
+        Alternative to `inject_signal` and `inject_signal_from_waveform_generator`.
+
+        Parameters
+        ----------
+        parameters: dict
+            Parameters of the injection.
+        injection_polarizations: dict
+           Polarizations of waveform to inject, output of
+           `waveform_generator.frequency_domain_strain()`.
+
+        """
         if not self.strain_data.time_within_data(parameters['geocent_time']):
             logger.warning(
                 'Injecting signal outside segment, start_time={}, merger time={}.'
                 .format(self.strain_data.start_time, parameters['geocent_time']))
 
         signal_ifo = self.get_detector_response(injection_polarizations, parameters)
-        if np.shape(self.strain_data.frequency_domain_strain).__eq__(np.shape(signal_ifo)):
-            self.strain_data.frequency_domain_strain = \
-                signal_ifo + self.strain_data.frequency_domain_strain
-        else:
-            logger.info('Injecting into zero noise.')
-            self.set_strain_data_from_frequency_domain_strain(
-                signal_ifo,
-                sampling_frequency=self.strain_data.sampling_frequency,
-                duration=self.strain_data.duration,
-                start_time=self.strain_data.start_time)
+        self.strain_data.frequency_domain_strain += signal_ifo
 
         self.meta_data['optimal_SNR'] = (
             np.sqrt(self.optimal_snr_squared(signal=signal_ifo)).real)
@@ -359,8 +415,6 @@ class Interferometer(object):
         logger.info("  matched filter SNR = {:.2f}".format(self.meta_data['matched_filter_SNR']))
         for key in parameters:
             logger.info('  {} = {}'.format(key, parameters[key]))
-
-        return injection_polarizations
 
     @property
     def amplitude_spectral_density_array(self):
@@ -527,7 +581,7 @@ class Interferometer(object):
                    header='f h(f)')
 
     def plot_data(self, signal=None, outdir='.', label=None):
-        if utils.command_line_args.test:
+        if utils.command_line_args.bilby_test_mode:
             return
 
         fig, ax = plt.subplots()

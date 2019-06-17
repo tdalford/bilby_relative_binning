@@ -57,8 +57,8 @@ class Pymc3(MCMCSampler):
     default_kwargs = dict(
         draws=500, step=None, init='auto', n_init=200000, start=None, trace=None, chain_idx=0,
         chains=2, cores=1, tune=500, nuts_kwargs=None, step_kwargs=None, progressbar=True,
-        model=None, random_seed=None, live_plot=False, discard_tuned_samples=True,
-        live_plot_kwargs=None, compute_convergence_checks=True)
+        model=None, random_seed=None, discard_tuned_samples=True,
+        compute_convergence_checks=True)
 
     def __init__(self, likelihood, priors, outdir='outdir', label='label',
                  use_ratio=False, plot=False,
@@ -573,11 +573,11 @@ class Pymc3(MCMCSampler):
                     index = self.multivariate_normal_sets[key]['index']
                     self.result.samples[:, count] = trace[priorset][:, index]
                 count += 1
-
         self.result.sampler_output = np.nan
         self.calculate_autocorrelation(self.result.samples)
         self.result.log_evidence = np.nan
         self.result.log_evidence_err = np.nan
+        self.calc_likelihood_count()
         return self.result
 
     def set_prior(self):

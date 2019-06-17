@@ -4,7 +4,7 @@ import numpy as np
 
 from pandas import DataFrame
 
-from ..utils import logger, command_line_args
+from ..utils import logger, command_line_args, Counter
 from ..prior import Prior, PriorDict, DeltaFunction, Constraint
 from ..result import Result, read_in_result
 
@@ -86,6 +86,7 @@ class Sampler(object):
             self, likelihood, priors, outdir='outdir', label='label',
             use_ratio=False, plot=False, skip_import_verification=False,
             injection_parameters=None, meta_data=None, result_class=None,
+            likelihood_benchmark=False,
             **kwargs):
         self.likelihood = likelihood
         if isinstance(priors, PriorDict):
@@ -101,6 +102,7 @@ class Sampler(object):
             self._verify_external_sampler()
         self.external_sampler_function = None
         self.plot = plot
+        self.likelihood_benchmark = likelihood_benchmark
 
         self._search_parameter_keys = list()
         self._fixed_parameter_keys = list()
@@ -116,6 +118,9 @@ class Sampler(object):
         self._log_summary_for_sampler()
 
         self.result = self._initialise_result(result_class)
+        self.likelihood_count = None
+        if self.likelihood_benchmark:
+            self.likelihood_count = Counter()
 
     @property
     def search_parameter_keys(self):
@@ -370,6 +375,11 @@ class Sampler(object):
             likelihood.parameter values
 
         """
+        if self.likelihood_benchmark:
+            try:
+                self.likelihood_count.increment()
+            except AttributeError:
+                pass
         params = {
             key: t for key, t in zip(self._search_parameter_keys, theta)}
         self.likelihood.parameters.update(params)
@@ -394,12 +404,62 @@ class Sampler(object):
         self.check_draw(draw)
         return draw
 
-    def check_draw(self, draw):
-        """ Checks if the draw will generate an infinite prior or likelihood """
-        if np.isinf(self.log_likelihood(draw)):
-            logger.warning('Prior draw {} has inf likelihood'.format(draw))
-        if np.isinf(self.log_prior(draw)):
-            logger.warning('Prior draw {} has inf prior'.format(draw))
+    def get_initial_points_from_prior(self, npoints=1):
+        """ Method to draw a set of live points from the prior
+
+        This iterates over draws from the prior until all the samples have a
+        finite prior and likelihood (relevant for constrained priors).
+
+        Parameters
+        ----------
+        npoints: int
+            The number of values to return
+
+        Returns
+        -------
+        unit_cube, parameters, likelihood: tuple of array_like
+            unit_cube (nlive, ndim) is an array of the prior samples from the
+            unit cube, parameters (nlive, ndim) is the unit_cube array
+            transformed to the target space, while likelihood (nlive) are the
+            likelihood evaluations.
+
+        """
+        unit_cube = []
+        parameters = []
+        likelihood = []
+        while len(unit_cube) < npoints:
+            unit = np.random.rand(self.ndim)
+            theta = self.prior_transform(unit)
+            if self.check_draw(theta, warning=False):
+                unit_cube.append(unit)
+                parameters.append(theta)
+                likelihood.append(self.log_likelihood(theta))
+
+        return np.array(unit_cube), np.array(parameters), np.array(likelihood)
+
+    def check_draw(self, theta, warning=True):
+        """ Checks if the draw will generate an infinite prior or likelihood
+
+        Parameters
+        ----------
+        theta: array_like
+            Parameter values at which to evaluate likelihood
+
+        Returns
+        -------
+        bool, cube (nlive,
+            True if the likelihood and prior are finite, false otherwise
+
+        """
+        if np.isinf(self.log_prior(theta)):
+            if warning:
+                logger.warning('Prior draw {} has inf prior'.format(theta))
+            return False
+        if np.isinf(self.log_likelihood(theta)):
+            if warning:
+                logger.warning('Prior draw {} has inf likelihood'.format(theta))
+            return False
+        return True
 
     def run_sampler(self):
         """A template method to run in subclasses"""
@@ -461,6 +521,12 @@ class Sampler(object):
                                        .format(kwargs_print[k].shape))
             logger.info("Using sampler {} with kwargs {}".format(
                 self.__class__.__name__, kwargs_print))
+
+    def calc_likelihood_count(self):
+        if self.likelihood_benchmark:
+            self.result.num_likelihood_evaluations = self.likelihood_count.value
+        else:
+            return None
 
 
 class NestedSampler(Sampler):

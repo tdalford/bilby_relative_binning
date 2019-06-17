@@ -164,14 +164,10 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
 
     start_time = datetime.datetime.now()
 
-    if command_line_args.test:
+    if command_line_args.bilby_test_mode:
         result = sampler._run_test()
     else:
         result = sampler.run_sampler()
-
-    # Initial save of the sampler in case of failure in post-processing
-    if save:
-        result.save_to_file(extension=save, gzip=gzip)
 
     end_time = datetime.datetime.now()
     result.sampling_time = (end_time - start_time).total_seconds()
@@ -187,10 +183,13 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         result.log_bayes_factor = \
             result.log_evidence - result.log_noise_evidence
 
-    if result.injection_parameters is not None:
-        if conversion_function is not None:
-            result.injection_parameters = conversion_function(
-                result.injection_parameters)
+    # Initial save of the sampler in case of failure in post-processing
+    if save:
+        result.save_to_file(extension=save, gzip=gzip)
+
+    if None not in [result.injection_parameters, conversion_function]:
+        result.injection_parameters = conversion_function(
+            result.injection_parameters)
 
     result.samples_to_posterior(likelihood=likelihood, priors=result.priors,
                                 conversion_function=conversion_function)

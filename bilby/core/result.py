@@ -103,7 +103,8 @@ class Result(object):
                  log_evidence_err=np.nan, log_noise_evidence=np.nan,
                  log_bayes_factor=np.nan, log_likelihood_evaluations=None,
                  log_prior_evaluations=None, sampling_time=None, nburn=None,
-                 walkers=None, max_autocorrelation_time=None, use_ratio=None,
+                 num_likelihood_evaluations=None, walkers=None,
+                 max_autocorrelation_time=None, use_ratio=None,
                  parameter_labels=None, parameter_labels_with_unit=None,
                  version=None):
         """ A class to store the results of the sampling run
@@ -132,6 +133,8 @@ class Result(object):
             Natural log evidences
         log_likelihood_evaluations: array_like
             The evaluations of the likelihood for each sample point
+        num_likelihood_evaluations: int
+            The number of times the likelihood function is called
         log_prior_evaluations: array_like
             The evaluations of the prior for each sample point
         sampling_time: float
@@ -182,6 +185,7 @@ class Result(object):
         self.log_bayes_factor = log_bayes_factor
         self.log_likelihood_evaluations = log_likelihood_evaluations
         self.log_prior_evaluations = log_prior_evaluations
+        self.num_likelihood_evaluations = num_likelihood_evaluations
         self.sampling_time = sampling_time
         self.version = version
         self.max_autocorrelation_time = max_autocorrelation_time
@@ -401,6 +405,18 @@ class Result(object):
     @samples.setter
     def samples(self, samples):
         self._samples = samples
+
+    @property
+    def num_likelihood_evaluations(self):
+        """ number of likelihood evaluations """
+        if self._num_likelihood_evaluations is not None:
+            return self._num_likelihood_evaluations
+        else:
+            raise ValueError("Result object has no stored likelihood evaluations")
+
+    @num_likelihood_evaluations.setter
+    def num_likelihood_evaluations(self, num_likelihood_evaluations):
+        self._num_likelihood_evaluations = num_likelihood_evaluations
 
     @property
     def nested_samples(self):
@@ -873,7 +889,7 @@ class Result(object):
         """
 
         # If in testing mode, not corner plots are generated
-        if utils.command_line_args.test:
+        if utils.command_line_args.bilby_test_mode:
             return
 
         # bilby default corner kwargs. Overwritten by anything passed to kwargs
@@ -982,7 +998,7 @@ class Result(object):
             logger.warning("Cannot plot_walkers as no walkers are saved")
             return
 
-        if utils.command_line_args.test:
+        if utils.command_line_args.bilby_test_mode:
             return
 
         nwalkers, nsteps, ndim = self.walkers.shape
@@ -1516,7 +1532,7 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
 
 
 def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
-                 lines=None, legend_fontsize=9, keys=None, title=True,
+                 lines=None, legend_fontsize='x-small', keys=None, title=True,
                  **kwargs):
     """
     Make a P-P plot for a set of runs with injected signals.
@@ -1547,6 +1563,9 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
         matplotlib figure and a NamedTuple with attributes `combined_pvalue`,
         `pvalues`, and `names`.
     """
+
+    if keys is None:
+        keys = results[0].search_parameter_keys
 
     credible_levels = pd.DataFrame()
     for result in results:
@@ -1580,10 +1599,16 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
     for ii, key in enumerate(credible_levels):
         pp = np.array([sum(credible_levels[key].values < xx) /
                        len(credible_levels) for xx in x_values])
-        plt.plot(x_values, pp, lines[ii], label=key, **kwargs)
         pvalue = scipy.stats.kstest(credible_levels[key], 'uniform').pvalue
         pvalues.append(pvalue)
         logger.info("{}: {}".format(key, pvalue))
+
+        try:
+            name = results[0].priors[key].latex_label
+        except AttributeError:
+            name = key
+        label = "{} ({:2.3f})".format(name, pvalue)
+        plt.plot(x_values, pp, lines[ii], label=label, **kwargs)
 
     Pvals = namedtuple('pvals', ['combined_pvalue', 'pvalues', 'names'])
     pvals = Pvals(combined_pvalue=scipy.stats.combine_pvalues(pvalues)[1],
@@ -1593,8 +1618,11 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
         "Combined p-value: {}".format(pvals.combined_pvalue))
 
     if title:
-        ax.set_title("p-value = {:2.4f}".format(pvals.combined_pvalue))
-    ax.legend(linewidth=1, labelspacing=0.25)
+        ax.set_title("N={}, p-value={:2.4f}".format(
+            len(results), pvals.combined_pvalue))
+    ax.set_xlabel("C.I.")
+    ax.set_ylabel("Fraction of events in C.I.")
+    ax.legend(linewidth=1, labelspacing=0.25, fontsize=legend_fontsize)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     fig.tight_layout()
