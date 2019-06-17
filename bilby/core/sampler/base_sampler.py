@@ -525,8 +525,6 @@ class Sampler(object):
     def calc_likelihood_count(self):
         if self.likelihood_benchmark:
             self.result.num_likelihood_evaluations = self.likelihood_count.value
-        else:
-            return None
 
 
 class NestedSampler(Sampler):
