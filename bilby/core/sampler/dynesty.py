@@ -121,6 +121,12 @@ class Dynesty(NestedSampler):
         signal.signal(signal.SIGINT, self.write_current_state_and_exit)
         signal.signal(signal.SIGALRM, self.write_current_state_and_exit)
 
+    def __getstate__(self):
+        """ For pickle: remove external_sampler, which can be an unpicklable "module" """
+        state = self.__dict__.copy()
+        del state['external_sampler']
+        return state
+
     @property
     def sampler_function_kwargs(self):
         keys = ['dlogz', 'print_progress', 'print_func', 'maxiter',
@@ -236,6 +242,7 @@ class Dynesty(NestedSampler):
         self.result.log_likelihood_evaluations = self.reorder_loglikelihoods(
             unsorted_loglikelihoods=out.logl, unsorted_samples=out.samples,
             sorted_samples=self.result.samples)
+        self.calc_likelihood_count()
         self.result.log_evidence = out.logz[-1]
         self.result.log_evidence_err = out.logzerr[-1]
 
@@ -301,10 +308,14 @@ class Dynesty(NestedSampler):
 
         if os.path.isfile(self.resume_file):
             logger.info("Reading resume file {}".format(self.resume_file))
-            with open(self.resume_file, 'rb') as file:
-                saved = pickle.load(file)
-            logger.info(
-                "Succesfuly read resume file {}".format(self.resume_file))
+            try:
+                with open(self.resume_file, 'rb') as file:
+                    saved = pickle.load(file)
+                logger.info(
+                    "Succesfuly read resume file {}".format(self.resume_file))
+            except EOFError as e:
+                logger.warning("Resume file reading failed with error {}".format(e))
+                return False
 
             self.sampler.saved_u = list(saved['unit_cube_samples'])
             self.sampler.saved_v = list(saved['physical_samples'])
@@ -432,7 +443,6 @@ class Dynesty(NestedSampler):
         sampler_kwargs['maxiter'] = 2
 
         self.sampler.run_nested(**sampler_kwargs)
-
         self.result.samples = pd.DataFrame(
             self.priors.sample(100))[self.search_parameter_keys].values
         self.result.log_evidence = np.nan

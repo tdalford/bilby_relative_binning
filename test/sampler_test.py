@@ -441,7 +441,7 @@ class TestRunningSamplers(unittest.TestCase):
     def tearDown(self):
         del self.likelihood
         del self.priors
-        bilby.core.utils.command_line_args.test = False
+        bilby.core.utils.command_line_args.bilby_test_mode = False
         shutil.rmtree('outdir')
 
     def test_run_cpnest(self):
