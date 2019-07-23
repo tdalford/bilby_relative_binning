@@ -985,7 +985,7 @@ class Result(object):
         fig.savefig(filename)
         plt.close(fig)
 
-    def plot_with_data(self, model, x, y, ndraws=1000, npoints=1000,
+    def plot_with_data(self, model, x, y, yerr=None, ndraws=1000, npoints=1000,
                        xlabel=None, ylabel=None, data_label='data',
                        data_fmt='o', draws_label=None, filename=None,
                        maxl_label='max likelihood', dpi=300, outdir=None):
@@ -999,6 +999,8 @@ class Result(object):
             pairs of the model parameters.
         x, y: np.ndarray
             The independent and dependent data to plot
+        yerr,: np.ndarray
+            The uncertainty estimates to plot as error-bars
         ndraws: int
             Number of draws from the posterior to plot
         npoints: int
@@ -1027,10 +1029,14 @@ class Result(object):
         xsmooth = np.linspace(np.min(x), np.max(x), npoints)
         fig, ax = plt.subplots()
         logger.info('Plotting {} draws'.format(ndraws))
+        draws = []
         for _ in range(ndraws):
             s = model_posterior.sample().to_dict('records')[0]
-            ax.plot(xsmooth, model(xsmooth, **s), alpha=0.25, lw=0.1, color='r',
-                    label=draws_label)
+            draws.append(model(xsmooth, **s))
+        ax.fill_between(
+            xsmooth, np.quantile(draws, 0.05, axis=0),
+            np.quantile(draws, 0.95, axis=0), alpha=1, color='C3',
+            label=draws_label)
         try:
             if all(~np.isnan(self.posterior.log_likelihood)):
                 logger.info('Plotting maximum likelihood')
@@ -1041,7 +1047,9 @@ class Result(object):
             logger.debug(
                 "No log likelihood values stored, unable to plot max")
 
-        ax.plot(x, y, data_fmt, markersize=2, label=data_label)
+        ax.plot(x, y, data_fmt, color="C0", markersize=2, label=data_label)
+        if yerr is not None:
+            ax.errorbar(x, y, yerr, fmt='none', color="C0")
 
         if xlabel is not None:
             ax.set_xlabel(xlabel)
