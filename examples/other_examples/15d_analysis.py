@@ -1,0 +1,31 @@
+import numpy as np
+import bilby
+from collections import namedtuple
+
+Summary = namedtuple('Summary', ['n_posterior', 'n_mode_1', 'n_mode_2', 'frac_1_2'])
+
+
+res_list = bilby.result.ResultList([])
+for i in range(1):
+    res_list.append(bilby.result.read_in_result('outdir/multidim_gaussian_bimodal_{}_result.json'.format(i)))
+
+output = []
+
+for res in res_list:
+    x0 = res.posterior['x0'].values
+    n_posterior = len(x0)
+    n_mode_1 = len(x0[np.where(x0 < 0)])
+    n_mode_2 = len(x0[np.where(x0 > 0)])
+    frac_1_2 = n_mode_1/n_mode_2
+    output.append(Summary(n_posterior=n_posterior, n_mode_1=n_mode_1, n_mode_2=n_mode_2, frac_1_2=frac_1_2))
+
+within_variance = 0
+for summary in output:
+    variance = 0.25 * summary.n_posterior
+    if n_posterior + variance > n_mode_1 and n_posterior + variance > n_mode_2:
+        print('False')
+    else:
+        print('True')
+        within_variance += 1
+
+print('Fraction within variance: ' + str(within_variance/len(res_list)))
