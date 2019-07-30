@@ -21,8 +21,9 @@ for res in res_list:
 
 within_variance = 0
 for summary in output:
+    print(summary)
     variance = 0.25 * summary.n_posterior
-    if n_posterior + variance > n_mode_1 and n_posterior + variance > n_mode_2:
+    if summary.n_posterior + variance > summary.n_mode_1 and summary.n_posterior + variance > summary.n_mode_2:
         print('False')
     else:
         print('True')
