@@ -3,6 +3,9 @@ from scipy.stats import multivariate_normal
 import bilby
 import numpy as np
 
+import sys
+id_number = sys.argv[1]
+
 logger = bilby.core.utils.logger
 
 cov = [
@@ -59,33 +62,33 @@ dim = 15
 mean = np.zeros(dim)
 
 
-class AnalyticalMultidimensionalCovariantGaussian(bilby.Likelihood):
-    """
-        A multivariate Gaussian likelihood
-        with known analytic solution.
-
-        Parameters
-        ----------
-        mean: array_like
-            Array with the mean value of distribution
-        cov: array_like
-            The ndim*ndim covariance matrix
-        """
-
-    def __init__(self, mean, cov):
-        super(AnalyticalMultidimensionalCovariantGaussian, self).__init__(parameters=dict())
-        self.cov = np.array(cov)
-        self.mean = np.array(mean)
-        self.sigma = np.sqrt(np.diag(self.cov))
-        self.pdf = multivariate_normal(mean=self.mean, cov=self.cov)
-
-    @property
-    def dim(self):
-        return len(self.cov[0])
-
-    def log_likelihood(self):
-        x = np.array([self.parameters["x{0}".format(i)] for i in range(self.dim)])
-        return self.pdf.logpdf(x)
+# class AnalyticalMultidimensionalCovariantGaussian(bilby.Likelihood):
+#     """
+#         A multivariate Gaussian likelihood
+#         with known analytic solution.
+#
+#         Parameters
+#         ----------
+#         mean: array_like
+#             Array with the mean value of distribution
+#         cov: array_like
+#             The ndim*ndim covariance matrix
+#         """
+#
+#     def __init__(self, mean, cov):
+#         super(AnalyticalMultidimensionalCovariantGaussian, self).__init__(parameters=dict())
+#         self.cov = np.array(cov)
+#         self.mean = np.array(mean)
+#         self.sigma = np.sqrt(np.diag(self.cov))
+#         self.pdf = multivariate_normal(mean=self.mean, cov=self.cov)
+#
+#     @property
+#     def dim(self):
+#         return len(self.cov[0])
+#
+#     def log_likelihood(self):
+#         x = np.array([self.parameters["x{0}".format(i)] for i in range(self.dim)])
+#         return self.pdf.logpdf(x)
 
 
 class AnalyticalMultidimensionalBimodalCovariantGaussian(bilby.Likelihood):
@@ -123,41 +126,41 @@ class AnalyticalMultidimensionalBimodalCovariantGaussian(bilby.Likelihood):
 label = "multidim_gaussian_unimodal"
 outdir = "outdir"
 
-likelihood = AnalyticalMultidimensionalCovariantGaussian(mean, cov)
-priors = bilby.core.prior.PriorDict()
-priors.update({"x{0}".format(i): bilby.core.prior.Uniform(-5, 5, "x{0}".format(i)) for i in range(dim)})
+# likelihood = AnalyticalMultidimensionalCovariantGaussian(mean, cov)
+# priors = bilby.core.prior.PriorDict()
+# priors.update({"x{0}".format(i): bilby.core.prior.Uniform(-5, 5, "x{0}".format(i)) for i in range(dim)})
+#
+# result = bilby.run_sampler(
+#     likelihood=likelihood,
+#     priors=priors,
+#     sampler="dynesty",
+#     outdir=outdir,
+#     label=label,
+#     check_point_plot=True,
+#     resume=True
+# )
 
-result = bilby.run_sampler(
-    likelihood=likelihood,
-    priors=priors,
-    sampler="dynesty",
-    outdir=outdir,
-    label=label,
-    check_point_plot=True,
-    resume=True
-)
-
-result.plot_corner(parameters={"x{0}".format(i): mean[i] for i in range(dim)})
+# result.plot_corner(parameters={"x{0}".format(i): mean[i] for i in range(dim)})
 
 # The prior is constant and flat, and the likelihood is normalised such that the area under it is one.
 # The analytical evidence is then given as 1/(prior volume)
 
-log_prior_vol = np.sum(np.log([prior.maximum - prior.minimum for key, prior in priors.items()]))
-log_evidence = -log_prior_vol
-
-sampled_std = [np.std(result.posterior[param]) for param in result.search_parameter_keys]
-
-logger.info("Analytic log evidence: " + str(log_evidence))
-logger.info("Sampled log evidence:  " + str(result.log_evidence) + ' +/- ' + str(result.log_evidence_err))
-
-for i, search_parameter_key in enumerate(result.search_parameter_keys):
-    logger.info(search_parameter_key)
-    logger.info('Expected posterior standard deviation: ' + str(likelihood.sigma[i]))
-    logger.info('Sampled posterior standard deviation:  ' + str(sampled_std[i]))
+# log_prior_vol = np.sum(np.log([prior.maximum - prior.minimum for key, prior in priors.items()]))
+# log_evidence = -log_prior_vol
+#
+# sampled_std = [np.std(result.posterior[param]) for param in result.search_parameter_keys]
+#
+# logger.info("Analytic log evidence: " + str(log_evidence))
+# logger.info("Sampled log evidence:  " + str(result.log_evidence) + ' +/- ' + str(result.log_evidence_err))
+#
+# for i, search_parameter_key in enumerate(result.search_parameter_keys):
+#     logger.info(search_parameter_key)
+#     logger.info('Expected posterior standard deviation: ' + str(likelihood.sigma[i]))
+#     logger.info('Sampled posterior standard deviation:  ' + str(sampled_std[i]))
 
 # BIMODAL distribution
 
-label = "multidim_gaussian_bimodal"
+label = "multidim_gaussian_bimodal_{}".format(id_number)
 dim = len(cov[0])
 
 mean_1 = 4 * np.sqrt(np.diag(cov))
@@ -174,6 +177,7 @@ result = bilby.run_sampler(
     outdir=outdir,
     label=label,
     check_point_plot=True,
+    walks=450,
     resume=True
 )
 result.plot_corner(parameters={"x{0}".format(i): mean_1[i] for i in range(dim)},
