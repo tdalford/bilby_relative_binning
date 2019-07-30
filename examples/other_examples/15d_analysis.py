@@ -6,7 +6,7 @@ Summary = namedtuple('Summary', ['n_posterior', 'n_mode_1', 'n_mode_2', 'frac_1_
 
 
 res_list = bilby.result.ResultList([])
-for i in range(1):
+for i in range(128):
     res_list.append(bilby.result.read_in_result('outdir/multidim_gaussian_bimodal_{}_result.json'.format(i)))
 
 output = []
