@@ -35,4 +35,5 @@ fracs = [summary.frac_1_2 for summary in output]
 plt.hist(np.array(fracs) * 100)
 plt.xlabel('Percentage within mode 1')
 plt.ylabel('Count')
-plt.savefig('output/fracplot')
+plt.savefig('outdir/fracplot')
+plt.clf()
