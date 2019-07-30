@@ -16,8 +16,7 @@ for res in res_list:
     n_posterior = len(x0)
     n_mode_1 = len(x0[np.where(x0 < 0)])
     n_mode_2 = len(x0[np.where(x0 > 0)])
-    if n_mode_1 < n_mode_2:
-        frac_1_2 = n_mode_1/n_posterior
+    frac_1_2 = n_mode_1/n_posterior
     output.append(Summary(n_posterior=n_posterior, n_mode_1=n_mode_1, n_mode_2=n_mode_2, frac_1_2=frac_1_2))
 
 within_variance = 0
