@@ -23,7 +23,7 @@ within_variance = 0
 for summary in output:
     print(summary)
     variance = 0.25 * summary.n_posterior
-    if summary.n_posterior + variance > summary.n_mode_1 and summary.n_posterior + variance > summary.n_mode_2:
+    if variance > np.abs(summary.n_mode_1 - summary.n_posterior):
         print('False')
     else:
         print('True')
