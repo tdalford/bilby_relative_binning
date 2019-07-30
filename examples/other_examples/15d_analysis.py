@@ -23,6 +23,7 @@ within_variance = 0
 for summary in output:
     print(summary)
     variance = 0.5 * np.sqrt(summary.n_posterior)
+    print(variance)
     if not variance > np.abs(summary.n_mode_1 - summary.n_posterior):
         within_variance += 1
 
