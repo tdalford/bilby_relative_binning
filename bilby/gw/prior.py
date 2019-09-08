@@ -88,6 +88,7 @@ class Cosmological(Interped):
                 self._minimum['redshift'] = cosmo.z_at_value(
                     cosmology.comoving_distance, minimum * self.unit)
             self._minimum['luminosity_distance'] = self._minimum['redshift']
+        self._check_legal_prior_bounds()
         try:
             self._update_instance()
         except (AttributeError, KeyError):
@@ -114,6 +115,7 @@ class Cosmological(Interped):
             self._maximum['redshift'] = cosmo.z_at_value(
                 cosmology.comoving_distance, maximum * self.unit)
             self._maximum['luminosity_distance'] = self._maximum['redshift']
+        self._check_legal_prior_bounds()
         try:
             self._update_instance()
         except (AttributeError, KeyError):

@@ -540,8 +540,9 @@ class Prior(object):
         self.name = name
         self.latex_label = latex_label
         self.unit = unit
-        self.minimum = minimum
-        self.maximum = maximum
+        self._minimum = minimum
+        self._maximum = maximum
+        self._check_legal_prior_bounds()
         self.boundary = boundary
 
     def __call__(self):
@@ -760,6 +761,7 @@ class Prior(object):
     @minimum.setter
     def minimum(self, minimum):
         self._minimum = minimum
+        self._check_legal_prior_bounds()
 
     @property
     def maximum(self):
@@ -768,6 +770,13 @@ class Prior(object):
     @maximum.setter
     def maximum(self, maximum):
         self._maximum = maximum
+        self._check_legal_prior_bounds()
+
+    def _check_legal_prior_bounds(self):
+        if self.maximum < self.minimum:
+            raise IllegalPriorBoundaryException("Lower prior boundary {} is greater"
+                                                " than upper  prior boundary {}"
+                                                .format(self.minimum, self.maximum))
 
     def _get_instantiation_dict(self):
         subclass_args = infer_args_from_method(self.__init__)
@@ -886,8 +895,8 @@ class Constraint(Prior):
 
     def __init__(self, minimum, maximum, name=None, latex_label=None,
                  unit=None):
-        Prior.__init__(self, minimum=minimum, maximum=maximum, name=name,
-                       latex_label=latex_label, unit=unit)
+        super(Prior, self).__init__(self, minimum=minimum, maximum=maximum, name=name,
+                                    latex_label=latex_label, unit=unit)
 
     def prob(self, val):
         return (val > self.minimum) & (val < self.maximum)
@@ -1052,6 +1061,12 @@ class PowerLaw(Prior):
         _cdf = np.minimum(_cdf, 1)
         _cdf = np.maximum(_cdf, 0)
         return _cdf
+
+    def _check_legal_prior_bounds(self):
+        if self.minimum <= 0:
+            raise IllegalPriorBoundaryException("{} boundary can not be less than or be equal to zero"
+                                                .format(self.__class__.__name__))
+        super(PowerLaw, self)._check_legal_prior_bounds()
 
 
 class Uniform(Prior):
@@ -1241,6 +1256,12 @@ class SymmetricLogUniform(Prior):
         """
         return np.nan_to_num(- np.log(2 * np.abs(val)) - np.log(np.log(self.maximum / self.minimum)))
 
+    def _check_legal_prior_bounds(self):
+        if self.minimum < 0 < self.maximum:
+            raise IllegalPriorBoundaryException("For {} priors both minimum and maximum prior bounds"
+                                                "have to have the same sign.".format(self.__class__.__name__))
+        super(SymmetricLogUniform, self)._check_legal_prior_bounds()
+
 
 class Cosine(Prior):
 
@@ -1296,6 +1317,15 @@ class Cosine(Prior):
         _cdf[val < self.minimum] = 0
         return _cdf
 
+    def _check_legal_prior_bounds(self):
+        if self.minimum < -np.pi/2:
+            raise IllegalPriorBoundaryException("Lower prior boundary can not be below -np.pi/2 but is {}"
+                                                .format(self.minimum))
+        elif self.maximum > np.pi/2:
+            raise IllegalPriorBoundaryException("Upper prior boundary can not be above np.pi/2 but is {}"
+                                                .format(self.maximum))
+        super(Cosine, self)._check_legal_prior_bounds()
+
 
 class Sine(Prior):
 
@@ -1350,6 +1380,15 @@ class Sine(Prior):
         _cdf[val > self.maximum] = 1
         _cdf[val < self.minimum] = 0
         return _cdf
+
+    def _check_legal_prior_bounds(self):
+        if self.minimum < 0:
+            raise IllegalPriorBoundaryException("Lower prior boundary can not be below 0 but is {}"
+                                                .format(self.minimum))
+        elif self.maximum > np.pi:
+            raise IllegalPriorBoundaryException("Upper prior boundary can not be above np.pi but is {}"
+                                                .format(self.maximum))
+        super(Sine, self)._check_legal_prior_bounds()
 
 
 class Gaussian(Prior):
@@ -1861,8 +1900,6 @@ class Beta(Prior):
 
         self._alpha = alpha
         self._beta = beta
-        self._minimum = minimum
-        self._maximum = maximum
         Prior.__init__(self, minimum=minimum, maximum=maximum, name=name,
                        latex_label=latex_label, unit=unit, boundary=boundary)
         self._set_dist()
@@ -1935,20 +1972,22 @@ class Beta(Prior):
 
     @property
     def maximum(self):
-        return self._maximum
+        return super(Beta, self).maximum
 
     @maximum.setter
     def maximum(self, maximum):
         self._maximum = maximum
+        self._check_legal_prior_bounds()
         self._set_dist()
 
     @property
     def minimum(self):
-        return self._minimum
+        return super(Beta, self).minimum
 
     @minimum.setter
     def minimum(self, minimum):
         self._minimum = minimum
+        self._check_legal_prior_bounds()
         self._set_dist()
 
     @property
@@ -2347,6 +2386,7 @@ class Interped(Prior):
         self._minimum = minimum
         if '_maximum' in self.__dict__ and self._maximum < np.inf:
             self._update_instance()
+        self._check_legal_prior_bounds()
 
     @property
     def maximum(self):
@@ -2366,6 +2406,7 @@ class Interped(Prior):
         self._maximum = maximum
         if '_minimum' in self.__dict__ and self._minimum < np.inf:
             self._update_instance()
+        self._check_legal_prior_bounds()
 
     def _update_instance(self):
         self.xx = np.linspace(self.minimum, self.maximum, len(self.xx))
@@ -3313,3 +3354,8 @@ class MultivariateNormal(MultivariateGaussian):
         """
         MultivariateGaussian.__init__(self, mvg, name=name,
                                       latex_label=latex_label, unit=unit)
+
+
+class IllegalPriorBoundaryException(Exception):
+    """Exception class for issues relating to prior boundaries"""
+    pass

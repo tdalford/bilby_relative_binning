@@ -545,6 +545,28 @@ class TestPriorClasses(unittest.TestCase):
             self.assertTrue(min(prior.sample(10000)) > prior.minimum)
 
 
+class TestPowerLawPrior(unittest.TestCase):
+
+    def setUp(self):
+        self.prior = bilby.core.prior.PowerLaw(minimum=-5, maximum=-1, alpha=-3)
+
+    def tearDown(self):
+        del self.prior
+
+    def test_negative_spectral_index_minimum_zero(self):
+        self.prior.prob(2)
+
+    def test_negative_spectral_index_maximum_zero(self):
+        self.prior.minimum = -3
+        self.prior.maximum = 0
+        self.prior.prob(-2)
+
+    def test_negative_one_spectral_index_maximum_zero(self):
+        self.prior.minimum = 0
+        self.prior.maximum = 3
+        self.prior.alpha = -1
+        self.prior.prob(1)
+
 class TestPriorDict(unittest.TestCase):
 
     def setUp(self):
