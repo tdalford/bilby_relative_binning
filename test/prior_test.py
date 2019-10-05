@@ -35,11 +35,16 @@ class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
         self.assertIsNone(self.prior.rescale(1))
 
     def test_base_repr(self):
+        """
+        We compare that the strings contain all of the same characters in not
+        necessarily the same order as python2 doesn't conserve the order of the
+        arguments.
+        """
         self.prior = bilby.core.prior.Prior(name='test_name', latex_label='test_label', minimum=0, maximum=1,
                                             boundary=None)
         expected_string = "Prior(name='test_name', latex_label='test_label', unit=None, minimum=0, maximum=1, " \
                           "boundary=None)"
-        self.assertEqual(expected_string, self.prior.__repr__())
+        self.assertTrue(sorted(expected_string) == sorted(self.prior.__repr__()))
 
     def test_base_prob(self):
         self.assertTrue(np.isnan(self.prior.prob(5)))
@@ -268,6 +273,33 @@ class TestPriorClasses(unittest.TestCase):
                 # the prob and ln_prob functions, it must be ignored in this test.
                 self.assertAlmostEqual(np.log(prior.prob(sample)), prior.ln_prob(sample), 12)
 
+    def test_cdf_is_inverse_of_rescaling(self):
+        domain = np.linspace(0, 1, 100)
+        threshold = 1e-9
+        for prior in self.priors:
+            if isinstance(prior, (
+                    bilby.core.prior.DeltaFunction,
+                    bilby.core.prior.MultivariateGaussian)):
+                continue
+            rescaled = prior.rescale(domain)
+            max_difference = max(np.abs(domain - prior.cdf(rescaled)))
+            self.assertLess(max_difference, threshold)
+
+    def test_cdf_one_above_domain(self):
+        for prior in self.priors:
+            if prior.maximum != np.inf:
+                outside_domain = np.linspace(
+                    prior.maximum + 1, prior.maximum + 1e4, 1000)
+                self.assertTrue(all(prior.cdf(outside_domain) == 1))
+
+    def test_cdf_zero_below_domain(self):
+        for prior in self.priors:
+            if prior.minimum != -np.inf:
+                outside_domain = np.linspace(
+                    prior.minimum - 1e4, prior.minimum - 1, 1000)
+                self.assertTrue(all(
+                    np.nan_to_num(prior.cdf(outside_domain)) == 0))
+
     def test_log_normal_fail(self):
         with self.assertRaises(ValueError):
             bilby.core.prior.LogNormal(name='test', unit='unit', mu=0, sigma=-1)
@@ -474,12 +506,16 @@ class TestPriorClasses(unittest.TestCase):
             if isinstance(prior, bilby.core.prior.Interped):
                 continue  # we cannot test this because of the numpy arrays
             elif isinstance(prior, bilby.core.prior.MultivariateGaussian):
-                continue  # we cannot test this because of the internal objects
+                repr_prior_string = 'bilby.core.prior.' + repr(prior)
+                repr_prior_string = repr_prior_string.replace(
+                    'MultivariateGaussianDist',
+                    'bilby.core.prior.MultivariateGaussianDist'
+                )
             elif isinstance(prior, bilby.gw.prior.UniformComovingVolume):
                 repr_prior_string = 'bilby.gw.prior.' + repr(prior)
             else:
                 repr_prior_string = 'bilby.core.prior.' + repr(prior)
-            repr_prior = eval(repr_prior_string)
+            repr_prior = eval(repr_prior_string, None, dict(inf=np.inf))
             self.assertEqual(prior, repr_prior)
 
     def test_set_maximum_setting(self):
@@ -581,6 +617,11 @@ class TestPriorDict(unittest.TestCase):
         self.assertDictEqual(expected, self.prior_set_from_file)
 
     def test_to_file(self):
+        """
+        We compare that the strings contain all of the same characters in not
+        necessarily the same order as python2 doesn't conserve the order of the
+        arguments.
+        """
         expected = ["length = DeltaFunction(peak=42, name='c', latex_label='c', unit='m')\n",
                     "speed = PowerLaw(alpha=3, minimum=1, maximum=2, name='b', latex_label='b', "
                     "unit='m/s', boundary=None)\n",
@@ -589,10 +630,11 @@ class TestPriorDict(unittest.TestCase):
         self.prior_set_from_dict.to_file(outdir='prior_files', label='to_file_test')
         with open('prior_files/to_file_test.prior') as f:
             for i, line in enumerate(f.readlines()):
-                self.assertTrue(line in expected)
+                self.assertTrue(any([
+                    sorted(line) == sorted(expect) for expect in expected]))
 
     def test_from_dict_with_string(self):
-        string_prior = "bilby.core.prior.PowerLaw(name='b', alpha=3, minimum=1, maximum=2, unit='m/s', " \
+        string_prior = "PowerLaw(name='b', alpha=3, minimum=1, maximum=2, unit='m/s', " \
                        "boundary=None)"
         self.priors['speed'] = string_prior
         from_dict = bilby.core.prior.PriorDict(dictionary=self.priors)
@@ -702,6 +744,22 @@ class TestPriorDict(unittest.TestCase):
             self.assertFalse(self.prior_set_from_dict.test_redundancy(key=key))
 
 
+class TestLoadPrior(unittest.TestCase):
+    def test_load_prior_with_float(self):
+        filename = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                'prior_files/prior_with_floats.prior')
+        prior = bilby.core.prior.PriorDict(filename)
+        self.assertTrue("mass_1" in prior)
+        self.assertTrue("mass_2" in prior)
+        self.assertTrue(prior['mass_2'].peak == 20)
+
+    def test_load_prior_with_parentheses(self):
+        filename = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                'prior_files/prior_with_parentheses.prior')
+        prior = bilby.core.prior.PriorDict(filename)
+        self.assertTrue(isinstance(prior['logA'], bilby.core.prior.Uniform))
+
+
 class TestFillPrior(unittest.TestCase):
 
     def setUp(self):
@@ -756,6 +814,66 @@ class TestCreateDefaultPrior(unittest.TestCase):
     def test_unknown_prior(self):
         prior_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'prior_files/binary_black_holes.prior')
         self.assertIsNone(bilby.core.prior.create_default_prior(name='name', default_priors_file=prior_file))
+
+
+class TestJsonIO(unittest.TestCase):
+
+    def setUp(self):
+        mvg = bilby.core.prior.MultivariateGaussianDist(names=['testa', 'testb'],
+                                                        mus=[1, 1],
+                                                        covs=np.array([[2., 0.5], [0.5, 2.]]),
+                                                        weights=1.)
+        mvn = bilby.core.prior.MultivariateGaussianDist(names=['testa', 'testb'],
+                                                        mus=[1, 1],
+                                                        covs=np.array([[2., 0.5], [0.5, 2.]]),
+                                                        weights=1.)
+
+        self.priors = bilby.core.prior.PriorDict(dict(
+            a=bilby.core.prior.DeltaFunction(name='test', unit='unit', peak=1),
+            b=bilby.core.prior.Gaussian(name='test', unit='unit', mu=0, sigma=1),
+            c=bilby.core.prior.Normal(name='test', unit='unit', mu=0, sigma=1),
+            d=bilby.core.prior.PowerLaw(name='test', unit='unit', alpha=0, minimum=0, maximum=1),
+            e=bilby.core.prior.PowerLaw(name='test', unit='unit', alpha=-1, minimum=0.5, maximum=1),
+            f=bilby.core.prior.PowerLaw(name='test', unit='unit', alpha=2, minimum=1, maximum=1e2),
+            g=bilby.core.prior.Uniform(name='test', unit='unit', minimum=0, maximum=1),
+            h=bilby.core.prior.LogUniform(name='test', unit='unit', minimum=5e0, maximum=1e2),
+            i=bilby.gw.prior.UniformComovingVolume(name='redshift', minimum=0.1, maximum=1.0),
+            j=bilby.gw.prior.UniformSourceFrame(name='luminosity_distance', minimum=1.0, maximum=1000.0),
+            k=bilby.core.prior.Sine(name='test', unit='unit'),
+            l=bilby.core.prior.Cosine(name='test', unit='unit'),
+            m=bilby.core.prior.Interped(name='test', unit='unit', xx=np.linspace(0, 10, 1000),
+                                        yy=np.linspace(0, 10, 1000) ** 4,
+                                        minimum=3, maximum=5),
+            n=bilby.core.prior.TruncatedGaussian(name='test', unit='unit', mu=1, sigma=0.4, minimum=-1, maximum=1),
+            o=bilby.core.prior.TruncatedNormal(name='test', unit='unit', mu=1, sigma=0.4, minimum=-1, maximum=1),
+            p=bilby.core.prior.HalfGaussian(name='test', unit='unit', sigma=1),
+            q=bilby.core.prior.HalfNormal(name='test', unit='unit', sigma=1),
+            r=bilby.core.prior.LogGaussian(name='test', unit='unit', mu=0, sigma=1),
+            s=bilby.core.prior.LogNormal(name='test', unit='unit', mu=0, sigma=1),
+            t=bilby.core.prior.Exponential(name='test', unit='unit', mu=1),
+            u=bilby.core.prior.StudentT(name='test', unit='unit', df=3, mu=0, scale=1),
+            v=bilby.core.prior.Beta(name='test', unit='unit', alpha=2.0, beta=2.0),
+            x=bilby.core.prior.Logistic(name='test', unit='unit', mu=0, scale=1),
+            y=bilby.core.prior.Cauchy(name='test', unit='unit', alpha=0, beta=1),
+            z=bilby.core.prior.Lorentzian(name='test', unit='unit', alpha=0, beta=1),
+            aa=bilby.core.prior.Gamma(name='test', unit='unit', k=1, theta=1),
+            ab=bilby.core.prior.ChiSquared(name='test', unit='unit', nu=2),
+            ac=bilby.gw.prior.AlignedSpin(name='test', unit='unit'),
+            ad=bilby.core.prior.MultivariateGaussian(mvg=mvg, name='testa', unit='unit'),
+            ae=bilby.core.prior.MultivariateGaussian(mvg=mvg, name='testb', unit='unit'),
+            af=bilby.core.prior.MultivariateNormal(mvg=mvn, name='testa', unit='unit'),
+            ag=bilby.core.prior.MultivariateNormal(mvg=mvn, name='testb', unit='unit')
+        ))
+
+    def test_read_write_to_json(self):
+        """ Interped prior is removed as there is numerical error in the recovered prior."""
+        self.priors.to_json(outdir="prior_files", label="json_test")
+        new_priors = bilby.core.prior.PriorDict.from_json(filename="prior_files/json_test_prior.json")
+        old_interped = self.priors.pop("m")
+        new_interped = new_priors.pop("m")
+        self.assertDictEqual(self.priors, new_priors)
+        self.assertLess(max(abs(old_interped.xx - new_interped.xx)), 1e-15)
+        self.assertLess(max(abs(old_interped.yy - new_interped.yy)), 1e-15)
 
 
 if __name__ == '__main__':

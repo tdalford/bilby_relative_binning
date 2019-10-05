@@ -1,13 +1,103 @@
 # All notable changes will be documented in this file
 
-## Unreleased
+## [0.5.8] 2019-09-26
 
 ### Added
-- 
+- Progress bar in post-processing step
+
 ### Changed
-- 
-### Removed
-- 
+- Fixed implementation of calibration !607
+- Fixed interaction with dynesty for reflective bounds !604
+- Fixed behaviour of n_effective with check pointing !603
+- Fixed testing of constants !605
+- Fixed bug in bilby_result with python2.7
+
+## [0.5.7] 2019-09-19
+
+### Added
+- bilby_convert_resume file CL tool for converting dynesty resume files into preresults !599
+
+### Changes
+- Change the constants (Msun, REarth etc) to match the values in LAL !597
+- Change the Greenwhich Mean Sidereal Time conversion to match the method in LAL !597
+- Update dynesty requirement to 1.0.0
+- Improve integration of bounds with dynesty !589
+- Fixed issue with mutable default argument !596
+- Allow the use of n_effective in dynesty !592
+- Allow the use of n_periodic in cpnest !591
+- Fix bug in dt calc
+
+## [0.5.6] 2019-09-04
+
+### Changes
+- Deprecation of the old helper functions (e.g., fetch open data)
+- Improvements to the documentation
+- Fix a bug in the dt calculations of the GW likelihood
+- Various small bug fixes
+
+### Added
+- LAL version information in the meta data
+
+## [0.5.5] 2019-08-22
+
+### Added
+- Reading/writing of the prior in a JSON format
+- Checks for marginalization flags
+
+### Changes
+- Improvements to the examples: reorganisation and fixing bugs
+- Fixed bug with scipy>=1.3.0 and spline
+- Removed the sqrt(2) normalisation from the scalar longitudinal mode
+- Improve PSD filename reading (no longer required "/" to read local files)
+- Fix bug in emcee chains
+- Added a try/except cluase for building the lookup table
+
+## [0.5.4] 2019-07-30
+
+### Added
+- Analytic CDFs 
+- Reading/writing of grid results objects
+
+### Changed
+- Dynesty default settings changed: by default, now uses 30xndim walks. This was
+shown (!564) to provide better convergence for the long-duration high-spin tests.
+- Fix bug in combined runs log evidence calculations
+- Fixed bugs in the nightly tests 
+
+## [0.5.3] 2019-07-23
+### Added
+- Jitter time marginalization. For the time-marginalized likelihood, a jitter
+  is used to ensure proper sampling without artifacts (!534)
+- Zero likelihood mode for testing and zero-likelihood test to the nightly C.I ((!542)
+- 15D analytic Gaussian test example (!547) 
+
+### Changes
+- Dynesty version minimum set to 0.9.7. Changes to this sampler vastly improve
+  performance (!537)
+- Improvements to waveform plotting (!534) 
+- Fixed bugs in the prior loading and added tests (!531 !539 !553 !515)
+- Fixed issue in 1D CDF prior plots (!538)
+- ROQ weights stored as npz rather than json (memory-performance improvement) (!536)
+- Distance marginalisation now uses cubic rather than linear interpolation. Improves
+  distance/inclination posteriors for high SNR systems. (!552)
+- Inputs to hyperpe modified to allow for more flexible sampling prior specification
+  and improve efficiency. (!545)
+- Fix definition of some spin phase parameters (!556).
+
+## [0.5.2] 2019-06-18
+### Added
+- Method to read data in using gwpy get (and associated example)
+- Adds a catch for broken resume files with improves reporting
+
+### Changed
+- Updated and fixed bugs in examples
+- Resolve sampling time persistence for runs which are interupted
+- Improvements to the PP plot
+- Speed up of the distance calculation
+- Fixed a bug in the inteference of bilby command line arguments with user specified command lines
+- Generalised the consistency checks for ResultLists
+- Fixes to some tests
+- Makes the parameter conversion a static method rather than a lambda expression
 
 ## [0.5.1] 2019-06-05
 ### Added

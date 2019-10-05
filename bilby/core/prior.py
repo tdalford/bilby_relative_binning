@@ -1,19 +1,22 @@
 from __future__ import division
 
+import re
+from importlib import import_module
 import os
 from collections import OrderedDict
 from future.utils import iteritems
-from matplotlib.cbook import flatten
+import json
+from io import open as ioopen
 
 import numpy as np
 import scipy.stats
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
 from scipy.special import erf, erfinv
+from matplotlib.cbook import flatten
 
-# Keep import bilby statement, it is necessary for some eval() statements
-import bilby  # noqa
 from .utils import (
+    BilbyJsonEncoder, decode_bilby_json,
     import_from_string, logger, infer_args_from_method,
     check_directory_exists_and_if_not_mkdir)
 
@@ -41,7 +44,7 @@ class PriorDict(OrderedDict):
             using non-trivial Jacobians.
             Default is None will not apply a Jacobian
         """
-        OrderedDict.__init__(self)
+        super(PriorDict, self).__init__()
         if isinstance(dictionary, dict):
             self.from_dictionary(dictionary)
         elif type(dictionary) is str:
@@ -103,10 +106,39 @@ class PriorDict(OrderedDict):
         check_directory_exists_and_if_not_mkdir(outdir)
         prior_file = os.path.join(outdir, "{}.prior".format(label))
         logger.debug("Writing priors to {}".format(prior_file))
+        mvgs = []
         with open(prior_file, "w") as outfile:
             for key in self.keys():
-                outfile.write(
-                    "{} = {}\n".format(key, self[key]))
+                if isinstance(self[key], MultivariateGaussian):
+                    mvgname = '_'.join(self[key].mvg.names) + '_mvg'
+                    if mvgname not in mvgs:
+                        mvgs.append(mvgname)
+                        outfile.write(
+                            "{} = {}\n".format(mvgname, self[key].mvg))
+                    mvgstr = repr(self[key].mvg)
+                    priorstr = repr(self[key])
+                    outfile.write(
+                        "{} = {}\n".format(key, priorstr.replace(mvgstr,
+                                                                 mvgname)))
+                else:
+                    outfile.write(
+                        "{} = {}\n".format(key, self[key]))
+
+    def _get_json_dict(self):
+        self.convert_floats_to_delta_functions()
+        total_dict = {key: json.loads(self[key].to_json()) for key in self}
+        total_dict["__prior_dict__"] = True
+        total_dict["__module__"] = self.__module__
+        total_dict["__name__"] = self.__class__.__name__
+        return total_dict
+
+    def to_json(self, outdir, label):
+        check_directory_exists_and_if_not_mkdir(outdir)
+        prior_file = os.path.join(outdir, "{}_prior.json".format(label))
+        logger.debug("Writing priors to {}".format(prior_file))
+        with open(prior_file, "w") as outfile:
+            json.dump(self._get_json_dict(), outfile, cls=BilbyJsonEncoder,
+                      indent=2)
 
     def from_file(self, filename):
         """ Reads in a prior from a file specification
@@ -121,34 +153,89 @@ class PriorDict(OrderedDict):
         Lines beginning with '#' or empty lines will be ignored.
 
         The conversion function and jacobian will be set from those names.
+        Priors can be loaded from:
+            bilby.core.prior as, e.g.,    foo = Uniform(minimum=0, maximum=1)
+            floats, e.g.,                 foo = 1
+            bilby.gw.prior as, e.g.,      foo = bilby.gw.prior.AlignedSpin()
+            other external modules, e.g., foo = my.module.CustomPrior(...)
         """
 
         comments = ['#', '\n']
         prior = dict()
-        with open(filename, 'r') as f:
+        mvgdict = dict(inf=np.inf)  # evaluate inf as np.inf
+        with ioopen(filename, 'r', encoding='unicode_escape') as f:
             for line in f:
                 if line[0] in comments:
                     continue
-                line = line.replace(' ', '').strip()
+                line.replace(' ', '')
                 elements = line.split('=')
-                key = elements[0]
-                if key in ["conversion_function", "jacobian"]:
-                    try:
-                        func = import_from_string(elements[1])
-                        setattr(self, key, func)
-                    except AttributeError:
-                        raise AttributeError(
-                            'Cannot find {} {}'.format(key, elements[1]))
+                key = elements[0].replace(' ', '')
+                val = '='.join(elements[1:]).strip()
+                cls = val.split('(')[0]
+                args = '('.join(val.split('(')[1:])[:-1]
+                try:
+                    prior[key] = DeltaFunction(peak=float(cls))
+                    logger.debug("{} converted ot DeltaFunction prior".format(
+                        key))
+                    continue
+                except ValueError:
+                    pass
+                if "." in cls:
+                    module = '.'.join(cls.split('.')[:-1])
+                    cls = cls.split('.')[-1]
                 else:
-                    val = '='.join(elements[1:])
+                    module = __name__
+                cls = getattr(import_module(module), cls, cls)
+                if key.lower() in ["conversion_function", "jacobian"]:
+                    setattr(self, key, cls)
+                elif (cls.__name__ in ['MultivariateGaussianDist',
+                                       'MultivariateNormalDist']):
+                    if key not in mvgdict:
+                        mvgdict[key] = eval(val, None, mvgdict)
+                elif (cls.__name__ in ['MultivariateGaussian',
+                                       'MultivariateNormal']):
+                    prior[key] = eval(val, None, mvgdict)
+                else:
                     try:
-                        prior[key] = eval(val)
+                        prior[key] = cls.from_repr(args)
                     except TypeError as e:
                         raise TypeError(
-                            "Unable to parse dictionary file {}, bad line: "
-                            "{} = {}. Error message {}".format(
+                            "Unable to parse dictionary file {}, bad line: {} "
+                            "= {}. Error message {}".format(
                                 filename, key, val, e))
         self.update(prior)
+
+    @classmethod
+    def _get_from_json_dict(cls, prior_dict):
+        try:
+            cls == getattr(
+                import_module(prior_dict["__module__"]),
+                prior_dict["__name__"])
+        except ImportError:
+            logger.debug("Cannot import prior module {}.{}".format(
+                prior_dict["__module__"], prior_dict["__name__"]
+            ))
+        except KeyError:
+            logger.debug("Cannot find module name to load")
+        for key in ["__module__", "__name__", "__prior_dict__"]:
+            if key in prior_dict:
+                del prior_dict[key]
+        obj = cls(dict())
+        obj.from_dictionary(prior_dict)
+        return obj
+
+    @classmethod
+    def from_json(cls, filename):
+        """ Reads in a prior from a json file
+
+        Parameters
+        ----------
+        filename: str
+            Name of the file to be read in
+        """
+        with open(filename, "r") as ff:
+            obj = json.load(ff, object_hook=decode_bilby_json)
+        return obj
 
     def from_dictionary(self, dictionary):
         for key, val in iteritems(dictionary):
@@ -162,6 +249,10 @@ class PriorDict(OrderedDict):
                         "Failed to load dictionary value {} correctly"
                         .format(key))
                     pass
+            elif isinstance(val, dict):
+                logger.warning(
+                    'Cannot convert {} into a prior object. '
+                    'Leaving as dictionary.'.format(key))
             self[key] = val
 
     def convert_floats_to_delta_functions(self):
@@ -584,6 +675,19 @@ class Prior(object):
         """
         return np.nan
 
+    def cdf(self, val):
+        """ Generic method to calculate CDF, can be overwritten in subclass """
+        if np.any(np.isinf([self.minimum, self.maximum])):
+            raise ValueError(
+                "Unable to use the generic CDF calculation for priors with"
+                "infinite support")
+        x = np.linspace(self.minimum, self.maximum, 1000)
+        pdf = self.prob(x)
+        cdf = cumtrapz(pdf, x, initial=0)
+        interp = interp1d(x, cdf, assume_sorted=True, bounds_error=False,
+                          fill_value=(0, 1))
+        return interp(val)
+
     def ln_prob(self, val):
         """Return the prior ln probability of val, this should be overwritten
 
@@ -640,15 +744,23 @@ class Prior(object):
         str: A string representation of this instance
 
         """
-        subclass_args = infer_args_from_method(self.__init__)
         prior_name = self.__class__.__name__
-
-        property_names = [p for p in dir(self.__class__) if isinstance(getattr(self.__class__, p), property)]
-        dict_with_properties = self.__dict__.copy()
-        for key in property_names:
-            dict_with_properties[key] = getattr(self, key)
-        args = ', '.join(['{}={}'.format(key, repr(dict_with_properties[key])) for key in subclass_args])
+        instantiation_dict = self._get_instantiation_dict()
+        args = ', '.join(['{}={}'.format(key, repr(instantiation_dict[key]))
+                          for key in instantiation_dict])
         return "{}({})".format(prior_name, args)
+
+    @property
+    def _repr_dict(self):
+        """
+        Get a dictionary containing the arguments needed to reproduce this object.
+        """
+        property_names = {p for p in dir(self.__class__) if isinstance(getattr(self.__class__, p), property)}
+        subclass_args = infer_args_from_method(self.__init__)
+        dict_with_properties = self.__dict__.copy()
+        for key in property_names.intersection(subclass_args):
+            dict_with_properties[key] = getattr(self, key)
+        return {key: dict_with_properties[key] for key in subclass_args}
 
     @property
     def is_fixed(self):
@@ -716,6 +828,18 @@ class Prior(object):
     def maximum(self, maximum):
         self._maximum = maximum
 
+    def _get_instantiation_dict(self):
+        subclass_args = infer_args_from_method(self.__init__)
+        property_names = [p for p in dir(self.__class__)
+                          if isinstance(getattr(self.__class__, p), property)]
+        dict_with_properties = self.__dict__.copy()
+        for key in property_names:
+            dict_with_properties[key] = getattr(self, key)
+        instantiation_dict = OrderedDict()
+        for key in subclass_args:
+            instantiation_dict[key] = dict_with_properties[key]
+        return instantiation_dict
+
     @property
     def boundary(self):
         return self._boundary
@@ -734,13 +858,95 @@ class Prior(object):
             label = self.name
         return label
 
+    def to_json(self):
+        return json.dumps(self, cls=BilbyJsonEncoder)
+
+    @classmethod
+    def from_json(cls, dct):
+        return decode_bilby_json(dct)
+
+    @classmethod
+    def from_repr(cls, string):
+        """Generate the prior from it's __repr__"""
+        return cls._from_repr(string)
+
+    @classmethod
+    def _from_repr(cls, string):
+        subclass_args = infer_args_from_method(cls.__init__)
+
+        string = string.replace(' ', '')
+        kwargs = cls._split_repr(string)
+        for key in kwargs:
+            val = kwargs[key]
+            if key not in subclass_args:
+                raise AttributeError('Unknown argument {} for class {}'.format(
+                    key, cls.__name__))
+            else:
+                kwargs[key] = cls._parse_argument_string(val)
+        return cls(**kwargs)
+
+    @classmethod
+    def _split_repr(cls, string):
+        subclass_args = infer_args_from_method(cls.__init__)
+        args = string.split(',')
+        remove = list()
+        for ii, key in enumerate(args):
+            if '(' in key:
+                jj = ii
+                while ')' not in args[jj]:
+                    jj += 1
+                    args[ii] = ','.join([args[ii], args[jj]]).strip()
+                    remove.append(jj)
+        remove.reverse()
+        for ii in remove:
+            del args[ii]
+        kwargs = dict()
+        for ii, arg in enumerate(args):
+            if '=' not in arg:
+                logger.debug(
+                    'Reading priors with non-keyword arguments is dangerous!')
+                key = subclass_args[ii]
+                val = arg
+            else:
+                split_arg = arg.split('=')
+                key = split_arg[0]
+                val = '='.join(split_arg[1:])
+            kwargs[key] = val
+        return kwargs
+
+    @classmethod
+    def _parse_argument_string(cls, val):
+        if re.sub(r'\'.*\'', '', val) in ['r', 'u']:
+            # If the val is a latex label like "r"\log(x)"' then ignore it
+            pass
+        elif '(' in val:
+            other_cls = val.split('(')[0]
+            vals = '('.join(val.split('(')[1:])[:-1]
+            if "." in other_cls:
+                module = '.'.join(other_cls.split('.')[:-1])
+                other_cls = other_cls.split('.')[-1]
+            else:
+                module = __name__
+            other_cls = getattr(import_module(module), other_cls)
+            val = other_cls.from_repr(vals)
+        elif "'" in val:
+            val = val.strip("'")
+        elif val == 'None':
+            val = None
+        else:
+            try:
+                val = eval(val, dict(), dict(np=np))
+            except NameError:
+                raise TypeError()
+        return val
+
 
 class Constraint(Prior):
 
     def __init__(self, minimum, maximum, name=None, latex_label=None,
                  unit=None):
-        Prior.__init__(self, minimum=minimum, maximum=maximum, name=name,
-                       latex_label=latex_label, unit=unit)
+        super(Constraint, self).__init__(minimum=minimum, maximum=maximum, name=name,
+                                         latex_label=latex_label, unit=unit)
 
     def prob(self, val):
         return (val > self.minimum) & (val < self.maximum)
@@ -766,8 +972,8 @@ class DeltaFunction(Prior):
             See superclass
 
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=peak, maximum=peak)
+        super(DeltaFunction, self).__init__(name=name, latex_label=latex_label, unit=unit,
+                                            minimum=peak, maximum=peak)
         self.peak = peak
 
     def rescale(self, val):
@@ -799,6 +1005,9 @@ class DeltaFunction(Prior):
         at_peak = (val == self.peak)
         return np.nan_to_num(np.multiply(at_peak, np.inf))
 
+    def cdf(self, val):
+        return np.ones_like(val) * (val > self.peak)
+
 
 class PowerLaw(Prior):
 
@@ -823,9 +1032,9 @@ class PowerLaw(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label,
-                       minimum=minimum, maximum=maximum, unit=unit,
-                       boundary=boundary)
+        super(PowerLaw, self).__init__(name=name, latex_label=latex_label,
+                                       minimum=minimum, maximum=maximum, unit=unit,
+                                       boundary=boundary)
         self.alpha = alpha
 
     def rescale(self, val):
@@ -889,6 +1098,17 @@ class PowerLaw(Prior):
         return (self.alpha * np.nan_to_num(np.log(val)) + np.log(normalising)) + np.log(
             1. * self.is_in_prior_range(val))
 
+    def cdf(self, val):
+        if self.alpha == -1:
+            _cdf = (np.log(val / self.minimum) /
+                    np.log(self.maximum / self.minimum))
+        else:
+            _cdf = np.atleast_1d(val ** (self.alpha + 1) - self.minimum ** (self.alpha + 1)) / \
+                (self.maximum ** (self.alpha + 1) - self.minimum ** (self.alpha + 1))
+        _cdf = np.minimum(_cdf, 1)
+        _cdf = np.maximum(_cdf, 0)
+        return _cdf
+
 
 class Uniform(Prior):
 
@@ -911,9 +1131,9 @@ class Uniform(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label,
-                       minimum=minimum, maximum=maximum, unit=unit,
-                       boundary=boundary)
+        super(Uniform, self).__init__(name=name, latex_label=latex_label,
+                                      minimum=minimum, maximum=maximum, unit=unit,
+                                      boundary=boundary)
 
     def rescale(self, val):
         """
@@ -944,8 +1164,7 @@ class Uniform(Prior):
         -------
         float: Prior probability of val
         """
-        return scipy.stats.uniform.pdf(val, loc=self.minimum,
-                                       scale=self.maximum - self.minimum)
+        return ((val >= self.minimum) & (val <= self.maximum)) / (self.maximum - self.minimum)
 
     def ln_prob(self, val):
         """Return the log prior probability of val
@@ -958,8 +1177,16 @@ class Uniform(Prior):
         -------
         float: log probability of val
         """
-        return scipy.stats.uniform.logpdf(val, loc=self.minimum,
-                                          scale=self.maximum - self.minimum)
+        with np.errstate(divide='ignore'):
+            _ln_prob = np.log((val >= self.minimum) & (val <= self.maximum), dtype=np.float64)\
+                - np.log(self.maximum - self.minimum)
+        return _ln_prob
+
+    def cdf(self, val):
+        _cdf = (val - self.minimum) / (self.maximum - self.minimum)
+        _cdf = np.minimum(_cdf, 1)
+        _cdf = np.maximum(_cdf, 0)
+        return _cdf
 
 
 class LogUniform(PowerLaw):
@@ -983,8 +1210,8 @@ class LogUniform(PowerLaw):
         boundary: str
             See superclass
         """
-        PowerLaw.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                          minimum=minimum, maximum=maximum, alpha=-1, boundary=boundary)
+        super(LogUniform, self).__init__(name=name, latex_label=latex_label, unit=unit,
+                                         minimum=minimum, maximum=maximum, alpha=-1, boundary=boundary)
         if self.minimum <= 0:
             logger.warning('You specified a uniform-in-log prior with minimum={}'.format(self.minimum))
 
@@ -1015,9 +1242,9 @@ class SymmetricLogUniform(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label,
-                       minimum=minimum, maximum=maximum, unit=unit,
-                       boundary=boundary)
+        super(SymmetricLogUniform, self).__init__(name=name, latex_label=latex_label,
+                                                  minimum=minimum, maximum=maximum, unit=unit,
+                                                  boundary=boundary)
 
     def rescale(self, val):
         """
@@ -1053,9 +1280,8 @@ class SymmetricLogUniform(Prior):
         -------
         float: Prior probability of val
         """
-        return (
-            np.nan_to_num(0.5 / np.abs(val) / np.log(self.maximum / self.minimum)) *
-            self.is_in_prior_range(val))
+        return (np.nan_to_num(0.5 / np.abs(val) / np.log(self.maximum / self.minimum)) *
+                self.is_in_prior_range(val))
 
     def ln_prob(self, val):
         """Return the logarithmic prior probability of val
@@ -1093,8 +1319,8 @@ class Cosine(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=minimum, maximum=maximum, boundary=boundary)
+        super(Cosine, self).__init__(name=name, latex_label=latex_label, unit=unit,
+                                     minimum=minimum, maximum=maximum, boundary=boundary)
 
     def rescale(self, val):
         """
@@ -1119,6 +1345,13 @@ class Cosine(Prior):
         """
         return np.cos(val) / 2 * self.is_in_prior_range(val)
 
+    def cdf(self, val):
+        _cdf = np.atleast_1d((np.sin(val) - np.sin(self.minimum)) /
+                             (np.sin(self.maximum) - np.sin(self.minimum)))
+        _cdf[val > self.maximum] = 1
+        _cdf[val < self.minimum] = 0
+        return _cdf
+
 
 class Sine(Prior):
 
@@ -1141,8 +1374,8 @@ class Sine(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=minimum, maximum=maximum, boundary=boundary)
+        super(Sine, self).__init__(name=name, latex_label=latex_label, unit=unit,
+                                   minimum=minimum, maximum=maximum, boundary=boundary)
 
     def rescale(self, val):
         """
@@ -1167,6 +1400,13 @@ class Sine(Prior):
         """
         return np.sin(val) / 2 * self.is_in_prior_range(val)
 
+    def cdf(self, val):
+        _cdf = np.atleast_1d((np.cos(val) - np.cos(self.minimum)) /
+                             (np.cos(self.maximum) - np.cos(self.minimum)))
+        _cdf[val > self.maximum] = 1
+        _cdf[val < self.minimum] = 0
+        return _cdf
+
 
 class Gaussian(Prior):
 
@@ -1188,7 +1428,7 @@ class Gaussian(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, boundary=boundary)
+        super(Gaussian, self).__init__(name=name, latex_label=latex_label, unit=unit, boundary=boundary)
         self.mu = mu
         self.sigma = sigma
 
@@ -1232,29 +1472,12 @@ class Gaussian(Prior):
 
         return -0.5 * ((self.mu - val) ** 2 / self.sigma ** 2 + np.log(2 * np.pi * self.sigma ** 2))
 
+    def cdf(self, val):
+        return (1 - erf((self.mu - val) / 2 ** 0.5 / self.sigma)) / 2
+
 
 class Normal(Gaussian):
-
-    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, boundary=None):
-        """A synonym for the Gaussian distribution.
-
-        Parameters
-        ----------
-        mu: float
-            Mean of the Gaussian prior
-        sigma: float
-            Width/Standard deviation of the Gaussian prior
-        name: str
-            See superclass
-        latex_label: str
-            See superclass
-        unit: str
-            See superclass
-        boundary: str
-            See superclass
-        """
-        Gaussian.__init__(self, mu=mu, sigma=sigma, name=name, latex_label=latex_label,
-                          unit=unit, boundary=boundary)
+    """A synonym for the  Gaussian distribution. """
 
 
 class TruncatedGaussian(Prior):
@@ -1284,8 +1507,8 @@ class TruncatedGaussian(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=minimum, maximum=maximum, boundary=boundary)
+        super(TruncatedGaussian, self).__init__(name=name, latex_label=latex_label, unit=unit,
+                                                minimum=minimum, maximum=maximum, boundary=boundary)
         self.mu = mu
         self.sigma = sigma
 
@@ -1321,38 +1544,19 @@ class TruncatedGaussian(Prior):
         -------
         float: Prior probability of val
         """
-        return np.exp(-(self.mu - val) ** 2 / (2 * self.sigma ** 2)) / \
-            (2 * np.pi) ** 0.5 / self.sigma / self.normalisation * self.is_in_prior_range(val)
+        return np.exp(-(self.mu - val) ** 2 / (2 * self.sigma ** 2)) / (2 * np.pi) ** 0.5 \
+            / self.sigma / self.normalisation * self.is_in_prior_range(val)
+
+    def cdf(self, val):
+        _cdf = (erf((val - self.mu) / 2 ** 0.5 / self.sigma) - erf(
+            (self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) / 2 / self.normalisation
+        _cdf[val > self.maximum] = 1
+        _cdf[val < self.minimum] = 0
+        return _cdf
 
 
 class TruncatedNormal(TruncatedGaussian):
-
-    def __init__(self, mu, sigma, minimum, maximum, name=None,
-                 latex_label=None, unit=None, boundary=None):
-        """A synonym for the TruncatedGaussian distribution.
-
-        Parameters
-        ----------
-        mu: float
-            Mean of the Gaussian prior
-        sigma:
-            Width/Standard deviation of the Gaussian prior
-        minimum: float
-            See superclass
-        maximum: float
-            See superclass
-        name: str
-            See superclass
-        latex_label: str
-            See superclass
-        unit: str
-            See superclass
-        boundary: str
-            See superclass
-        """
-        TruncatedGaussian.__init__(self, mu=mu, sigma=sigma, minimum=minimum,
-                                   maximum=maximum, name=name, latex_label=latex_label,
-                                   unit=unit, boundary=boundary)
+    """A synonym for the TruncatedGaussian distribution."""
 
 
 class HalfGaussian(TruncatedGaussian):
@@ -1372,31 +1576,13 @@ class HalfGaussian(TruncatedGaussian):
         boundary: str
             See superclass
         """
-        TruncatedGaussian.__init__(self, 0., sigma, minimum=0., maximum=np.inf,
-                                   name=name, latex_label=latex_label,
-                                   unit=unit, boundary=boundary)
+        super(HalfGaussian, self).__init__(mu=0., sigma=sigma, minimum=0., maximum=np.inf,
+                                           name=name, latex_label=latex_label,
+                                           unit=unit, boundary=boundary)
 
 
 class HalfNormal(HalfGaussian):
-    def __init__(self, sigma, name=None, latex_label=None, unit=None, boundary=None):
-        """A synonym for the HalfGaussian distribution.
-
-        Parameters
-        ----------
-        sigma: float
-            See superclass
-        name: str
-            See superclass
-        latex_label: str
-            See superclass
-        unit: str
-            See superclass
-        boundary: str
-            See superclass
-        """
-        HalfGaussian.__init__(self, sigma=sigma, name=name,
-                              latex_label=latex_label, unit=unit,
-                              boundary=boundary)
+    """A synonym for the HalfGaussian distribution."""
 
 
 class LogNormal(Prior):
@@ -1420,8 +1606,8 @@ class LogNormal(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
-                       unit=unit, boundary=boundary)
+        super(LogNormal, self).__init__(name=name, minimum=0., latex_label=latex_label,
+                                        unit=unit, boundary=boundary)
 
         if sigma <= 0.:
             raise ValueError("For the LogGaussian prior the standard deviation must be positive")
@@ -1466,30 +1652,12 @@ class LogNormal(Prior):
 
         return scipy.stats.lognorm.logpdf(val, self.sigma, scale=np.exp(self.mu))
 
+    def cdf(self, val):
+        return scipy.stats.lognorm.cdf(val, self.sigma, scale=np.exp(self.mu))
+
 
 class LogGaussian(LogNormal):
-    def __init__(self, mu, sigma, name=None, latex_label=None, unit=None, boundary=None):
-        """Synonym of LogNormal prior
-
-        https://en.wikipedia.org/wiki/Log-normal_distribution
-
-        Parameters
-        ----------
-        mu: float
-            Mean of the Gaussian prior
-        sigma:
-            Width/Standard deviation of the Gaussian prior
-        name: str
-            See superclass
-        latex_label: str
-            See superclass
-        unit: str
-            See superclass
-        boundary: str
-            See superclass
-        """
-        LogNormal.__init__(self, mu=mu, sigma=sigma, name=name,
-                           latex_label=latex_label, unit=unit, boundary=boundary)
+    """Synonym of LogNormal prior."""
 
 
 class Exponential(Prior):
@@ -1509,8 +1677,8 @@ class Exponential(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
-                       unit=unit, boundary=boundary)
+        super(Exponential, self).__init__(name=name, minimum=0., latex_label=latex_label,
+                                          unit=unit, boundary=boundary)
         self.mu = mu
 
     def rescale(self, val):
@@ -1550,6 +1718,9 @@ class Exponential(Prior):
 
         return scipy.stats.expon.logpdf(val, scale=self.mu)
 
+    def cdf(self, val):
+        return scipy.stats.expon.cdf(val, scale=self.mu)
+
 
 class StudentT(Prior):
     def __init__(self, df, mu=0., scale=1., name=None, latex_label=None,
@@ -1576,7 +1747,7 @@ class StudentT(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, boundary=boundary)
+        super(StudentT, self).__init__(name=name, latex_label=latex_label, unit=unit, boundary=boundary)
 
         if df <= 0. or scale <= 0.:
             raise ValueError("For the StudentT prior the number of degrees of freedom and scale must be positive")
@@ -1623,6 +1794,9 @@ class StudentT(Prior):
 
         return scipy.stats.t.logpdf(val, self.df, loc=self.mu, scale=self.scale)
 
+    def cdf(self, val):
+        return scipy.stats.t.cdf(val, self.df, loc=self.mu, scale=self.scale)
+
 
 class Beta(Prior):
     def __init__(self, alpha, beta, minimum=0, maximum=1, name=None,
@@ -1660,8 +1834,8 @@ class Beta(Prior):
         self._beta = beta
         self._minimum = minimum
         self._maximum = maximum
-        Prior.__init__(self, minimum=minimum, maximum=maximum, name=name,
-                       latex_label=latex_label, unit=unit, boundary=boundary)
+        super(Beta, self).__init__(minimum=minimum, maximum=maximum, name=name,
+                                   latex_label=latex_label, unit=unit, boundary=boundary)
         self._set_dist()
 
     def rescale(self, val):
@@ -1721,6 +1895,9 @@ class Beta(Prior):
             return spdf
         else:
             return -np.inf
+
+    def cdf(self, val):
+        return self._dist.cdf(val)
 
     def _set_dist(self):
         self._dist = scipy.stats.beta(
@@ -1785,7 +1962,7 @@ class Logistic(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, boundary=boundary)
+        super(Logistic, self).__init__(name=name, latex_label=latex_label, unit=unit, boundary=boundary)
 
         if scale <= 0.:
             raise ValueError("For the Logistic prior the scale must be positive")
@@ -1831,6 +2008,9 @@ class Logistic(Prior):
 
         return scipy.stats.logistic.logpdf(val, loc=self.mu, scale=self.scale)
 
+    def cdf(self, val):
+        return scipy.stats.logistic.cdf(val, loc=self.mu, scale=self.scale)
+
 
 class Cauchy(Prior):
     def __init__(self, alpha, beta, name=None, latex_label=None, unit=None, boundary=None):
@@ -1853,7 +2033,7 @@ class Cauchy(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, boundary=boundary)
+        super(Cauchy, self).__init__(name=name, latex_label=latex_label, unit=unit, boundary=boundary)
 
         if beta <= 0.:
             raise ValueError("For the Cauchy prior the scale must be positive")
@@ -1898,30 +2078,12 @@ class Cauchy(Prior):
         """
         return scipy.stats.cauchy.logpdf(val, loc=self.alpha, scale=self.beta)
 
+    def cdf(self, val):
+        return scipy.stats.cauchy.cdf(val, loc=self.alpha, scale=self.beta)
+
 
 class Lorentzian(Cauchy):
-    def __init__(self, alpha, beta, name=None, latex_label=None, unit=None, boundary=None):
-        """Synonym for the Cauchy distribution
-
-        https://en.wikipedia.org/wiki/Cauchy_distribution
-
-        Parameters
-        ----------
-        alpha: float
-            Location parameter
-        beta: float
-            Scale parameter
-        name: str
-            See superclass
-        latex_label: str
-            See superclass
-        unit: str
-            See superclass
-        boundary: str
-            See superclass
-        """
-        Cauchy.__init__(self, alpha=alpha, beta=beta, name=name,
-                        latex_label=latex_label, unit=unit, boundary=boundary)
+    """Synonym for the Cauchy distribution"""
 
 
 class Gamma(Prior):
@@ -1945,8 +2107,8 @@ class Gamma(Prior):
         boundary: str
             See superclass
         """
-        Prior.__init__(self, name=name, minimum=0., latex_label=latex_label,
-                       unit=unit, boundary=boundary)
+        super(Gamma, self).__init__(name=name, minimum=0., latex_label=latex_label,
+                                    unit=unit, boundary=boundary)
 
         if k <= 0 or theta <= 0:
             raise ValueError("For the Gamma prior the shape and scale must be positive")
@@ -1993,6 +2155,9 @@ class Gamma(Prior):
 
         return scipy.stats.gamma.logpdf(val, self.k, loc=0., scale=self.theta)
 
+    def cdf(self, val):
+        return scipy.stats.gamma.cdf(val, self.k, loc=0., scale=self.theta)
+
 
 class ChiSquared(Gamma):
     def __init__(self, nu, name=None, latex_label=None, unit=None, boundary=None):
@@ -2017,8 +2182,8 @@ class ChiSquared(Gamma):
         if nu <= 0 or not isinstance(nu, int):
             raise ValueError("For the ChiSquared prior the number of degrees of freedom must be a positive integer")
 
-        Gamma.__init__(self, name=name, k=nu / 2., theta=2.,
-                       latex_label=latex_label, unit=unit, boundary=boundary)
+        super(ChiSquared, self).__init__(name=name, k=nu / 2., theta=2.,
+                                         latex_label=latex_label, unit=unit, boundary=boundary)
 
     @property
     def nu(self):
@@ -2075,8 +2240,8 @@ class Interped(Prior):
         self.__all_interpolated = interp1d(x=xx, y=yy, bounds_error=False, fill_value=0)
         minimum = float(np.nanmax(np.array((min(xx), minimum))))
         maximum = float(np.nanmin(np.array((max(xx), maximum))))
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=minimum, maximum=maximum, boundary=boundary)
+        super(Interped, self).__init__(name=name, latex_label=latex_label, unit=unit,
+                                       minimum=minimum, maximum=maximum, boundary=boundary)
         self._update_instance()
 
     def __eq__(self, other):
@@ -2098,6 +2263,9 @@ class Interped(Prior):
          Union[float, array_like]: Prior probability of val
         """
         return self.probability_density(val)
+
+    def cdf(self, val):
+        return self.cumulative_distribution(val)
 
     def rescale(self, val):
         """
@@ -2162,7 +2330,7 @@ class Interped(Prior):
         # Need last element of cumulative distribution to be exactly one.
         self.YY[-1] = 1
         self.probability_density = interp1d(x=self.xx, y=self.yy, bounds_error=False, fill_value=0)
-        self.cumulative_distribution = interp1d(x=self.xx, y=self.YY, bounds_error=False, fill_value=0)
+        self.cumulative_distribution = interp1d(x=self.xx, y=self.YY, bounds_error=False, fill_value=(0, 1))
         self.inverse_cumulative_distribution = interp1d(x=self.YY, y=self.xx, bounds_error=True)
 
 
@@ -2193,9 +2361,9 @@ class FromFile(Interped):
         try:
             self.id = file_name
             xx, yy = np.genfromtxt(self.id).T
-            Interped.__init__(self, xx=xx, yy=yy, minimum=minimum,
-                              maximum=maximum, name=name, latex_label=latex_label,
-                              unit=unit, boundary=boundary)
+            super(FromFile, self).__init__(xx=xx, yy=yy, minimum=minimum,
+                                           maximum=maximum, name=name, latex_label=latex_label,
+                                           unit=unit, boundary=boundary)
         except IOError:
             logger.warning("Can't load {}.".format(self.id))
             logger.warning("Format should be:")
@@ -2232,7 +2400,7 @@ class FermiDirac(Prior):
         .. [1] M. Pitkin, M. Isi, J. Veitch & G. Woan, `arXiv:1705.08978v1
            <https:arxiv.org/abs/1705.08978v1>`_, 2017.
         """
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit, minimum=0.)
+        super(FermiDirac, self).__init__(name=name, latex_label=latex_label, unit=unit, minimum=0.)
 
         self.sigma = sigma
 
@@ -2270,8 +2438,8 @@ class FermiDirac(Prior):
         """
         self.test_valid_for_rescaling(val)
 
-        inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r))**-val +
-               np.exp(-1. * self.r) * (1. + np.exp(self.r))**-val)
+        inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r)) ** -val +
+               np.exp(-1. * self.r) * (1. + np.exp(self.r)) ** -val)
 
         # if val is 1 this will cause inv to be negative (due to numerical
         # issues), so return np.inf
@@ -2502,7 +2670,7 @@ class MultivariateGaussianDist(object):
         """
 
         return not np.any([val is None for val in
-                          self.requested_parameters.values()])
+                           self.requested_parameters.values()])
 
     def reset_request(self):
         """
@@ -2518,7 +2686,7 @@ class MultivariateGaussianDist(object):
         """
 
         return not np.any([val is None for val in
-                          self.rescale_parameters.values()])
+                           self.rescale_parameters.values()])
 
     def reset_rescale(self):
         """
@@ -2705,7 +2873,7 @@ class MultivariateGaussianDist(object):
                 # sample the multivariate Gaussian keys
                 vals = np.random.uniform(0, 1, len(self))
 
-                samp = self.rescale(vals, mode=mode)
+                samp = np.atleast_1d(self.rescale(vals, mode=mode))
                 samps[i, :] = samp
 
                 # check sample is in bounds (otherwise perform another draw)
@@ -2775,56 +2943,76 @@ class MultivariateGaussianDist(object):
 
         return np.exp(self.ln_prob(samp))
 
+    def _get_instantiation_dict(self):
+        subclass_args = infer_args_from_method(self.__init__)
+        property_names = [p for p in dir(self.__class__)
+                          if isinstance(getattr(self.__class__, p), property)]
+        dict_with_properties = self.__dict__.copy()
+        for key in property_names:
+            dict_with_properties[key] = getattr(self, key)
+        instantiation_dict = OrderedDict()
+        for key in subclass_args:
+            if isinstance(dict_with_properties[key], list):
+                value = np.asarray(dict_with_properties[key]).tolist()
+            else:
+                value = dict_with_properties[key]
+            instantiation_dict[key] = value
+        return instantiation_dict
+
     def __len__(self):
         return len(self.names)
 
+    def __repr__(self):
+        """Overrides the special method __repr__.
+
+        Returns a representation of this instance that resembles how it is instantiated.
+        Works correctly for all child classes
+
+        Returns
+        -------
+        str: A string representation of this instance
+
+        """
+        dist_name = self.__class__.__name__
+        instantiation_dict = self._get_instantiation_dict()
+        args = ', '.join(['{}={}'.format(key, repr(instantiation_dict[key]))
+                          for key in instantiation_dict])
+        return "{}({})".format(dist_name, args)
+
+    def __eq__(self, other):
+        if self.__class__ != other.__class__:
+            return False
+        if sorted(self.__dict__.keys()) != sorted(other.__dict__.keys()):
+            return False
+        for key in self.__dict__:
+            if key == 'mvn':
+                if len(self.__dict__[key]) != len(other.__dict__[key]):
+                    return False
+                for thismvn, othermvn in zip(self.__dict__[key], other.__dict__[key]):
+                    if (not isinstance(thismvn, scipy.stats._multivariate.multivariate_normal_frozen) or
+                            not isinstance(othermvn, scipy.stats._multivariate.multivariate_normal_frozen)):
+                        return False
+            elif isinstance(self.__dict__[key], (np.ndarray, list)):
+                thisarr = np.asarray(self.__dict__[key])
+                otherarr = np.asarray(other.__dict__[key])
+                if thisarr.dtype == np.float and otherarr.dtype == np.float:
+                    fin1 = np.isfinite(np.asarray(self.__dict__[key]))
+                    fin2 = np.isfinite(np.asarray(other.__dict__[key]))
+                    if not np.array_equal(fin1, fin2):
+                        return False
+                    if not np.allclose(thisarr[fin1], otherarr[fin2], atol=1e-15):
+                        return False
+                else:
+                    if not np.array_equal(thisarr, otherarr):
+                        return False
+            else:
+                if not self.__dict__[key] == other.__dict__[key]:
+                    return False
+        return True
+
 
 class MultivariateNormalDist(MultivariateGaussianDist):
-
-    def __init__(self, names, nmodes=1, mus=None, sigmas=None, corrcoefs=None,
-                 covs=None, weights=None, bounds=None):
-        """
-        A synonym for the :class:`~bilby.core.prior.MultivariateGaussianDist`
-        distribution.
-
-        Parameters
-        ----------
-        names: list
-            A list of the parameter names in the multivariate Gaussian. The
-            listed parameters must have the same order that they appear in
-            the lists of means, standard deviations, and the correlation
-            coefficient, or covariance, matrices.
-        nmodes: int
-            The number of modes for the mixture model. This defaults to 1,
-            which will be checked against the shape of the other inputs.
-        mus: array_like
-            A list of lists of means of each mode in a multivariate Gaussian
-            mixture model. A single list can be given for a single mode. If
-            this is None then means at zero will be assumed.
-        sigmas: array_like
-            A list of lists of the standard deviations of each mode of the
-            multivariate Gaussian. If supplying a correlation coefficient
-            matrix rather than a covariance matrix these values must be given.
-            If this is None unit variances will be assumed.
-        corrcoefs: array
-            A list of square matrices containing the correlation coefficients
-            of the parameters for each mode. If this is None it will be assumed
-            that the parameters are uncorrelated.
-        covs: array
-            A list of square matrices containing the covariance matrix of the
-            multivariate Gaussian.
-        weights: list
-            A list of weights (relative probabilities) for each mode of the
-            multivariate Gaussian. This will default to equal weights for each
-            mode.
-        bounds: list
-            A list of bounds on each parameter. The defaults are for bounds at
-            +/- infinity.
-        """
-        MultivariateGaussianDist.__init__(self, names, nmodes=nmodes,
-                                          mus=mus, sigmas=sigmas,
-                                          corrcoefs=corrcoefs, covs=covs,
-                                          weights=weights, bounds=bounds)
+    """ A synonym for the :class:`~bilby.core.prior.MultivariateGaussianDist` distribution."""
 
 
 class MultivariateGaussian(Prior):
@@ -2858,9 +3046,9 @@ class MultivariateGaussian(Prior):
                              "Gaussian")
         self.mvg = mvg
 
-        Prior.__init__(self, name=name, latex_label=latex_label, unit=unit,
-                       minimum=mvg.bounds[name][0],
-                       maximum=mvg.bounds[name][1])
+        super(MultivariateGaussian, self).__init__(name=name, latex_label=latex_label, unit=unit,
+                                                   minimum=mvg.bounds[name][0],
+                                                   maximum=mvg.bounds[name][1])
 
     def rescale(self, val, mode=None):
         """
@@ -3010,24 +3198,5 @@ class MultivariateGaussian(Prior):
 
 
 class MultivariateNormal(MultivariateGaussian):
-
-    def __init__(self, mvg, name=None, latex_label=None, unit=None):
-        """A synonym for the :class:`bilby.core.prior.MultivariateGaussian`
-        prior distribution.
-
-        Parameters
-        ----------
-        mvg: MultivariateGaussianDist
-            A :class:`bilby.core.prior.MultivariateGaussianDist` object
-            defining the multivariate Gaussian distribution. This object is not
-            copied, as it needs to be shared across multiple priors, and as
-            such its contents will be altered by the prior.
-        name: str
-            See superclass
-        latex_label: str
-            See superclass
-        unit: str
-            See superclass
-        """
-        MultivariateGaussian.__init__(self, mvg, name=name,
-                                      latex_label=latex_label, unit=unit)
+    """ A synonym for the :class:`bilby.core.prior.MultivariateGaussian`
+        prior distribution."""

@@ -1,7 +1,7 @@
 import os
 
 import numpy as np
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 from ..core.prior import (PriorDict, Uniform, Prior, DeltaFunction, Gaussian,
                           Interped, Constraint)
@@ -42,8 +42,8 @@ class Cosmological(Interped):
         if latex_label is not None:
             label_args['latex_label'] = latex_label
         if unit is not None:
-            if isinstance(unit, str):
-                unit = units.__dict__[unit]
+            if not isinstance(unit, units.Unit):
+                unit = units.Unit(unit)
             label_args['unit'] = unit
         self.unit = label_args['unit']
         self._minimum = dict()
@@ -58,8 +58,8 @@ class Cosmological(Interped):
             xx, yy = self._get_luminosity_distance_arrays()
         else:
             raise ValueError('Name {} not recognized.'.format(name))
-        Interped.__init__(self, xx=xx, yy=yy, minimum=minimum, maximum=maximum,
-                          boundary=boundary, **label_args)
+        super(Cosmological, self).__init__(xx=xx, yy=yy, minimum=minimum, maximum=maximum,
+                                           boundary=boundary, **label_args)
 
     @property
     def minimum(self):
@@ -149,6 +149,30 @@ class Cosmological(Interped):
     def _get_redshift_arrays(self):
         raise NotImplementedError
 
+    @classmethod
+    def from_repr(cls, string):
+        if "FlatLambdaCDM" in string:
+            logger.warning(
+                "Cosmological priors cannot be loaded from a string. "
+                "If the prior has a name, use that instead."
+            )
+            return string
+        else:
+            return cls._from_repr(string)
+
+    @property
+    def _repr_dict(self):
+        """
+        Get a dictionary containing the arguments needed to reproduce this object.
+        """
+        dict_with_properties = super(Cosmological, self)._repr_dict
+        if isinstance(dict_with_properties['cosmology'], cosmo.core.Cosmology):
+            if dict_with_properties['cosmology'].name is not None:
+                dict_with_properties['cosmology'] = dict_with_properties['cosmology'].name
+        if isinstance(dict_with_properties['unit'], units.Unit):
+            dict_with_properties['unit'] = dict_with_properties['unit'].to_string()
+        return dict_with_properties
+
 
 class UniformComovingVolume(Cosmological):
 
@@ -208,9 +232,9 @@ class AlignedSpin(Interped):
         aas = np.linspace(a_prior.minimum, a_prior.maximum, 1000)
         yy = [np.trapz(np.nan_to_num(a_prior.prob(aas) / aas *
                                      z_prior.prob(x / aas)), aas) for x in xx]
-        Interped.__init__(self, xx=xx, yy=yy, name=name,
-                          latex_label=latex_label, unit=unit,
-                          boundary=boundary)
+        super(AlignedSpin, self).__init__(xx=xx, yy=yy, name=name,
+                                          latex_label=latex_label, unit=unit,
+                                          boundary=boundary)
 
 
 class BBHPriorDict(PriorDict):
@@ -240,8 +264,8 @@ class BBHPriorDict(PriorDict):
         elif filename is not None:
             if not os.path.isfile(filename):
                 filename = os.path.join(os.path.dirname(__file__), 'prior_files', filename)
-        PriorDict.__init__(self, dictionary=dictionary, filename=filename,
-                           conversion_function=conversion_function)
+        super(BBHPriorDict, self).__init__(dictionary=dictionary, filename=filename,
+                                           conversion_function=conversion_function)
 
     def default_conversion_function(self, sample):
         """
@@ -346,8 +370,8 @@ class BNSPriorDict(PriorDict):
         elif filename is not None:
             if not os.path.isfile(filename):
                 filename = os.path.join(os.path.dirname(__file__), 'prior_files', filename)
-        PriorDict.__init__(self, dictionary=dictionary, filename=filename,
-                           conversion_function=conversion_function)
+        super(BNSPriorDict, self).__init__(dictionary=dictionary, filename=filename,
+                                           conversion_function=conversion_function)
 
     def default_conversion_function(self, sample):
         """
@@ -392,7 +416,7 @@ class BNSPriorDict(PriorDict):
             self[key], (DeltaFunction, Constraint))}
 
         tidal_parameters = \
-            {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda'}
+            {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda_tilde'}
 
         if key in tidal_parameters:
             if len(tidal_parameters.intersection(sampling_parameters)) > 2:
@@ -435,7 +459,7 @@ Prior._default_latex_labels = {
     'lambda_1': '$\\Lambda_1$',
     'lambda_2': '$\\Lambda_2$',
     'lambda_tilde': '$\\tilde{\\Lambda}$',
-    'delta_lambda': '$\\delta\\Lambda$'}
+    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$'}
 
 
 class CalibrationPriorDict(PriorDict):
@@ -453,7 +477,7 @@ class CalibrationPriorDict(PriorDict):
         if dictionary is None and filename is not None:
             filename = os.path.join(os.path.dirname(__file__),
                                     'prior_files', filename)
-        PriorDict.__init__(self, dictionary=dictionary, filename=filename)
+        super(CalibrationPriorDict, self).__init__(dictionary=dictionary, filename=filename)
         self.source = None
 
     def to_file(self, outdir, label):
@@ -504,23 +528,23 @@ class CalibrationPriorDict(PriorDict):
             This includes the frequencies of the nodes which are _not_ sampled.
         """
         calibration_data = np.genfromtxt(envelope_file).T
-        frequency_array = calibration_data[0]
+        log_frequency_array = np.log(calibration_data[0])
         amplitude_median = calibration_data[1] - 1
         phase_median = calibration_data[2]
         amplitude_sigma = (calibration_data[5] - calibration_data[3]) / 2
         phase_sigma = (calibration_data[6] - calibration_data[4]) / 2
 
-        nodes = np.logspace(np.log10(minimum_frequency),
-                            np.log10(maximum_frequency), n_nodes)
+        log_nodes = np.linspace(np.log(minimum_frequency),
+                                np.log(maximum_frequency), n_nodes)
 
         amplitude_mean_nodes = \
-            UnivariateSpline(frequency_array, amplitude_median)(nodes)
+            InterpolatedUnivariateSpline(log_frequency_array, amplitude_median)(log_nodes)
         amplitude_sigma_nodes = \
-            UnivariateSpline(frequency_array, amplitude_sigma)(nodes)
+            InterpolatedUnivariateSpline(log_frequency_array, amplitude_sigma)(log_nodes)
         phase_mean_nodes = \
-            UnivariateSpline(frequency_array, phase_median)(nodes)
+            InterpolatedUnivariateSpline(log_frequency_array, phase_median)(log_nodes)
         phase_sigma_nodes = \
-            UnivariateSpline(frequency_array, phase_sigma)(nodes)
+            InterpolatedUnivariateSpline(log_frequency_array, phase_sigma)(log_nodes)
 
         prior = CalibrationPriorDict()
         for ii in range(n_nodes):
@@ -540,7 +564,7 @@ class CalibrationPriorDict(PriorDict):
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
-            prior[name] = DeltaFunction(peak=nodes[ii], name=name,
+            prior[name] = DeltaFunction(peak=np.exp(log_nodes[ii]), name=name,
                                         latex_label=latex_label)
         prior.source = os.path.abspath(envelope_file)
         return prior
