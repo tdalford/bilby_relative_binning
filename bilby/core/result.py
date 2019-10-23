@@ -1111,7 +1111,14 @@ class Result(object):
                 data_frame['log_prior'] = self.log_prior_evaluations
         if conversion_function is not None:
             data_frame = conversion_function(data_frame, likelihood, priors)
-        self.posterior = data_frame
+
+        if getattr(self, "n_effective", None) is not None:
+            logger.info(
+                "Resampling posterior with {} samples to n_effective = {}"
+                .format(len(data_frame), self.n_effective))
+            self.posterior = data_frame.sample(self.n_effective)
+        else:
+            self.posterior = data_frame
 
     def calculate_prior_values(self, priors):
         """

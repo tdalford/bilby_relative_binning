@@ -31,10 +31,11 @@ class Ptemcee(Emcee):
 
     """
     default_kwargs = dict(
-        ntemps=2, nwalkers=500, Tmax=None, betas=None, threads=1, pool=None,
+        ntemps=3, nwalkers=100, Tmax=None, betas=None, threads=1, pool=None,
         a=2.0, loglargs=[], logpargs=[], loglkwargs={}, logpkwargs={},
-        adaptation_lag=10000, adaptation_time=100, random=None, iterations=100,
-        thin=1, storechain=True, adapt=True, swap_ratios=False)
+        adaptation_lag=10000, adaptation_time=100, random=None, iterations=1000,
+        storechain=True, adapt=True, swap_ratios=False,
+        n_check=10, n_check_initial=50, n_effective=500)
 
     def __init__(self, likelihood, priors, outdir='outdir', label='label',
                  use_ratio=False, plot=False, skip_import_verification=False,
@@ -48,15 +49,21 @@ class Ptemcee(Emcee):
             burn_in_act=burn_in_act, resume=resume, **kwargs)
 
     @property
+    def internal_kwargs(self):
+        keys = ["n_check", "n_effective", "n_check_initial"]
+        return {key: self.kwargs[key] for key in keys}
+
+    @property
     def sampler_function_kwargs(self):
-        keys = ['iterations', 'thin', 'storechain', 'adapt', 'swap_ratios']
+        keys = ['iterations', 'storechain', 'adapt', 'swap_ratios']
         return {key: self.kwargs[key] for key in keys}
 
     @property
     def sampler_init_kwargs(self):
         return {key: value
                 for key, value in self.kwargs.items()
-                if key not in self.sampler_function_kwargs}
+                if key not in self.internal_kwargs
+                and key not in self.sampler_function_kwargs}
 
     @property
     def ntemps(self):
@@ -114,6 +121,20 @@ class Ptemcee(Emcee):
     def _set_pos0_for_resume(self):
         self.pos0 = None
 
+    def check_n_effective(self, ii):
+        self.calculate_autocorrelation(
+            self.sampler.chain.reshape((-1, self.ndim)))
+
+        print(self.nburn)
+        if self.result.max_autocorrelation_time == 0 or ii < self.nburn:
+            return False
+
+        self.result.n_effective = np.max([0, int(
+            ii * self.nwalkers / self.result.max_autocorrelation_time) - self.nburn])
+        logger.info("Number of effective samples = {}/{}".format(
+            self.result.n_effective, self.internal_kwargs["n_effective"]))
+        return self.result.n_effective > self.internal_kwargs["n_effective"]
+
     def run_sampler(self):
         tqdm = get_progress_bar()
         sampler_function_kwargs = self.sampler_function_kwargs
@@ -121,11 +142,17 @@ class Ptemcee(Emcee):
         iterations -= self._previous_iterations
 
         # main iteration loop
-        for pos, logpost, loglike in tqdm(
-                self.sampler.sample(self.pos0, iterations=iterations,
-                                    **sampler_function_kwargs),
+        for ii, (pos, logpost, loglike) in tqdm(
+                enumerate(self.sampler.sample(self.pos0, iterations=iterations,
+                                              **sampler_function_kwargs)),
                 total=iterations):
             self.write_chains_to_file(pos, loglike, logpost)
+            if (ii > self.internal_kwargs["n_check_initial"] and ii % self.internal_kwargs["n_check"] == 0 and self.check_n_effective(ii)):
+                logger.info(
+                    "Stopping sampling on iteration {}/{} as n_effective>{}"
+                    .format(ii, iterations, self.internal_kwargs["n_effective"]))
+                self.nsteps = ii
+                break
         self.checkpoint()
 
         self.calculate_autocorrelation(self.sampler.chain.reshape((-1, self.ndim)))
@@ -137,7 +164,8 @@ class Ptemcee(Emcee):
         if self.result.nburn > self.nsteps:
             raise SamplerError(
                 "The run has finished, but the chain is not burned in: "
-                "`nburn < nsteps`. Try increasing the number of steps.")
+                "`nburn={} < nsteps={}`. Try increasing the number of steps or the "
+                "number of effective samples".format(self.result.nburn, self.nsteps))
         self.calc_likelihood_count()
         self.result.samples = self.sampler.chain[0, :, self.nburn:, :].reshape(
             (-1, self.ndim))
