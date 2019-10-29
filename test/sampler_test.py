@@ -338,28 +338,30 @@ class TestPTEmcee(unittest.TestCase):
         del self.sampler
 
     def test_default_kwargs(self):
-        expected = dict(ntemps=2, nwalkers=500,
+        expected = dict(ntemps=3, nwalkers=100,
                         Tmax=None, betas=None,
                         threads=1, pool=None, a=2.0,
                         loglargs=[], logpargs=[],
                         loglkwargs={}, logpkwargs={},
                         adaptation_lag=10000, adaptation_time=100,
-                        random=None, iterations=100, thin=1,
+                        random=None, iterations=1000,
                         storechain=True, adapt=True,
-                        swap_ratios=False,
+                        swap_ratios=False, n_check=10, n_check_initial=50,
+                        n_effective=500,
                         )
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
-        expected = dict(ntemps=2, nwalkers=150,
+        expected = dict(ntemps=3, nwalkers=150,
                         Tmax=None, betas=None,
                         threads=1, pool=None, a=2.0,
                         loglargs=[], logpargs=[],
                         loglkwargs={}, logpkwargs={},
                         adaptation_lag=10000, adaptation_time=100,
-                        random=None, iterations=100, thin=1,
+                        random=None, iterations=1000,
                         storechain=True, adapt=True,
-                        swap_ratios=False,
+                        swap_ratios=False, n_check=10, n_check_initial=50,
+                        n_effective=500,
                         )
         for equiv in bilby.core.sampler.base_sampler.MCMCSampler.nwalkers_equiv_kwargs:
             new_kwargs = self.sampler.kwargs.copy()
