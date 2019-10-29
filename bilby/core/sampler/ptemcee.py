@@ -155,12 +155,15 @@ class Ptemcee(Emcee):
         iterations -= self._previous_iterations
 
         # main iteration loop
+        n_success = 0
         for ii, (pos, logpost, loglike) in tqdm(
                 enumerate(self.sampler.sample(self.pos0, iterations=iterations,
                                               **sampler_function_kwargs)),
                 total=iterations):
             self.write_chains_to_file(pos, loglike, logpost)
             if (ii > self.internal_kwargs["n_check_initial"] and ii % self.internal_kwargs["n_check"] == 0 and self.check_n_effective(ii)):
+                n_success += 1
+            if n_success > 5:
                 logger.info(
                     "Stopping sampling on iteration {}/{} as n_effective>{}"
                     .format(ii, iterations, self.internal_kwargs["n_effective"]))
