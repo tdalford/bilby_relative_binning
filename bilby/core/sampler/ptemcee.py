@@ -2,6 +2,8 @@ from __future__ import absolute_import, division, print_function
 
 import os
 from shutil import copyfile
+import signal
+import sys
 
 import numpy as np
 
@@ -48,6 +50,10 @@ class Ptemcee(Emcee):
             nburn=nburn, burn_in_fraction=burn_in_fraction,
             burn_in_act=burn_in_act, resume=resume, **kwargs)
 
+        signal.signal(signal.SIGTERM, self.write_current_state_and_exit)
+        signal.signal(signal.SIGINT, self.write_current_state_and_exit)
+        signal.signal(signal.SIGALRM, self.write_current_state_and_exit)
+
     @property
     def internal_kwargs(self):
         keys = ["n_check", "n_effective", "n_check_initial"]
@@ -89,7 +95,10 @@ class Ptemcee(Emcee):
         chain_file = self.checkpoint_info.chain_file
         temp_chain_file = chain_file + '.temp'
         if os.path.isfile(chain_file):
-            copyfile(chain_file, temp_chain_file)
+            try:
+                copyfile(chain_file, temp_chain_file)
+            except OSError:
+                logger.warning("Failed to write temporary chain file {}".format(temp_chain_file))
 
         with open(temp_chain_file, "a") as ff:
             loglike = np.squeeze(loglike[0, :])
@@ -98,6 +107,10 @@ class Ptemcee(Emcee):
                 line = np.concatenate((point, [logl, logp]))
                 ff.write(self.checkpoint_info.chain_template.format(ii, *line))
         os.rename(temp_chain_file, chain_file)
+
+    def write_current_state_and_exit(self, signum=None, frame=None):
+        logger.warning("Run terminated with signal {}".format(signum))
+        sys.exit(130)
 
     @property
     def _previous_iterations(self):
