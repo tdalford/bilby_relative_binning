@@ -207,6 +207,17 @@ class Emcee(MCMCSampler):
                 '\t'.join(self.search_parameter_keys)))
 
     @property
+    def checkpoint_outdir(self):
+        if hasattr(self, "_checkpoint_outdir"):
+            return self._checkpoint_outdir
+        else:
+            self._checkpoint_outdir = os.path.join(
+                self.outdir, '{}_{}'.format(self.__class__.__name__.lower(),
+                                            self.label))
+            check_directory_exists_and_if_not_mkdir(self._checkpoint_outdir)
+            return self._checkpoint_outdir
+
+    @property
     def checkpoint_info(self):
         """ Defines various things related to checkpointing and storing data
 
@@ -219,11 +230,8 @@ class Emcee(MCMCSampler):
             to write the chain data to disk
 
         """
-        out_dir = os.path.join(
-            self.outdir, '{}_{}'.format(self.__class__.__name__.lower(),
-                                        self.label))
-        check_directory_exists_and_if_not_mkdir(out_dir)
 
+        out_dir = self.checkpoint_outdir
         chain_file = os.path.join(out_dir, 'chain.dat')
         sampler_file = os.path.join(out_dir, 'sampler.pickle')
         chain_template =\

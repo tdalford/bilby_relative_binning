@@ -989,7 +989,7 @@ class Result(object):
         fig.tight_layout()
         outdir = self._safe_outdir_creation(kwargs.get('outdir'), self.plot_walkers)
         filename = '{}/{}_walkers.png'.format(outdir, self.label)
-        logger.debug('Saving walkers plot to {}'.format('filename'))
+        logger.debug('Saving walkers plot to {}'.format(filename))
         fig.savefig(filename)
         plt.close(fig)
 
@@ -1110,7 +1110,7 @@ class Result(object):
             else:
                 data_frame['log_prior'] = self.log_prior_evaluations
 
-        if getattr(self, "n_effective", None) is not None:
+        if getattr(self, "n_effective", 0) > 1:
             logger.info(
                 "Resampling posterior with {} samples to n_effective = {}"
                 .format(len(data_frame), self.n_effective))

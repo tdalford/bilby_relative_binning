@@ -138,9 +138,10 @@ class Ptemcee(Emcee):
         self.calculate_autocorrelation(
             self.sampler.chain.reshape((-1, self.ndim)))
 
-        if (self.result.max_autocorrelation_time is None or
-            self.result.max_autocorrelation_time == 0 or
-            ii < self.nburn):
+        if (self.result.max_autocorrelation_time is None or self.result.max_autocorrelation_time == 0):
+            logger.debug("Unable to calculate max autocorrelation time")
+            return False
+        if ii < self.nburn:
             return False
 
         self.result.n_effective = np.max([0, int(
@@ -166,6 +167,9 @@ class Ptemcee(Emcee):
                 ii % self.internal_kwargs["n_check"] == 0 and
                 self.check_n_effective(ii)):
                 n_success += 1
+            else:
+                n_success = 0
+            logger.debug("N success={}".format(n_success))
             if n_success > 5:
                 logger.info(
                     "Stopping sampling on iteration {}/{} as n_effective>{}"

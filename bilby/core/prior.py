@@ -2350,9 +2350,8 @@ class Interped(Prior):
         self._initialize_attributes()
 
     def _initialize_attributes(self):
-        if np.trapz(self.yy, self.xx) != 1:
-            logger.debug('Supplied PDF for {} is not normalised, normalising.'.format(self.name))
-        self.yy /= np.trapz(self.yy, self.xx)
+        norm = np.trapz(self.yy, self.xx)
+        self.yy /= norm
         self.YY = cumtrapz(self.yy, self.xx, initial=0)
         # Need last element of cumulative distribution to be exactly one.
         self.YY[-1] = 1
