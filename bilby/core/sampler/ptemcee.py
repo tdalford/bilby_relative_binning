@@ -68,8 +68,8 @@ class Ptemcee(Emcee):
     def sampler_init_kwargs(self):
         return {key: value
                 for key, value in self.kwargs.items()
-                if key not in self.internal_kwargs
-                and key not in self.sampler_function_kwargs}
+                if key not in self.internal_kwargs and
+                key not in self.sampler_function_kwargs}
 
     @property
     def ntemps(self):
@@ -162,7 +162,9 @@ class Ptemcee(Emcee):
                                               **sampler_function_kwargs)),
                 total=iterations):
             self.write_chains_to_file(pos, loglike, logpost)
-            if (ii > self.internal_kwargs["n_check_initial"] and ii % self.internal_kwargs["n_check"] == 0 and self.check_n_effective(ii)):
+            if (ii > self.internal_kwargs["n_check_initial"] and
+                ii % self.internal_kwargs["n_check"] == 0 and
+                self.check_n_effective(ii)):
                 n_success += 1
             if n_success > 5:
                 logger.info(
