@@ -138,8 +138,9 @@ class Ptemcee(Emcee):
         self.calculate_autocorrelation(
             self.sampler.chain.reshape((-1, self.ndim)))
 
-        print(self.nburn)
-        if self.result.max_autocorrelation_time == 0 or ii < self.nburn:
+        if (self.result.max_autocorrelation_time is None or
+            self.result.max_autocorrelation_time == 0 or
+            ii < self.nburn):
             return False
 
         self.result.n_effective = np.max([0, int(
