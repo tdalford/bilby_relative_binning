@@ -37,8 +37,10 @@ ifos.inject_signal(waveform_generator=waveform_generator,
 priors = bilby.gw.prior.PriorDict()
 priors['chirp_mass'] = Uniform(35.0, 37.0, 'chirp_mass')
 priors['mass_ratio'] = Uniform(0.5, 1, 'mass_ratio')
-priors['chi_1'] = bilby.gw.prior.AlignedSpin(name='chi_1', a_prior=Uniform(minimum=0, maximum=0.8), boundary='reflective')
-priors['chi_2'] = bilby.gw.prior.AlignedSpin(name='chi_2', a_prior=Uniform(minimum=0, maximum=0.8), boundary='reflective')
+priors['chi_1'] = bilby.gw.prior.AlignedSpin(
+    name='chi_1', a_prior=Uniform(minimum=0, maximum=0.8), boundary='reflective')
+priors['chi_2'] = bilby.gw.prior.AlignedSpin(
+    name='chi_2', a_prior=Uniform(minimum=0, maximum=0.8), boundary='reflective')
 priors['geocent_time'] = bilby.core.prior.Uniform(
     minimum=injection_parameters['geocent_time'] - 0.1,
     maximum=injection_parameters['geocent_time'] + 0.1,
@@ -59,6 +61,7 @@ likelihood = bilby.gw.GravitationalWaveTransient(
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 result = bilby.core.sampler.run_sampler(
     likelihood=likelihood, priors=priors, sampler='ptemcee', ntemps=3,
+    betas=np.logspace(0, -2, 3),
     nwalkers=100, n_effective=2000, iterations=10000, nburn=None,
     burn_in_act=5, n_check_initial=10,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
@@ -66,4 +69,4 @@ result = bilby.core.sampler.run_sampler(
 
 # Make a corner plot.
 result.plot_walkers()
-result.plot_corner(['geocent_time', 'phase', 'luminosity_distance', 'chirp_mass', 'cos_theta_jn', 'ra', 'dec', 'mass_ratio'])
+result.plot_corner()
