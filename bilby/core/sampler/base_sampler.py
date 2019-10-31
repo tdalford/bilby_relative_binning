@@ -608,7 +608,7 @@ class MCMCSampler(Sampler):
             logger.info("Discarding {} steps for burn-in, estimated from "
                         "autocorr".format(self.nburn))
 
-    def calculate_autocorrelation(self, samples, c=3):
+    def calculate_autocorrelation(self, samples, c=3, tol=20):
         """ Uses the `emcee.autocorr` module to estimate the autocorrelation
 
         Parameters
@@ -622,11 +622,11 @@ class MCMCSampler(Sampler):
         import emcee
         try:
             self.result.max_autocorrelation_time = int(np.max(
-                emcee.autocorr.integrated_time(samples, c=c)))
+                emcee.autocorr.integrated_time(samples, c=c, tol=tol)))
             logger.debug("Max autocorr time = {}".format(
                 self.result.max_autocorrelation_time))
-        except emcee.autocorr.AutocorrError as e:
-            self.result.max_autocorrelation_time = np.inf
+        except Exception as e:
+            self.result.max_autocorrelation_time = None
             logger.debug("Unable to calculate autocorr time: {}".format(e))
 
 

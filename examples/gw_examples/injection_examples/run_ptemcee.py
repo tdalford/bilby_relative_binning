@@ -15,7 +15,7 @@ np.random.seed(88170235)
 
 injection_parameters = dict(
     chirp_mass=36., mass_ratio=0.6, chi_1=0.0, chi_2=0.0,
-    luminosity_distance=2000., cos_theta_jn=0.4, psi=2.659,
+    luminosity_distance=1000., cos_theta_jn=0.4, psi=2.659,
     phase=1.3, geocent_time=1126259642.413, ra=1.375, dec=-1.2108)
 
 waveform_arguments = dict(waveform_approximant='IMRPhenomD',
@@ -33,15 +33,12 @@ ifos.set_strain_data_from_power_spectral_densities(
     start_time=injection_parameters['geocent_time'] - 3)
 ifos.inject_signal(waveform_generator=waveform_generator,
                    parameters=injection_parameters)
-for ifo in ifos:
-    ifo.minimum_frequency = 20
-    ifo.maximum_frequency = 500
 
 priors = bilby.gw.prior.PriorDict()
 priors['chirp_mass'] = Uniform(35.0, 37.0, 'chirp_mass')
 priors['mass_ratio'] = Uniform(0.5, 1, 'mass_ratio')
-priors['chi_1'] = 0
-priors['chi_2'] = 0
+priors['chi_1'] = bilby.gw.prior.AlignedSpin(name='chi_1', a_prior=Uniform(minimum=0, maximum=0.8), boundary='reflective')
+priors['chi_2'] = bilby.gw.prior.AlignedSpin(name='chi_2', a_prior=Uniform(minimum=0, maximum=0.8), boundary='reflective')
 priors['geocent_time'] = bilby.core.prior.Uniform(
     minimum=injection_parameters['geocent_time'] - 0.1,
     maximum=injection_parameters['geocent_time'] + 0.1,
@@ -54,9 +51,6 @@ priors['cos_theta_jn'] = Uniform(name='cos_theta_jn', minimum=-1, maximum=1, bou
 priors['psi'] = Uniform(name='psi', minimum=0, maximum=np.pi, boundary='periodic')
 priors['phase'] = Uniform(name='phase', minimum=0, maximum=2 * np.pi, boundary='periodic')
 
-for key in ['psi', 'ra', 'dec', 'mass_ratio']:
-    priors[key] = injection_parameters[key]
-
 likelihood = bilby.gw.GravitationalWaveTransient(
     interferometers=ifos, waveform_generator=waveform_generator,
     priors=priors, distance_marginalization=True, phase_marginalization=True,
@@ -64,12 +58,12 @@ likelihood = bilby.gw.GravitationalWaveTransient(
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 result = bilby.core.sampler.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='ptemcee', ntemps=2,
-    nwalkers=50, n_effective=400, iterations=5000, nburn=None,
-    burn_in_act=0.1,
+    likelihood=likelihood, priors=priors, sampler='ptemcee', ntemps=3,
+    nwalkers=100, n_effective=2000, iterations=10000, nburn=None,
+    burn_in_act=5, n_check_initial=10,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
     outdir=outdir, label=label)
 
 # Make a corner plot.
 result.plot_walkers()
-result.plot_corner(['geocent_time', 'phase', 'luminosity_distance', 'chirp_mass', 'mass_ratio'])
+result.plot_corner(['geocent_time', 'phase', 'luminosity_distance', 'chirp_mass', 'cos_theta_jn', 'ra', 'dec', 'mass_ratio'])

@@ -135,8 +135,8 @@ class Ptemcee(Emcee):
         self.pos0 = None
 
     def check_n_effective(self, ii):
-        self.calculate_autocorrelation(
-            self.sampler.chain.reshape((-1, self.ndim)))
+        samples_so_far = self.sampler.chain.reshape((-1, self.ndim))[:ii, :]
+        self.calculate_autocorrelation(samples_so_far)
 
         if (self.result.max_autocorrelation_time is None or self.result.max_autocorrelation_time == 0):
             logger.debug("Unable to calculate max autocorrelation time")
@@ -146,7 +146,7 @@ class Ptemcee(Emcee):
             return False
 
         self.result.n_effective = np.max([0, int(
-            (ii - self.nburn) * self.nwalkers / self.result.max_autocorrelation_time)])
+            0.5 * (ii - self.nburn) * self.nwalkers / self.result.max_autocorrelation_time)])
         return self.result.n_effective > self.internal_kwargs["n_effective"]
 
     def print_func(self, niter):
