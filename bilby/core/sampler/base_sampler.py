@@ -623,11 +623,11 @@ class MCMCSampler(Sampler):
         try:
             self.result.max_autocorrelation_time = int(np.max(
                 emcee.autocorr.integrated_time(samples, c=c)))
-            logger.info("Max autocorr time = {}".format(
+            logger.debug("Max autocorr time = {}".format(
                 self.result.max_autocorrelation_time))
         except emcee.autocorr.AutocorrError as e:
-            self.result.max_autocorrelation_time = None
-            logger.info("Unable to calculate autocorr time: {}".format(e))
+            self.result.max_autocorrelation_time = np.inf
+            logger.debug("Unable to calculate autocorr time: {}".format(e))
 
 
 class Error(Exception):

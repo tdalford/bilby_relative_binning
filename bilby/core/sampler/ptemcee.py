@@ -142,35 +142,43 @@ class Ptemcee(Emcee):
             logger.debug("Unable to calculate max autocorrelation time")
             return False
         if ii < self.nburn:
+            logger.debug("ii={} < nburn={}".format(ii, self.nburn))
             return False
 
         self.result.n_effective = np.max([0, int(
             ii * self.nwalkers / self.result.max_autocorrelation_time) - self.nburn])
-        logger.info("Number of effective samples = {}/{}".format(
-            self.result.n_effective, self.internal_kwargs["n_effective"]))
         return self.result.n_effective > self.internal_kwargs["n_effective"]
 
+    def print_func(self, niter):
+        string = []
+        string.append("nburn:{:d}".format(self.nburn))
+        string.append("max_act:{}".format(self.result.max_autocorrelation_time))
+        n_eff = getattr(self.result, 'n_effective', 0)
+        string.append("neff:{}/{}".format(
+            n_eff, self.internal_kwargs["n_effective"]))
+
+        self.pbar.set_postfix_str(" ".join(string), refresh=False)
+        self.pbar.update(niter - self.pbar.n)
+
     def run_sampler(self):
-        tqdm = get_progress_bar()
         sampler_function_kwargs = self.sampler_function_kwargs
         iterations = sampler_function_kwargs.pop('iterations')
         iterations -= self._previous_iterations
 
+        tqdm = get_progress_bar()
+        self.pbar = tqdm(file=sys.stdout, total=iterations)
+
         # main iteration loop
         n_success = 0
-        for ii, (pos, logpost, loglike) in tqdm(
-                enumerate(self.sampler.sample(self.pos0, iterations=iterations,
-                                              **sampler_function_kwargs)),
-                total=iterations):
+        for ii, (pos, logpost, loglike) in enumerate(self.sampler.sample(self.pos0, iterations=iterations, **sampler_function_kwargs)):
             self.write_chains_to_file(pos, loglike, logpost)
+            self.print_func(ii)
             if (ii > self.internal_kwargs["n_check_initial"] and
                 ii % self.internal_kwargs["n_check"] == 0 and
                 self.check_n_effective(ii)):
                 n_success += 1
-            else:
-                n_success = 0
             logger.debug("N success={}".format(n_success))
-            if n_success > 5:
+            if n_success >= 2:
                 logger.info(
                     "Stopping sampling on iteration {}/{} as n_effective>{}"
                     .format(ii, iterations, self.internal_kwargs["n_effective"]))
@@ -178,7 +186,7 @@ class Ptemcee(Emcee):
                 break
         self.checkpoint()
 
-        self.calculate_autocorrelation(self.sampler.chain.reshape((-1, self.ndim)))
+        #self.calculate_autocorrelation(self.sampler.chain.reshape((-1, self.ndim)))
         self.result.sampler_output = np.nan
         self.print_nburn_logging_info()
         self.print_tswap_acceptance_fraction()

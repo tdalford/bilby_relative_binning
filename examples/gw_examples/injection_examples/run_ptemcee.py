@@ -15,7 +15,7 @@ np.random.seed(88170235)
 
 injection_parameters = dict(
     chirp_mass=36., mass_ratio=0.6, chi_1=0.0, chi_2=0.0,
-    luminosity_distance=2000., theta_jn=0.4, psi=2.659,
+    luminosity_distance=2000., cos_theta_jn=0.4, psi=2.659,
     phase=1.3, geocent_time=1126259642.413, ra=1.375, dec=-1.2108)
 
 waveform_arguments = dict(waveform_approximant='IMRPhenomD',
@@ -38,7 +38,7 @@ for ifo in ifos:
     ifo.maximum_frequency = 500
 
 priors = bilby.gw.prior.PriorDict()
-priors['chirp_mass'] = Uniform(35.9, 36.1, 'chirp_mass')
+priors['chirp_mass'] = Uniform(35.0, 37.0, 'chirp_mass')
 priors['mass_ratio'] = Uniform(0.5, 1, 'mass_ratio')
 priors['chi_1'] = 0
 priors['chi_2'] = 0
@@ -54,18 +54,21 @@ priors['cos_theta_jn'] = Uniform(name='cos_theta_jn', minimum=-1, maximum=1, bou
 priors['psi'] = Uniform(name='psi', minimum=0, maximum=np.pi, boundary='periodic')
 priors['phase'] = Uniform(name='phase', minimum=0, maximum=2 * np.pi, boundary='periodic')
 
+for key in ['psi', 'cos_theta_jn']:
+    priors[key] = injection_parameters[key]
+
 likelihood = bilby.gw.GravitationalWaveTransient(
     interferometers=ifos, waveform_generator=waveform_generator,
     priors=priors, distance_marginalization=True, phase_marginalization=True,
-    time_marginalization=True)
+    time_marginalization=True, jitter_time=False)
 
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 result = bilby.core.sampler.run_sampler(
     likelihood=likelihood, priors=priors, sampler='ptemcee', ntemps=2,
-    nwalkers=50, n_effective=100, iterations=100, nburn=50,
+    nwalkers=100, n_effective=500, iterations=5000, nburn=None,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
     outdir=outdir, label=label)
 
 # Make a corner plot.
 result.plot_walkers()
-result.plot_corner()
+result.plot_corner(['geocent_time', 'phase', 'luminosity_distance', 'chirp_mass', 'mass_ratio'])
