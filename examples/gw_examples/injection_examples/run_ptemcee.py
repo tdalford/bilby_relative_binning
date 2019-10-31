@@ -54,7 +54,7 @@ priors['cos_theta_jn'] = Uniform(name='cos_theta_jn', minimum=-1, maximum=1, bou
 priors['psi'] = Uniform(name='psi', minimum=0, maximum=np.pi, boundary='periodic')
 priors['phase'] = Uniform(name='phase', minimum=0, maximum=2 * np.pi, boundary='periodic')
 
-for key in ['psi', 'cos_theta_jn']:
+for key in ['psi', 'ra', 'dec', 'mass_ratio']:
     priors[key] = injection_parameters[key]
 
 likelihood = bilby.gw.GravitationalWaveTransient(
@@ -65,7 +65,8 @@ likelihood = bilby.gw.GravitationalWaveTransient(
 # Run sampler.  In this case we're going to use the `dynesty` sampler
 result = bilby.core.sampler.run_sampler(
     likelihood=likelihood, priors=priors, sampler='ptemcee', ntemps=2,
-    nwalkers=100, n_effective=500, iterations=5000, nburn=None,
+    nwalkers=50, n_effective=400, iterations=5000, nburn=None,
+    burn_in_act=0.1,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
     outdir=outdir, label=label)
 

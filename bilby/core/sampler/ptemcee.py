@@ -146,14 +146,14 @@ class Ptemcee(Emcee):
             return False
 
         self.result.n_effective = np.max([0, int(
-            ii * self.nwalkers / self.result.max_autocorrelation_time) - self.nburn])
+            (ii - self.nburn) * self.nwalkers / self.result.max_autocorrelation_time)])
         return self.result.n_effective > self.internal_kwargs["n_effective"]
 
     def print_func(self, niter):
         string = []
         string.append("nburn:{:d}".format(self.nburn))
         string.append("max_act:{}".format(self.result.max_autocorrelation_time))
-        n_eff = getattr(self.result, 'n_effective', 0)
+        n_eff = getattr(self.result, 'n_effective', None)
         string.append("neff:{}/{}".format(
             n_eff, self.internal_kwargs["n_effective"]))
 
@@ -171,8 +171,8 @@ class Ptemcee(Emcee):
         # main iteration loop
         n_success = 0
         for ii, (pos, logpost, loglike) in enumerate(self.sampler.sample(self.pos0, iterations=iterations, **sampler_function_kwargs)):
-            self.write_chains_to_file(pos, loglike, logpost)
             self.print_func(ii)
+            self.write_chains_to_file(pos, loglike, logpost)
             if (ii > self.internal_kwargs["n_check_initial"] and
                 ii % self.internal_kwargs["n_check"] == 0 and
                 self.check_n_effective(ii)):
