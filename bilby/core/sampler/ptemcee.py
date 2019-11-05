@@ -180,7 +180,8 @@ class Ptemcee(Emcee):
 
         # main iteration loop
         n_success = 0
-        for ii, (pos, logpost, loglike) in enumerate(self.sampler.sample(self.pos0, iterations=iterations, **sampler_function_kwargs)):
+        for ii, (pos, logpost, loglike) in enumerate(
+                self.sampler.sample(self.pos0, iterations=iterations, **sampler_function_kwargs)):
             self.print_func(ii)
             self.write_chains_to_file(pos, loglike, logpost)
             if (ii > self.internal_kwargs["n_check_initial"] and
@@ -196,7 +197,6 @@ class Ptemcee(Emcee):
                 break
         self.checkpoint()
 
-        #self.calculate_autocorrelation(self.sampler.chain.reshape((-1, self.ndim)))
         self.result.sampler_output = np.nan
         self.print_nburn_logging_info()
         self.print_tswap_acceptance_fraction()
