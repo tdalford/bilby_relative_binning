@@ -33,7 +33,8 @@ class Ptemcee(Emcee):
 
     """
     default_kwargs = dict(
-        ntemps=3, nwalkers=100, Tmax=None, betas=None, threads=1, pool=None,
+        ntemps=3, nwalkers=100, Tmax=None, betas=None, log10betamin=None,
+        threads=1, pool=None,
         a=2.0, loglargs=[], logpargs=[], loglkwargs={}, logpkwargs={},
         adaptation_lag=10000, adaptation_time=100, random=None, iterations=1000,
         storechain=True, adapt=True, swap_ratios=False,
@@ -82,9 +83,18 @@ class Ptemcee(Emcee):
 
     def _initialise_sampler(self):
         import ptemcee
+
+        kwargs = self.sampler_init_kwargs
+        if kwargs["betas"] is None:
+            if kwargs["log10betamin"] is not None:
+                betas = np.logspace(0, kwargs["log10betamin"], self.ntemps)
+                kwargs["betas"] = betas
+                logger.info("Using betas={}".format(betas))
+        kwargs.pop("log10betamin")
+
         self._sampler = ptemcee.Sampler(
             dim=self.ndim, logl=self.log_likelihood, logp=self.log_prior,
-            **self.sampler_init_kwargs)
+            **kwargs)
         self._init_chain_file()
 
     def print_tswap_acceptance_fraction(self):
