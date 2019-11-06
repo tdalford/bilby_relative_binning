@@ -16,11 +16,10 @@ from scipy.special import erf, erfinv, xlogy, log1p,\
     gammaln, gammainc, gammaincinv, stdtr, stdtrit, betaln, btdtr, btdtri
 from matplotlib.cbook import flatten
 
-from .utils import BilbyJsonEncoder, decode_bilby_json
 from .utils import (
-    check_directory_exists_and_if_not_mkdir,
-    infer_args_from_method, logger
-)
+    BilbyJsonEncoder, decode_bilby_json,
+    import_from_string, logger, infer_args_from_method,
+    check_directory_exists_and_if_not_mkdir)
 
 
 class PriorDict(OrderedDict):
@@ -153,6 +152,8 @@ class PriorDict(OrderedDict):
         Notes
         -----
         Lines beginning with '#' or empty lines will be ignored.
+
+        The conversion function and jacobian will be set from those names.
         Priors can be loaded from:
             bilby.core.prior as, e.g.,    foo = Uniform(minimum=0, maximum=1)
             floats, e.g.,                 foo = 1

@@ -524,6 +524,12 @@ class Sampler(object):
             logger.info("Using sampler {} with kwargs {}".format(
                 self.__class__.__name__, kwargs_print))
 
+    def log_jacobian(self, theta_dict):
+        if self.priors.jacobian is None:
+            return 0
+        else:
+            return np.log(self.priors.jacobian(theta_dict))
+
     def calc_likelihood_count(self):
         if self.likelihood_benchmark:
             self.result.num_likelihood_evaluations = self.likelihood_count.value
