@@ -18,7 +18,7 @@ from matplotlib.cbook import flatten
 
 from .utils import (
     BilbyJsonEncoder, decode_bilby_json,
-    import_from_string, logger, infer_args_from_method,
+    logger, infer_args_from_method,
     check_directory_exists_and_if_not_mkdir)
 
 
