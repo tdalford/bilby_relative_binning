@@ -536,12 +536,6 @@ class Sampler(object):
         else:
             return None
 
-    def log_jacobian(self, theta_dict):
-        if self.priors.jacobian is None:
-            return 0
-        else:
-            return np.log(self.priors.jacobian(theta_dict))
-
 
 class NestedSampler(Sampler):
     npoints_equiv_kwargs = ['nlive', 'nlives', 'n_live_points', 'npoints', 'npoint', 'Nlive']
