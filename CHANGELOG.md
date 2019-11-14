@@ -1,6 +1,11 @@
 # All notable changes will be documented in this file
 
 ## [0.5.9] 2019-10-25
+### Added
+- HTML interative waveform plots !641
+
+
+## [0.5.9] 2019-10-25
 
 ### Added
 - Default reflective boundaries for calibration parameters !623
