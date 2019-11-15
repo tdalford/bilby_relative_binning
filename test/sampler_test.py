@@ -347,7 +347,7 @@ class TestPTEmcee(unittest.TestCase):
                         random=None, iterations=1000,
                         storechain=True, adapt=True,
                         swap_ratios=False, n_check=10, n_check_initial=50,
-                        n_effective=500,
+                        n_effective=500, log10betamin=None,
                         )
         self.assertDictEqual(expected, self.sampler.kwargs)
 
@@ -361,7 +361,7 @@ class TestPTEmcee(unittest.TestCase):
                         random=None, iterations=1000,
                         storechain=True, adapt=True,
                         swap_ratios=False, n_check=10, n_check_initial=50,
-                        n_effective=500,
+                        n_effective=500, log10betamin=None,
                         )
         for equiv in bilby.core.sampler.base_sampler.MCMCSampler.nwalkers_equiv_kwargs:
             new_kwargs = self.sampler.kwargs.copy()
