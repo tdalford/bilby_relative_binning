@@ -262,7 +262,10 @@ class Emcee(MCMCSampler):
             # Overwrites the stored sampler chain with one that is truncated
             # to only the completed steps
             self.sampler._chain = self.sampler_chain
-            pickle.dump(self._sampler, f)
+            try:
+                pickle.dump(self._sampler, f)
+            except TypeError as e:
+                logger.info("Unable to pickle checkpoint file due to {}".format(e))
 
     def checkpoint_and_exit(self, signum, frame):
         logger.info("Recieved signal {}".format(signum))
