@@ -119,6 +119,7 @@ class Ptemcee(Emcee):
         os.rename(temp_chain_file, chain_file)
 
     def write_current_state_and_exit(self, signum=None, frame=None):
+        self.pbar.close()
         logger.warning("Run terminated with signal {}".format(signum))
         sys.exit(130)
 
@@ -178,10 +179,13 @@ class Ptemcee(Emcee):
         tqdm = get_progress_bar()
         self.pbar = tqdm(file=sys.stdout, total=iterations)
 
+        sampler = self.sampler
+        iterations_left = int(iterations - self.succesful_iterations)
+
         # main iteration loop
         n_success = 0
         for ii, (pos, logpost, loglike) in enumerate(
-                self.sampler.sample(self.pos0, iterations=iterations, **sampler_function_kwargs)):
+                sampler.sample(self.pos0, iterations=iterations_left, **sampler_function_kwargs)):
             self.print_func(ii)
             self.write_chains_to_file(pos, loglike, logpost)
             if (ii > self.internal_kwargs["n_check_initial"] and
@@ -195,7 +199,7 @@ class Ptemcee(Emcee):
                     .format(ii, iterations, self.internal_kwargs["n_effective"]))
                 self.nsteps = ii
                 break
-        self.checkpoint()
+            self.checkpoint()
 
         self.result.sampler_output = np.nan
         self.print_nburn_logging_info()
