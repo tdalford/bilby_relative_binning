@@ -256,13 +256,15 @@ class Emcee(MCMCSampler):
 
     def checkpoint(self):
         """ Writes a pickle file of the sampler to disk using dill """
-        logger.info("Checkpointing sampler to file {}"
-                    .format(self.checkpoint_info.sampler_file))
-        with open(self.checkpoint_info.sampler_file, 'wb') as f:
+        logger.debug("Checkpointing sampler to file {}"
+                     .format(self.checkpoint_info.sampler_file))
+        temp_file = self.checkpoint_info.sampler_file + '.temp'
+        with open(temp_file, 'wb') as f:
             try:
                 pickle.dump(self._sampler, f)
             except TypeError as e:
                 logger.info("Unable to pickle checkpoint file due to {}".format(e))
+        os.rename(temp_file, self.checkpoint_info.sampler_file)
 
     def checkpoint_and_exit(self, signum, frame):
         logger.info("Recieved signal {}".format(signum))
@@ -289,11 +291,19 @@ class Emcee(MCMCSampler):
                         .format(self.checkpoint_info.sampler_file))
             with open(self.checkpoint_info.sampler_file, 'rb') as f:
                 self._sampler = pickle.load(f)
+            logger.info("Sampler loaded with {} iterations".format(self.succesful_iterations))
             self._set_pos0_for_resume()
         else:
             self._initialise_sampler()
             self._set_pos0()
         return self._sampler
+
+    @property
+    def succesful_iterations(self):
+        if hasattr(self, '_sampler'):
+            return int(self._sampler.nprop[0][0])
+        else:
+            return 0
 
     def write_chains_to_file(self, sample):
         chain_file = self.checkpoint_info.chain_file
