@@ -195,7 +195,7 @@ class Ptemcee(Emcee):
                     .format(ii, iterations, self.internal_kwargs["n_effective"]))
                 self.nsteps = ii
                 break
-        self.checkpoint()
+            self.checkpoint()
 
         self.result.sampler_output = np.nan
         self.print_nburn_logging_info()

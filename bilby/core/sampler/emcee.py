@@ -259,9 +259,6 @@ class Emcee(MCMCSampler):
         logger.info("Checkpointing sampler to file {}"
                     .format(self.checkpoint_info.sampler_file))
         with open(self.checkpoint_info.sampler_file, 'wb') as f:
-            # Overwrites the stored sampler chain with one that is truncated
-            # to only the completed steps
-            self.sampler._chain = self.sampler_chain
             try:
                 pickle.dump(self._sampler, f)
             except TypeError as e:
