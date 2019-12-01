@@ -1,5 +1,7 @@
 from __future__ import division
+import sys
 
+from tqdm import tqdm
 import numpy as np
 from pandas import DataFrame
 
@@ -663,18 +665,28 @@ def _generate_all_cbc_parameters(sample, defaults, base_conversion,
     output_sample = fill_from_fixed_priors(output_sample, priors)
     output_sample, _ = base_conversion(output_sample)
     if likelihood is not None:
-        generate_posterior_samples_from_marginalized_likelihood(
-            samples=output_sample, likelihood=likelihood)
+        if (hasattr(likelihood, 'phase_marginalization') or
+            hasattr(likelihood, 'time_marginalization') or
+            hasattr(likelihood, 'distance_marginalization')):
+            generate_posterior_samples_from_marginalized_likelihood(
+                samples=output_sample, likelihood=likelihood)
         if priors is not None:
             for par, name in zip(
                     ['distance', 'phase', 'time'],
                     ['luminosity_distance', 'phase', 'geocent_time']):
                 if getattr(likelihood, '{}_marginalization'.format(par), False):
                     priors[name] = likelihood.priors[name]
-    output_sample = generate_mass_parameters(output_sample)
-    output_sample = generate_spin_parameters(output_sample)
-    output_sample = generate_source_frame_parameters(output_sample)
-    compute_snrs(output_sample, likelihood)
+    for key, func in zip(["mass", "spin", "source frame"], [
+            generate_mass_parameters, generate_spin_parameters,
+            generate_source_frame_parameters]):
+        try:
+            output_sample = func(output_sample)
+        except KeyError as e:
+            logger.debug(
+                "Generation of {} parameters failed with message {}".format(
+                    key, e))
+    if likelihood is not None:
+        compute_snrs(output_sample, likelihood)
     return output_sample
 
 
@@ -730,7 +742,22 @@ def generate_all_bns_parameters(sample, likelihood=None, priors=None):
         sample, defaults=waveform_defaults,
         base_conversion=convert_to_lal_binary_neutron_star_parameters,
         likelihood=likelihood, priors=priors)
-    output_sample = generate_tidal_parameters(output_sample)
+    try:
+        output_sample = generate_tidal_parameters(output_sample)
+    except KeyError as e:
+        logger.debug(
+            "Generation of tidal parameters failed with message {}".format(e))
+    return output_sample
+
+
+def generate_specific_parameters(sample, parameters):
+    updated_sample = generate_all_bns_parameters(sample=sample.copy())
+    output_sample = sample.__class__()
+    for key in parameters:
+        if key in updated_sample:
+            output_sample[key] = updated_sample[key]
+        else:
+            raise KeyError("{} not in converted sample.".format(key))
     return output_sample
 
 
@@ -878,7 +905,7 @@ def generate_component_spins(sample):
         output_sample['spin_2y'] = 0
         output_sample['spin_2z'] = output_sample['chi_2']
     else:
-        logger.warning("Component spin extraction failed.")
+        logger.debug("Component spin extraction failed.")
 
     return output_sample
 
@@ -966,13 +993,13 @@ def compute_snrs(sample, likelihood):
 
         else:
             logger.info(
-                'Computing SNRs for every sample, this may take some time.')
+                'Computing SNRs for every sample.')
 
             matched_filter_snrs = {
                 ifo.name: [] for ifo in likelihood.interferometers}
             optimal_snrs = {ifo.name: [] for ifo in likelihood.interferometers}
 
-            for ii in range(len(sample)):
+            for ii in tqdm(range(len(sample)), file=sys.stdout):
                 signal_polarizations =\
                     likelihood.waveform_generator.frequency_domain_strain(
                         dict(sample.iloc[ii]))
@@ -1027,7 +1054,7 @@ def generate_posterior_samples_from_marginalized_likelihood(
         new_time_samples = list()
         new_distance_samples = list()
         new_phase_samples = list()
-        for ii in range(len(samples)):
+        for ii in tqdm(range(len(samples)), file=sys.stdout):
             sample = dict(samples.iloc[ii]).copy()
             likelihood.parameters.update(sample)
             new_sample = likelihood.generate_posterior_sample_from_marginalized_likelihood()

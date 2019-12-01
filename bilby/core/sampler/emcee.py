@@ -57,14 +57,17 @@ class Emcee(MCMCSampler):
                  pos0=None, nburn=None, burn_in_fraction=0.25, resume=True,
                  burn_in_act=3, **kwargs):
         import emcee
+        self.emcee = emcee
+
         if LooseVersion(emcee.__version__) > LooseVersion('2.2.1'):
             self.prerelease = True
         else:
             self.prerelease = False
-        MCMCSampler.__init__(
-            self, likelihood=likelihood, priors=priors, outdir=outdir,
+        super(Emcee, self).__init__(
+            likelihood=likelihood, priors=priors, outdir=outdir,
             label=label, use_ratio=use_ratio, plot=plot,
             skip_import_verification=skip_import_verification, **kwargs)
+        self.emcee = self._check_version()
         self.resume = resume
         self.pos0 = pos0
         self.nburn = nburn
@@ -73,6 +76,14 @@ class Emcee(MCMCSampler):
 
         signal.signal(signal.SIGTERM, self.checkpoint_and_exit)
         signal.signal(signal.SIGINT, self.checkpoint_and_exit)
+
+    def _check_version(self):
+        import emcee
+        if LooseVersion(emcee.__version__) > LooseVersion('2.2.1'):
+            self.prerelease = True
+        else:
+            self.prerelease = False
+        return emcee
 
     def _translate_kwargs(self, kwargs):
         if 'nwalkers' not in kwargs:
@@ -93,8 +104,8 @@ class Emcee(MCMCSampler):
 
     @property
     def sampler_function_kwargs(self):
-        import emcee
-        keys = ['lnprob0', 'rstate0', 'blobs0', 'iterations', 'thin', 'storechain', 'mh_proposal']
+        keys = ['lnprob0', 'rstate0', 'blobs0', 'iterations', 'thin',
+                'storechain', 'mh_proposal']
 
         # updated function keywords for emcee > v2.2.1
         updatekeys = {'p0': 'initial_state',
@@ -107,7 +118,8 @@ class Emcee(MCMCSampler):
         if self.prerelease:
             if function_kwargs['mh_proposal'] is not None:
                 logger.warning("The 'mh_proposal' option is no longer used "
-                               "in emcee v{}, and will be ignored.".format(emcee.__version__))
+                               "in emcee v{}, and will be ignored.".format(
+                                   self.emcee.__version__))
             del function_kwargs['mh_proposal']
 
             for key in updatekeys:
@@ -259,8 +271,7 @@ class Emcee(MCMCSampler):
         sys.exit()
 
     def _initialise_sampler(self):
-        import emcee
-        self._sampler = emcee.EnsembleSampler(**self.sampler_init_kwargs)
+        self._sampler = self.emcee.EnsembleSampler(**self.sampler_init_kwargs)
         self._init_chain_file()
 
     @property
@@ -290,7 +301,6 @@ class Emcee(MCMCSampler):
         temp_chain_file = chain_file + '.temp'
         if os.path.isfile(chain_file):
             copyfile(chain_file, temp_chain_file)
-
         if self.prerelease:
             points = np.hstack([sample.coords, sample.blobs])
         else:
@@ -307,7 +317,10 @@ class Emcee(MCMCSampler):
         This is used when loading in a sampler from a pickle file to figure out
         how much of the run has already been completed
         """
-        return len(self.sampler.blobs)
+        try:
+            return len(self.sampler.blobs)
+        except AttributeError:
+            return 0
 
     def _draw_pos0_from_prior(self):
         return np.array(
@@ -344,7 +357,10 @@ class Emcee(MCMCSampler):
         iterations = sampler_function_kwargs.pop('iterations')
         iterations -= self._previous_iterations
 
-        sampler_function_kwargs['p0'] = self.pos0
+        if self.prerelease:
+            sampler_function_kwargs['initial_state'] = self.pos0
+        else:
+            sampler_function_kwargs['p0'] = self.pos0
 
         # main iteration loop
         for sample in tqdm(
@@ -354,23 +370,22 @@ class Emcee(MCMCSampler):
         self.checkpoint()
 
         self.result.sampler_output = np.nan
-        blobs_flat = np.array(self.sampler.blobs).reshape((-1, 2))
-        log_likelihoods, log_priors = blobs_flat.T
-        chain = self.sampler.chain.reshape((-1, self.ndim))
-        log_ls = log_likelihoods
-        log_ps = log_priors
-        self.calculate_autocorrelation(chain)
+        self.calculate_autocorrelation(
+            self.sampler.chain.reshape((-1, self.ndim)))
         self.print_nburn_logging_info()
         self.calc_likelihood_count()
         self.result.nburn = self.nburn
-        n_samples = self.nwalkers * self.nburn
         if self.result.nburn > self.nsteps:
             raise SamplerError(
                 "The run has finished, but the chain is not burned in: "
                 "`nburn < nsteps`. Try increasing the number of steps.")
-        self.result.samples = chain[n_samples:, :]
-        self.result.log_likelihood_evaluations = log_ls[n_samples:]
-        self.result.log_prior_evaluations = log_ps[n_samples:]
+        self.result.samples = self.sampler.chain[:, self.nburn:, :].reshape(
+            (-1, self.ndim))
+        blobs = np.array(self.sampler.blobs)
+        blobs_trimmed = blobs[self.nburn:, :, :].reshape((-1, 2))
+        log_likelihoods, log_priors = blobs_trimmed.T
+        self.result.log_likelihood_evaluations = log_likelihoods
+        self.result.log_prior_evaluations = log_priors
         self.result.walkers = self.sampler.chain
         self.result.log_evidence = np.nan
         self.result.log_evidence_err = np.nan

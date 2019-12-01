@@ -4,13 +4,14 @@ import datetime
 from collections import OrderedDict
 
 from ..utils import command_line_args, logger
-from ..prior import PriorDict
+from ..prior import PriorDict, DeltaFunction
 
-from .base_sampler import Sampler
+from .base_sampler import Sampler, SamplingMarginalisedParameterError
 from .cpnest import Cpnest
 from .dynesty import Dynesty
 from .dynamic_dynesty import DynamicDynesty
 from .emcee import Emcee
+from .kombine import Kombine
 from .nestle import Nestle
 from .polychord import PyPolyChord
 from .ptemcee import Ptemcee
@@ -21,10 +22,10 @@ from .fake_sampler import FakeSampler
 from . import proposal
 
 IMPLEMENTED_SAMPLERS = {
-    'cpnest': Cpnest, 'dynamic_dynesty': DynamicDynesty, 'dynesty': Dynesty, 'emcee': Emcee, 'nestle': Nestle,
-    'ptemcee': Ptemcee,'ptmcmcsampler' : PTMCMCSampler,
+    'cpnest': Cpnest, 'dynesty': Dynesty, 'emcee': Emcee, 'kombine': Kombine,
+    'nestle': Nestle, 'ptemcee': Ptemcee, 'ptmcmcsampler': PTMCMCSampler,
     'pymc3': Pymc3, 'pymultinest': Pymultinest, 'pypolychord': PyPolyChord,
-    'fake_sampler': FakeSampler }
+    'fake_sampler': FakeSampler}
 
 if command_line_args.sampler_help:
     sampler = command_line_args.sampler_help
@@ -119,6 +120,8 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
     if priors is None:
         priors = dict()
 
+    _check_marginalized_parameters_not_sampled(likelihood, priors)
+
     if type(priors) in [dict, OrderedDict]:
         priors = PriorDict(priors)
     elif isinstance(priors, PriorDict):
@@ -136,7 +139,6 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
     if command_line_args.bilby_zero_likelihood_mode:
         from bilby.core.likelihood import ZeroLikelihood
         likelihood = ZeroLikelihood(likelihood)
-
 
     if isinstance(sampler, Sampler):
         pass
@@ -210,3 +212,12 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         result.plot_corner()
     logger.info("Summary of results:\n{}".format(result))
     return result
+
+
+def _check_marginalized_parameters_not_sampled(likelihood, priors):
+    for key in likelihood.marginalized_parameters:
+        if key in priors:
+            if not isinstance(priors[key], (float, DeltaFunction)):
+                raise SamplingMarginalisedParameterError(
+                    "Likelihood is {} marginalized but you are trying to sample in {}. "
+                    .format(key, key))

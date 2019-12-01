@@ -5,6 +5,7 @@ from mock import Mock
 import numpy as np
 import os
 from collections import OrderedDict
+import scipy.stats as ss
 
 
 class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
@@ -273,6 +274,16 @@ class TestPriorClasses(unittest.TestCase):
                 # the prob and ln_prob functions, it must be ignored in this test.
                 self.assertAlmostEqual(np.log(prior.prob(sample)), prior.ln_prob(sample), 12)
 
+    def test_many_prob_and_many_ln_prob(self):
+        for prior in self.priors:
+            samples = prior.sample(10)
+            if not isinstance(prior, bilby.core.prior.MultivariateGaussian):
+                ln_probs = prior.ln_prob(samples)
+                probs = prior.prob(samples)
+                for sample, logp, p in zip(samples, ln_probs, probs):
+                    self.assertAlmostEqual(prior.ln_prob(sample), logp)
+                    self.assertAlmostEqual(prior.prob(sample), p)
+
     def test_cdf_is_inverse_of_rescaling(self):
         domain = np.linspace(0, 1, 100)
         threshold = 1e-9
@@ -468,6 +479,85 @@ class TestPriorClasses(unittest.TestCase):
                 domain = np.linspace(prior.minimum, prior.maximum, 1000)
             self.assertAlmostEqual(np.trapz(prior.prob(domain), domain), 1, 3)
 
+    def test_accuracy(self):
+        """Test that each of the priors' functions is calculated accurately, as compared to scipy's calculations"""
+        for prior in self.priors:
+            rescale_domain = np.linspace(0, 1, 1000)
+            if isinstance(prior, bilby.core.prior.Uniform):
+                domain = np.linspace(-5, 5, 100)
+                scipy_prob = ss.uniform.pdf(domain, loc=0, scale=1)
+                scipy_lnprob = ss.uniform.logpdf(domain, loc=0, scale=1)
+                scipy_cdf = ss.uniform.cdf(domain, loc=0, scale=1)
+                scipy_rescale = ss.uniform.ppf(rescale_domain, loc=0, scale=1)
+            elif isinstance(prior, bilby.core.prior.Gaussian):
+                domain = np.linspace(-1e2, 1e2, 1000)
+                scipy_prob = ss.norm.pdf(domain, loc=0, scale=1)
+                scipy_lnprob = ss.norm.logpdf(domain, loc=0, scale=1)
+                scipy_cdf = ss.norm.cdf(domain, loc=0, scale=1)
+                scipy_rescale = ss.norm.ppf(rescale_domain, loc=0, scale=1)
+            elif isinstance(prior, bilby.core.prior.Cauchy):
+                domain = np.linspace(-1e2, 1e2, 1000)
+                scipy_prob = ss.cauchy.pdf(domain, loc=0, scale=1)
+                scipy_lnprob = ss.cauchy.logpdf(domain, loc=0, scale=1)
+                scipy_cdf = ss.cauchy.cdf(domain, loc=0, scale=1)
+                scipy_rescale = ss.cauchy.ppf(rescale_domain, loc=0, scale=1)
+            elif isinstance(prior, bilby.core.prior.StudentT):
+                domain = np.linspace(-1e2, 1e2, 1000)
+                scipy_prob = ss.t.pdf(domain, 3, loc=0, scale=1)
+                scipy_lnprob = ss.t.logpdf(domain, 3, loc=0, scale=1)
+                scipy_cdf = ss.t.cdf(domain, 3, loc=0, scale=1)
+                scipy_rescale = ss.t.ppf(rescale_domain, 3, loc=0, scale=1)
+            elif (isinstance(prior, bilby.core.prior.Gamma) and
+                    not isinstance(prior, bilby.core.prior.ChiSquared)):
+                domain = np.linspace(0., 1e2, 5000)
+                scipy_prob = ss.gamma.pdf(domain, 1, loc=0, scale=1)
+                scipy_lnprob = ss.gamma.logpdf(domain, 1, loc=0, scale=1)
+                scipy_cdf = ss.gamma.cdf(domain, 1, loc=0, scale=1)
+                scipy_rescale = ss.gamma.ppf(rescale_domain, 1, loc=0, scale=1)
+            elif isinstance(prior, bilby.core.prior.LogNormal):
+                domain = np.linspace(0., 1e2, 1000)
+                scipy_prob = ss.lognorm.pdf(domain, 1, scale=1)
+                scipy_lnprob = ss.lognorm.logpdf(domain, 1, scale=1)
+                scipy_cdf = ss.lognorm.cdf(domain, 1, scale=1)
+                scipy_rescale = ss.lognorm.ppf(rescale_domain, 1, scale=1)
+            elif isinstance(prior, bilby.core.prior.Exponential):
+                domain = np.linspace(0., 1e2, 5000)
+                scipy_prob = ss.expon.pdf(domain, scale=1)
+                scipy_lnprob = ss.expon.logpdf(domain, scale=1)
+                scipy_cdf = ss.expon.cdf(domain, scale=1)
+                scipy_rescale = ss.expon.ppf(rescale_domain, scale=1)
+            elif isinstance(prior, bilby.core.prior.Logistic):
+                domain = np.linspace(-1e2, 1e2, 1000)
+                scipy_prob = ss.logistic.pdf(domain, loc=0, scale=1)
+                scipy_lnprob = ss.logistic.logpdf(domain, loc=0, scale=1)
+                scipy_cdf = ss.logistic.cdf(domain, loc=0, scale=1)
+                scipy_rescale = ss.logistic.ppf(rescale_domain, loc=0, scale=1)
+            elif isinstance(prior, bilby.core.prior.ChiSquared):
+                domain = np.linspace(0., 1e2, 5000)
+                scipy_prob = ss.gamma.pdf(domain, 1, loc=0, scale=2)
+                scipy_lnprob = ss.gamma.logpdf(domain, 1, loc=0, scale=2)
+                scipy_cdf = ss.gamma.cdf(domain, 1, loc=0, scale=2)
+                scipy_rescale = ss.gamma.ppf(rescale_domain, 1, loc=0, scale=2)
+            elif isinstance(prior, bilby.core.prior.Beta):
+                domain = np.linspace(-5, 5, 5000)
+                scipy_prob = ss.beta.pdf(domain, 2, 2, loc=0, scale=1)
+                scipy_lnprob = ss.beta.logpdf(domain, 2, 2, loc=0, scale=1)
+                scipy_cdf = ss.beta.cdf(domain, 2, 2, loc=0, scale=1)
+                scipy_rescale = ss.beta.ppf(rescale_domain, 2, 2, loc=0, scale=1)
+            else:
+                continue
+            testTuple = (
+                bilby.core.prior.Uniform, bilby.core.prior.Gaussian,
+                bilby.core.prior.Cauchy, bilby.core.prior.StudentT,
+                bilby.core.prior.Exponential, bilby.core.prior.Logistic,
+                bilby.core.prior.LogNormal, bilby.core.prior.Gamma,
+                bilby.core.prior.Beta)
+            if isinstance(prior, (testTuple)):
+                np.testing.assert_almost_equal(prior.prob(domain), scipy_prob)
+                np.testing.assert_almost_equal(prior.ln_prob(domain), scipy_lnprob)
+                np.testing.assert_almost_equal(prior.cdf(domain), scipy_cdf)
+                np.testing.assert_almost_equal(prior.rescale(rescale_domain), scipy_rescale)
+
     def test_unit_setting(self):
         for prior in self.priors:
             if isinstance(prior, bilby.gw.prior.Cosmological):
@@ -578,8 +668,8 @@ class TestPriorDict(unittest.TestCase):
         priors_set = bilby.core.prior.PriorSet(self.priors)
         self.assertEqual(priors_dict, priors_set)
 
-    def test_prior_set_is_ordered_dict(self):
-        self.assertIsInstance(self.prior_set_from_dict, OrderedDict)
+    def test_prior_set_is_dict(self):
+        self.assertIsInstance(self.prior_set_from_dict, dict)
 
     def test_prior_set_has_correct_length(self):
         self.assertEqual(3, len(self.prior_set_from_dict))
@@ -814,6 +904,66 @@ class TestCreateDefaultPrior(unittest.TestCase):
     def test_unknown_prior(self):
         prior_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'prior_files/binary_black_holes.prior')
         self.assertIsNone(bilby.core.prior.create_default_prior(name='name', default_priors_file=prior_file))
+
+
+class TestJsonIO(unittest.TestCase):
+
+    def setUp(self):
+        mvg = bilby.core.prior.MultivariateGaussianDist(names=['testa', 'testb'],
+                                                        mus=[1, 1],
+                                                        covs=np.array([[2., 0.5], [0.5, 2.]]),
+                                                        weights=1.)
+        mvn = bilby.core.prior.MultivariateGaussianDist(names=['testa', 'testb'],
+                                                        mus=[1, 1],
+                                                        covs=np.array([[2., 0.5], [0.5, 2.]]),
+                                                        weights=1.)
+
+        self.priors = bilby.core.prior.PriorDict(dict(
+            a=bilby.core.prior.DeltaFunction(name='test', unit='unit', peak=1),
+            b=bilby.core.prior.Gaussian(name='test', unit='unit', mu=0, sigma=1),
+            c=bilby.core.prior.Normal(name='test', unit='unit', mu=0, sigma=1),
+            d=bilby.core.prior.PowerLaw(name='test', unit='unit', alpha=0, minimum=0, maximum=1),
+            e=bilby.core.prior.PowerLaw(name='test', unit='unit', alpha=-1, minimum=0.5, maximum=1),
+            f=bilby.core.prior.PowerLaw(name='test', unit='unit', alpha=2, minimum=1, maximum=1e2),
+            g=bilby.core.prior.Uniform(name='test', unit='unit', minimum=0, maximum=1),
+            h=bilby.core.prior.LogUniform(name='test', unit='unit', minimum=5e0, maximum=1e2),
+            i=bilby.gw.prior.UniformComovingVolume(name='redshift', minimum=0.1, maximum=1.0),
+            j=bilby.gw.prior.UniformSourceFrame(name='luminosity_distance', minimum=1.0, maximum=1000.0),
+            k=bilby.core.prior.Sine(name='test', unit='unit'),
+            l=bilby.core.prior.Cosine(name='test', unit='unit'),
+            m=bilby.core.prior.Interped(name='test', unit='unit', xx=np.linspace(0, 10, 1000),
+                                        yy=np.linspace(0, 10, 1000) ** 4,
+                                        minimum=3, maximum=5),
+            n=bilby.core.prior.TruncatedGaussian(name='test', unit='unit', mu=1, sigma=0.4, minimum=-1, maximum=1),
+            o=bilby.core.prior.TruncatedNormal(name='test', unit='unit', mu=1, sigma=0.4, minimum=-1, maximum=1),
+            p=bilby.core.prior.HalfGaussian(name='test', unit='unit', sigma=1),
+            q=bilby.core.prior.HalfNormal(name='test', unit='unit', sigma=1),
+            r=bilby.core.prior.LogGaussian(name='test', unit='unit', mu=0, sigma=1),
+            s=bilby.core.prior.LogNormal(name='test', unit='unit', mu=0, sigma=1),
+            t=bilby.core.prior.Exponential(name='test', unit='unit', mu=1),
+            u=bilby.core.prior.StudentT(name='test', unit='unit', df=3, mu=0, scale=1),
+            v=bilby.core.prior.Beta(name='test', unit='unit', alpha=2.0, beta=2.0),
+            x=bilby.core.prior.Logistic(name='test', unit='unit', mu=0, scale=1),
+            y=bilby.core.prior.Cauchy(name='test', unit='unit', alpha=0, beta=1),
+            z=bilby.core.prior.Lorentzian(name='test', unit='unit', alpha=0, beta=1),
+            aa=bilby.core.prior.Gamma(name='test', unit='unit', k=1, theta=1),
+            ab=bilby.core.prior.ChiSquared(name='test', unit='unit', nu=2),
+            ac=bilby.gw.prior.AlignedSpin(name='test', unit='unit'),
+            ad=bilby.core.prior.MultivariateGaussian(mvg=mvg, name='testa', unit='unit'),
+            ae=bilby.core.prior.MultivariateGaussian(mvg=mvg, name='testb', unit='unit'),
+            af=bilby.core.prior.MultivariateNormal(mvg=mvn, name='testa', unit='unit'),
+            ag=bilby.core.prior.MultivariateNormal(mvg=mvn, name='testb', unit='unit')
+        ))
+
+    def test_read_write_to_json(self):
+        """ Interped prior is removed as there is numerical error in the recovered prior."""
+        self.priors.to_json(outdir="prior_files", label="json_test")
+        new_priors = bilby.core.prior.PriorDict.from_json(filename="prior_files/json_test_prior.json")
+        old_interped = self.priors.pop("m")
+        new_interped = new_priors.pop("m")
+        self.assertDictEqual(self.priors, new_priors)
+        self.assertLess(max(abs(old_interped.xx - new_interped.xx)), 1e-15)
+        self.assertLess(max(abs(old_interped.yy - new_interped.yy)), 1e-15)
 
 
 if __name__ == '__main__':

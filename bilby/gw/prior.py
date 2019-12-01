@@ -1,7 +1,8 @@
 import os
+import copy
 
 import numpy as np
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 from ..core.prior import (PriorDict, Uniform, Prior, DeltaFunction, Gaussian,
                           Interped, Constraint)
@@ -9,7 +10,9 @@ from ..core.utils import infer_args_from_method, logger
 from .conversion import (
     convert_to_lal_binary_black_hole_parameters,
     convert_to_lal_binary_neutron_star_parameters, generate_mass_parameters,
-    generate_tidal_parameters, fill_from_fixed_priors)
+    generate_tidal_parameters, fill_from_fixed_priors,
+    chirp_mass_and_mass_ratio_to_total_mass,
+    total_mass_and_mass_ratio_to_component_masses)
 from .cosmology import get_cosmology
 
 try:
@@ -17,6 +20,70 @@ try:
 except ImportError:
     logger.debug("You do not have astropy installed currently. You will"
                  " not be able to use some of the prebuilt functions.")
+
+
+class BilbyPriorConversionError(Exception):
+    pass
+
+
+def convert_to_flat_in_component_mass_prior(result, fraction=0.25):
+    """ Converts samples flat in chirp-mass and mass-ratio to flat in component mass
+
+    Parameters
+    ----------
+    result: bilby.core.result.Result
+        The output result complete with priors and posteriors
+    fraction: float [0, 1]
+        The fraction of samples to draw (default=0.25). Note, if too high a
+        fraction of samples are draw, the reweighting will not be applied in
+        effect.
+
+    """
+    if getattr(result, "priors") is not None:
+        if isinstance(getattr(result.priors, "chirp_mass", None), Uniform) is False:
+            BilbyPriorConversionError("chirp mass prior should be Uniform")
+        if isinstance(getattr(result.priors, "mass_ratio", None), Uniform) is False:
+            BilbyPriorConversionError("mass_ratio prior should be Uniform")
+        if isinstance(getattr(result.priors, "mass_1", None), Constraint):
+            BilbyPriorConversionError("mass_1 prior should be a Constraint")
+        if isinstance(getattr(result.priors, "mass_2", None), Constraint):
+            BilbyPriorConversionError("mass_2 prior should be a Constraint")
+    else:
+        BilbyPriorConversionError("No prior in the result: unable to convert")
+
+    result = copy.copy(result)
+    priors = result.priors
+    posterior = result.posterior
+
+    priors["chirp_mass"] = Constraint(
+        priors["chirp_mass"].minimum, priors["chirp_mass"].maximum,
+        "chirp_mass", latex_label=priors["chirp_mass"].latex_label)
+    priors["mass_ratio"] = Constraint(
+        priors["mass_ratio"].minimum, priors["mass_ratio"].maximum,
+        "mass_ratio", latex_label=priors["mass_ratio"].latex_label)
+    priors["mass_1"] = Uniform(
+        priors["mass_1"].minimum, priors["mass_1"].maximum, "mass_1",
+        latex_label=priors["mass_1"].latex_label)
+    priors["mass_1"] = Uniform(
+        priors["mass_2"].minimum, priors["mass_2"].maximum, "mass_2",
+        latex_label=priors["mass_2"].latex_label)
+
+    weights = posterior["mass_1"] ** 2 / posterior["chirp_mass"]
+    result.posterior = posterior.sample(frac=fraction, weights=weights)
+
+    logger.info("Resampling posterior to flat-in-component mass")
+    effective_sample_size = sum(weights)**2 / sum(weights**2)
+    n_posterior = len(posterior)
+    if fraction > effective_sample_size / n_posterior:
+        logger.warning(
+            "Sampling posterior of length {} with fraction {}, but "
+            "effective_sample_size / len(posterior) = {}. This may produce "
+            "biased results"
+            .format(n_posterior, fraction, effective_sample_size / n_posterior)
+        )
+    result.posterior = posterior.sample(frac=fraction, weights=weights, replace=True)
+    result.meta_data["reweighted_to_flat_in_component_mass"] = True
+    return result
 
 
 class Cosmological(Interped):
@@ -42,8 +109,8 @@ class Cosmological(Interped):
         if latex_label is not None:
             label_args['latex_label'] = latex_label
         if unit is not None:
-            if isinstance(unit, str):
-                unit = units.__dict__[unit]
+            if not isinstance(unit, units.Unit):
+                unit = units.Unit(unit)
             label_args['unit'] = unit
         self.unit = label_args['unit']
         self._minimum = dict()
@@ -58,8 +125,8 @@ class Cosmological(Interped):
             xx, yy = self._get_luminosity_distance_arrays()
         else:
             raise ValueError('Name {} not recognized.'.format(name))
-        Interped.__init__(self, xx=xx, yy=yy, minimum=minimum, maximum=maximum,
-                          boundary=boundary, **label_args)
+        super(Cosmological, self).__init__(xx=xx, yy=yy, minimum=minimum, maximum=maximum,
+                                           boundary=boundary, **label_args)
 
     @property
     def minimum(self):
@@ -229,15 +296,72 @@ class AlignedSpin(Interped):
                       a_prior.minimum * z_prior.maximum)
         chi_max = a_prior.maximum * z_prior.maximum
         xx = np.linspace(chi_min, chi_max, 800)
-        aas = np.linspace(a_prior.minimum, a_prior.maximum, 1000)
+        a_prior_minimum = a_prior.minimum
+        if a_prior_minimum == 0:
+            a_prior_minimum += 1e-32
+        aas = np.linspace(a_prior_minimum, a_prior.maximum, 1000)
         yy = [np.trapz(np.nan_to_num(a_prior.prob(aas) / aas *
                                      z_prior.prob(x / aas)), aas) for x in xx]
-        Interped.__init__(self, xx=xx, yy=yy, name=name,
-                          latex_label=latex_label, unit=unit,
-                          boundary=boundary)
+        super(AlignedSpin, self).__init__(xx=xx, yy=yy, name=name,
+                                          latex_label=latex_label, unit=unit,
+                                          boundary=boundary)
 
 
-class BBHPriorDict(PriorDict):
+class CBCPriorDict(PriorDict):
+    @property
+    def minimum_chirp_mass(self):
+        mass_1 = None
+        mass_2 = None
+        if "chirp_mass" in self:
+            return self["chirp_mass"].minimum
+        elif "mass_1" in self:
+            mass_1 = self['mass_1'].minimum
+            if "mass_2" in self:
+                mass_2 = self['mass_2'].minimum
+            elif "mass_ratio" in self:
+                mass_2 = mass_1 * self["mass_ratio"].minimum
+        if mass_1 is not None and mass_2 is not None:
+            s = generate_mass_parameters(dict(mass_1=mass_1, mass_2=mass_2))
+            return s["chirp_mass"]
+        else:
+            logger.warning("Unable to determine minimum chirp mass")
+            return None
+
+    @property
+    def maximum_chirp_mass(self):
+        mass_1 = None
+        mass_2 = None
+        if "chirp_mass" in self:
+            return self["chirp_mass"].maximum
+        elif "mass_1" in self:
+            mass_1 = self['mass_1'].maximum
+            if "mass_2" in self:
+                mass_2 = self['mass_2'].maximum
+            elif "mass_ratio" in self:
+                mass_2 = mass_1 * self["mass_ratio"].maximum
+        if mass_1 is not None and mass_2 is not None:
+            s = generate_mass_parameters(dict(mass_1=mass_1, mass_2=mass_2))
+            return s["chirp_mass"]
+        else:
+            logger.warning("Unable to determine maximum chirp mass")
+            return None
+
+    @property
+    def minimum_component_mass(self):
+        if "mass_2" in self:
+            return self["mass_2"].minimum
+        if "chirp_mass" in self and "mass_ratio" in self:
+            total_mass = chirp_mass_and_mass_ratio_to_total_mass(
+                self["chirp_mass"].minimum, self["mass_ratio"].minimum)
+            _, mass_2 = total_mass_and_mass_ratio_to_component_masses(
+                self["mass_ratio"].minimum, total_mass)
+            return mass_2
+        else:
+            logger.warning("Unable to determine minimum component mass")
+            return None
+
+
+class BBHPriorDict(CBCPriorDict):
     def __init__(self, dictionary=None, filename=None, aligned_spin=False,
                  conversion_function=None):
         """ Initialises a Prior set for Binary Black holes
@@ -264,8 +388,8 @@ class BBHPriorDict(PriorDict):
         elif filename is not None:
             if not os.path.isfile(filename):
                 filename = os.path.join(os.path.dirname(__file__), 'prior_files', filename)
-        PriorDict.__init__(self, dictionary=dictionary, filename=filename,
-                           conversion_function=conversion_function)
+        super(BBHPriorDict, self).__init__(dictionary=dictionary, filename=filename,
+                                           conversion_function=conversion_function)
 
     def default_conversion_function(self, sample):
         """
@@ -343,7 +467,7 @@ class BBHPriorDict(PriorDict):
         return False
 
 
-class BNSPriorDict(PriorDict):
+class BNSPriorDict(CBCPriorDict):
 
     def __init__(self, dictionary=None, filename=None, aligned_spin=True,
                  conversion_function=None):
@@ -370,8 +494,8 @@ class BNSPriorDict(PriorDict):
         elif filename is not None:
             if not os.path.isfile(filename):
                 filename = os.path.join(os.path.dirname(__file__), 'prior_files', filename)
-        PriorDict.__init__(self, dictionary=dictionary, filename=filename,
-                           conversion_function=conversion_function)
+        super(BNSPriorDict, self).__init__(dictionary=dictionary, filename=filename,
+                                           conversion_function=conversion_function)
 
     def default_conversion_function(self, sample):
         """
@@ -477,7 +601,7 @@ class CalibrationPriorDict(PriorDict):
         if dictionary is None and filename is not None:
             filename = os.path.join(os.path.dirname(__file__),
                                     'prior_files', filename)
-        PriorDict.__init__(self, dictionary=dictionary, filename=filename)
+        super(CalibrationPriorDict, self).__init__(dictionary=dictionary, filename=filename)
         self.source = None
 
     def to_file(self, outdir, label):
@@ -528,23 +652,23 @@ class CalibrationPriorDict(PriorDict):
             This includes the frequencies of the nodes which are _not_ sampled.
         """
         calibration_data = np.genfromtxt(envelope_file).T
-        frequency_array = calibration_data[0]
+        log_frequency_array = np.log(calibration_data[0])
         amplitude_median = calibration_data[1] - 1
         phase_median = calibration_data[2]
         amplitude_sigma = (calibration_data[5] - calibration_data[3]) / 2
         phase_sigma = (calibration_data[6] - calibration_data[4]) / 2
 
-        nodes = np.logspace(np.log10(minimum_frequency),
-                            np.log10(maximum_frequency), n_nodes)
+        log_nodes = np.linspace(np.log(minimum_frequency),
+                                np.log(maximum_frequency), n_nodes)
 
         amplitude_mean_nodes = \
-            UnivariateSpline(frequency_array, amplitude_median)(nodes)
+            InterpolatedUnivariateSpline(log_frequency_array, amplitude_median)(log_nodes)
         amplitude_sigma_nodes = \
-            UnivariateSpline(frequency_array, amplitude_sigma)(nodes)
+            InterpolatedUnivariateSpline(log_frequency_array, amplitude_sigma)(log_nodes)
         phase_mean_nodes = \
-            UnivariateSpline(frequency_array, phase_median)(nodes)
+            InterpolatedUnivariateSpline(log_frequency_array, phase_median)(log_nodes)
         phase_sigma_nodes = \
-            UnivariateSpline(frequency_array, phase_sigma)(nodes)
+            InterpolatedUnivariateSpline(log_frequency_array, phase_sigma)(log_nodes)
 
         prior = CalibrationPriorDict()
         for ii in range(n_nodes):
@@ -553,18 +677,18 @@ class CalibrationPriorDict(PriorDict):
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary=None)
+                                   boundary='reflective')
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary=None)
+                                   boundary='reflective')
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
-            prior[name] = DeltaFunction(peak=nodes[ii], name=name,
+            prior[name] = DeltaFunction(peak=np.exp(log_nodes[ii]), name=name,
                                         latex_label=latex_label)
         prior.source = os.path.abspath(envelope_file)
         return prior
@@ -614,14 +738,14 @@ class CalibrationPriorDict(PriorDict):
             prior[name] = Gaussian(mu=amplitude_mean_nodes[ii],
                                    sigma=amplitude_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary=None)
+                                   boundary='reflective')
         for ii in range(n_nodes):
             name = "recalib_{}_phase_{}".format(label, ii)
             latex_label = "$\\phi^{}_{}$".format(label, ii)
             prior[name] = Gaussian(mu=phase_mean_nodes[ii],
                                    sigma=phase_sigma_nodes[ii],
                                    name=name, latex_label=latex_label,
-                                   boundary=None)
+                                   boundary='reflective')
         for ii in range(n_nodes):
             name = "recalib_{}_frequency_{}".format(label, ii)
             latex_label = "$f^{}_{}$".format(label, ii)
