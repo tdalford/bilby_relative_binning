@@ -116,32 +116,22 @@ class Pymultinest(NestedSampler):
     def dumper(
             self, nSamples, nlive, nPar, physLive, nested_samples, paramConstr,
             maxLogLike, logZ, logZerr, nullcontext):
-        # delta_ln_z = np.log(weights) + nested_samples[:, -2]
-        # ln_z = cumlogsumexp(data=delta_ln_z)
-        # print(np.log(sum(weights)), ln_z[-1])
-        # print(physLive[0])
         live_points = np.empty((nlive, nPar + 2))
         live_points[:, :-1] = physLive
         live_points[:, -1] = np.exp(- np.ones(len(physLive)) * nSamples / nlive) / nlive
-        # live_points = np.vstack([physLive,
         all_samples = np.vstack([live_points, nested_samples])
         sorted_idxs = np.argsort(all_samples[:, -2])
         weights = np.array(all_samples[:, -1])
-        # print(physLive.shape, nested_samples.shape, live_points.shape, all_samples.shape)
-        # print(physLive[0])
-        # nested_samples[:, -1] = ln_z
         fig, axs = plt.subplots(nrows=nPar + 1, ncols=1, figsize=(12, nPar * 3), sharex=True)
         logvol = - np.arange(nSamples + nlive) / nlive
         keys = [self.priors[key].latex_label for key in self.search_parameter_keys]
         keys += ["$\ln \mathcal{L}$", "$\ln \mathcal{Z}$"]
-        # keys = self.search_parameter_keys + ["$\ln \mathcal{L}$"]
         for ii, ax in enumerate(axs):
             ax.scatter(-logvol, all_samples[sorted_idxs, ii], cmap="plasma", c=weights)
             if ii < nPar:
                 ax.set_ylim(min(all_samples[:, ii]), max(all_samples[:, ii]))
             elif ii == nPar:
-                yspan = max(all_samples[:, ii]) - np.quantile(all_samples[:, ii],
-                                                                 1e-2)
+                yspan = max(all_samples[:, ii]) - np.quantile(all_samples[:, ii], 1e-2)
                 axs[-1].set_ylim(np.quantile(all_samples[:, ii], 1e-2),
                                  max(all_samples[:, ii]) + yspan / 10)
             ax.set_ylabel(keys[ii])
@@ -152,10 +142,3 @@ class Pymultinest(NestedSampler):
         plt.savefig(filename)
         plt.close()
         logger.info("Checkpoint trace plot written to {}".format(filename))
-
-
-def cumlogsumexp(data):
-    regularisation = max(data)
-    data -= regularisation
-    cumulative_sum = np.log(np.cumsum(np.exp(data - regularisation))) + regularisation
-    return cumulative_sum
