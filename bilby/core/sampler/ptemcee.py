@@ -212,9 +212,9 @@ class Ptemcee(Emcee):
                 "`nburn={} < nsteps={}`. Try increasing the number of steps or the "
                 "number of effective samples".format(self.result.nburn, self.nsteps))
         self.calc_likelihood_count()
-        self.result.samples = self.sampler.chain[0, :, self.nburn:, :].reshape(
+        self.result.samples = self.sampler.chain[0, :, self.nburn:self.nsteps + 1, :].reshape(
             (-1, self.ndim))
-        self.result.walkers = self.sampler.chain[0, :, :, :]
+        self.result.walkers = self.sampler.chain[0, :, :self.nsteps, :]
 
         n_samples = self.nwalkers * self.nburn
         self.result.log_likelihood_evaluations = self.stored_loglike[n_samples:]
