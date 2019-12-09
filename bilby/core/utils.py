@@ -17,6 +17,7 @@ import numpy as np
 from scipy.interpolate import interp2d
 from scipy.special import logsumexp
 import pandas as pd
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger('bilby')
 
@@ -1107,3 +1108,29 @@ class tcolors:
     VALUE = '\033[91m'
     HIGHLIGHT = '\033[95m'
     END = '\033[0m'
+
+
+def plot_walkers(walkers, parameter_labels, nburn=0, outdir=".", label=None):
+    """ Method to plot the trace of the walkers in an ensemble MCMC plot """
+
+    walkers = np.array(walkers)
+    _, nsteps, ndim = walkers.shape
+    idxs = np.arange(nsteps)
+    fig, axes = plt.subplots(nrows=ndim, figsize=(6, 3 * ndim))
+    for i, ax in enumerate(axes):
+        ax.plot(idxs[:nburn + 1], walkers[:, :nburn + 1, i].T,
+                lw=0.1, color='r')
+        ax.set_ylabel(parameter_labels[i])
+
+    for i, ax in enumerate(axes):
+        ax.plot(idxs[nburn:], walkers[:, nburn:, i].T, lw=0.1,
+                color='k')
+        ax.set_ylabel(parameter_labels[i])
+
+    fig.tight_layout()
+
+    check_directory_exists_and_if_not_mkdir(outdir)
+    filename = '{}/{}_walkers.png'.format(outdir, label)
+    logger.debug('Saving walkers plot to {}'.format(filename))
+    fig.savefig(filename)
+    plt.close(fig)

@@ -974,26 +974,10 @@ class Result(object):
         if utils.command_line_args.bilby_test_mode:
             return
 
-        nwalkers, nsteps, ndim = self.walkers.shape
-        idxs = np.arange(nsteps)
-        fig, axes = plt.subplots(nrows=ndim, figsize=(6, 3 * ndim))
-        walkers = self.walkers[:, :, :]
-        for i, ax in enumerate(axes):
-            ax.plot(idxs[:self.nburn + 1], walkers[:, :self.nburn + 1, i].T,
-                    lw=0.1, color='r')
-            ax.set_ylabel(self.parameter_labels[i])
-
-        for i, ax in enumerate(axes):
-            ax.plot(idxs[self.nburn:], walkers[:, self.nburn:, i].T, lw=0.1,
-                    color='k')
-            ax.set_ylabel(self.parameter_labels[i])
-
-        fig.tight_layout()
         outdir = self._safe_outdir_creation(kwargs.get('outdir'), self.plot_walkers)
-        filename = '{}/{}_walkers.png'.format(outdir, self.label)
-        logger.debug('Saving walkers plot to {}'.format(filename))
-        fig.savefig(filename)
-        plt.close(fig)
+        utils.plot_walkers(
+            walkers=self.walkers, parameter_labels=self.parameter_labels,
+            nburn=self.nburn, outdir=outdir, label=self.label)
 
     def plot_with_data(self, model, x, y, ndraws=1000, npoints=1000,
                        xlabel=None, ylabel=None, data_label='data',
