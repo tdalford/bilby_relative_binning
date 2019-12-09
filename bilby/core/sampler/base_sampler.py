@@ -4,7 +4,7 @@ import numpy as np
 
 from pandas import DataFrame
 
-from ..utils import logger, command_line_args, Counter
+from ..utils import logger, command_line_args, Counter, autocorr_new
 from ..prior import Prior, PriorDict, ConditionalPriorDict, DeltaFunction, Constraint
 from ..result import Result, read_in_result
 
@@ -622,7 +622,7 @@ class MCMCSampler(Sampler):
             logger.info("Discarding {} steps for burn-in, estimated from "
                         "autocorr".format(self.nburn))
 
-    def calculate_autocorrelation(self, samples, c=3, tol=20):
+    def calculate_autocorrelation(self, samples, c=5, tol=20):
         """ Uses the `emcee.autocorr` module to estimate the autocorrelation
 
         Parameters
@@ -633,15 +633,15 @@ class MCMCSampler(Sampler):
             The minimum number of autocorrelation times needed to trust the
             estimate (default: `3`). See `emcee.autocorr.integrated_time`.
         """
-        import emcee
-        try:
-            self.result.max_autocorrelation_time = int(np.max(
-                emcee.autocorr.integrated_time(samples, c=c, tol=tol)))
+        act = autocorr_new(samples.T, c=c)
+        nsamples = len(samples)
+        if act > 0 and act * tol < nsamples:
+            self.result.max_autocorrelation_time = max([1, int(act)])
             logger.debug("Max autocorr time = {}".format(
                 self.result.max_autocorrelation_time))
-        except Exception as e:
+        else:
             self.result.max_autocorrelation_time = None
-            logger.debug("Unable to calculate autocorr time: {}".format(e))
+            logger.debug("Unable to calculate autocorr time")
 
 
 class Error(Exception):

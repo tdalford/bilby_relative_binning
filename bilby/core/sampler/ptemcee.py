@@ -42,7 +42,7 @@ class Ptemcee(Emcee):
 
     def __init__(self, likelihood, priors, outdir='outdir', label='label',
                  use_ratio=False, plot=False, skip_import_verification=False,
-                 nburn=None, burn_in_fraction=0.25, burn_in_act=3, resume=True,
+                 nburn=None, burn_in_fraction=0.25, burn_in_act=20, resume=True,
                  **kwargs):
         super(Ptemcee, self).__init__(
             likelihood=likelihood, priors=priors, outdir=outdir,
@@ -122,20 +122,20 @@ class Ptemcee(Emcee):
     def _pos0_shape(self):
         return (self.ntemps, self.nwalkers, self.ndim)
 
-    def check_n_effective(self, ii):
-        #samples_so_far = self.sampler.chain.reshape((-1, self.ndim))[:ii, :]
+    def check_n_effective(self, ii, safety=10):
         samples_so_far = np.array(self.pos_list)[:, 0, :, :].reshape((-1, self.ndim))
         self.calculate_autocorrelation(samples_so_far)
 
-        if (self.result.max_autocorrelation_time is None or self.result.max_autocorrelation_time == 0):
+        max_act = self.result.max_autocorrelation_time
+        if max_act is None:
             logger.debug("Unable to calculate max autocorrelation time")
             return False
         if ii < self.nburn:
             logger.debug("ii={} < nburn={}".format(ii, self.nburn))
             return False
 
-        self.result.n_effective = np.max([0, int(
-            0.5 * (ii - self.nburn) * self.nwalkers / self.result.max_autocorrelation_time)])
+        neff = (ii - self.nburn) * self.nwalkers / max_act
+        self.result.n_effective = np.max([0, int(neff / safety)])
         return self.result.n_effective > self.internal_kwargs["n_effective"]
 
     def print_func(self, niter):
