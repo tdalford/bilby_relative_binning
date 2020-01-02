@@ -304,7 +304,7 @@ class SymmetricLogUniform(Prior):
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: Union[float, int, list, np.ndarray]
             Uniform probability
 
         Returns
@@ -312,19 +312,17 @@ class SymmetricLogUniform(Prior):
         Union[float, array_like]: Rescaled probability
         """
         self.test_valid_for_rescaling(val)
+        val_array = np.atleast_1d(val)
+        vals_less_than_5 = val_array < 0.5
+        rescaled = np.empty_like(val_array)
+        rescaled[vals_less_than_5] = -self.maximum * np.exp(-2 * val_array[vals_less_than_5] *
+                                                            np.log(self.maximum / self.minimum))
+        rescaled[~vals_less_than_5] = self.minimum * np.exp(np.log(self.maximum / self.minimum) *
+                                                            (2 * val_array[~vals_less_than_5] - 1))
+
         if isinstance(val, (float, int)):
-            if val < 0.5:
-                return -self.maximum * np.exp(-2 * val * np.log(self.maximum / self.minimum))
-            else:
-                return self.minimum * np.exp(np.log(self.maximum / self.minimum) * (2 * val - 1))
-        elif isinstance(val, (list, np.ndarray)):
-            vals_less_than_5 = val < 0.5
-            rescaled = np.empty_like(val)
-            rescaled[vals_less_than_5] = -self.maximum * np.exp(-2 * val[vals_less_than_5] *
-                                                                np.log(self.maximum / self.minimum))
-            rescaled[~vals_less_than_5] = self.minimum * np.exp(np.log(self.maximum / self.minimum) *
-                                                                (2 * val[~vals_less_than_5] - 1))
-            return rescaled
+            return rescaled[0]
+        return rescaled
 
     def prob(self, val):
         """Return the prior probability of val
@@ -875,17 +873,13 @@ class StudentT(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
+        val_array = np.atleast_1d(val)
+        rescaled = stdtrit(self.df, val_array) * self.scale + self.mu
+        rescaled[val_array == 0] = -np.inf
+        rescaled[val_array == 1] = np.inf
+
         if isinstance(val, (float, int)):
-            if val == 0:
-                rescaled = -np.inf
-            elif val == 1:
-                rescaled = np.inf
-            else:
-                rescaled = stdtrit(self.df, val) * self.scale + self.mu
-        else:
-            rescaled = stdtrit(self.df, val) * self.scale + self.mu
-            rescaled[val == 0] = -np.inf
-            rescaled[val == 1] = np.inf
+            return rescaled[0]
         return rescaled
 
     def prob(self, val):
@@ -991,35 +985,30 @@ class Beta(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-        _ln_prob = xlogy(self.alpha - 1, val - self.minimum) + xlogy(self.beta - 1, self.maximum - val)\
+        ln_prob = xlogy(self.alpha - 1, val - self.minimum) + xlogy(self.beta - 1, self.maximum - val)\
             - betaln(self.alpha, self.beta) - xlogy(self.alpha + self.beta - 1, self.maximum - self.minimum)
 
         # deal with the fact that if alpha or beta are < 1 you get infinities at 0 and 1
         if isinstance(val, np.ndarray):
             _ln_prob_sub = -np.inf * np.ones(len(val))
-            idx = np.isfinite(_ln_prob) & (val >= self.minimum) & (val <= self.maximum)
-            _ln_prob_sub[idx] = _ln_prob[idx]
+            idx = np.isfinite(ln_prob) & (val >= self.minimum) & (val <= self.maximum)
+            _ln_prob_sub[idx] = ln_prob[idx]
             return _ln_prob_sub
         else:
-            if np.isfinite(_ln_prob) and self.minimum <= val <= self.maximum:
-                return _ln_prob
+            if np.isfinite(ln_prob) and self.minimum <= val <= self.maximum:
+                return ln_prob
             return -np.inf
 
     def cdf(self, val):
+        val_array = np.atleast_1d(val)
+        cdf = np.nan_to_num(btdtr(self.alpha, self.beta,
+                                  (val_array - self.minimum) / (self.maximum - self.minimum)))
+        cdf[val_array < self.minimum] = 0.
+        cdf[val_array > self.maximum] = 1.
+
         if isinstance(val, (float, int)):
-            if val > self.maximum:
-                return 1.
-            elif val < self.minimum:
-                return 0.
-            else:
-                return btdtr(self.alpha, self.beta,
-                             (val - self.minimum) / (self.maximum - self.minimum))
-        else:
-            _cdf = np.nan_to_num(btdtr(self.alpha, self.beta,
-                                 (val - self.minimum) / (self.maximum - self.minimum)))
-            _cdf[val < self.minimum] = 0.
-            _cdf[val > self.maximum] = 1.
-            return _cdf
+            return cdf[0]
+        return cdf
 
 
 class Logistic(Prior):
@@ -1136,15 +1125,12 @@ class Cauchy(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-        rescaled = self.alpha + self.beta * np.tan(np.pi * (val - 0.5))
+        val_array = np.atleast_1d(val)
+        rescaled = self.alpha + self.beta * np.tan(np.pi * (val_array - 0.5))
+        rescaled[val_array == 1] = np.inf
+        rescaled[val_array == 0] = -np.inf
         if isinstance(val, (float, int)):
-            if val == 1:
-                rescaled = np.inf
-            elif val == 0:
-                rescaled = -np.inf
-        else:
-            rescaled[val == 1] = np.inf
-            rescaled[val == 0] = -np.inf
+            return rescaled[0]
         return rescaled
 
     def prob(self, val):
@@ -1256,15 +1242,13 @@ class Gamma(Prior):
         return ln_prob
 
     def cdf(self, val):
+        val_array = np.atleast_1d(val)
+        cdf = np.zeros(len(val_array))
+        cdf[val_array >= self.minimum] = gammainc(self.k, val_array[val_array >= self.minimum] / self.theta)
+
         if isinstance(val, (float, int)):
-            if val < self.minimum:
-                _cdf = 0.
-            else:
-                _cdf = gammainc(self.k, val / self.theta)
-        else:
-            _cdf = np.zeros(len(val))
-            _cdf[val >= self.minimum] = gammainc(self.k, val[val >= self.minimum] / self.theta)
-        return _cdf
+            return cdf[0]
+        return cdf
 
 
 class ChiSquared(Gamma):
@@ -1369,22 +1353,20 @@ class FermiDirac(Prior):
            <https:arxiv.org/abs/1705.08978v1>`_, 2017.
         """
         self.test_valid_for_rescaling(val)
+        val_array = np.atleast_1d(val)
 
-        inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r)) ** -val +
-               np.exp(-1. * self.r) * (1. + np.exp(self.r)) ** -val)
+        inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r)) ** -val_array +
+               np.exp(-1. * self.r) * (1. + np.exp(self.r)) ** -val_array)
 
         # if val is 1 this will cause inv to be negative (due to numerical
         # issues), so return np.inf
+        idx = inv >= 0.
+        tmpinv = np.inf * np.ones(len(np.atleast_1d(val_array)))
+        tmpinv[idx] = -self.sigma * np.log(inv[idx])
+
         if isinstance(val, (float, int)):
-            if inv < 0:
-                return np.inf
-            else:
-                return -self.sigma * np.log(inv)
-        else:
-            idx = inv >= 0.
-            tmpinv = np.inf * np.ones(len(np.atleast_1d(val)))
-            tmpinv[idx] = -self.sigma * np.log(inv[idx])
-            return tmpinv
+            return tmpinv[0]
+        return tmpinv
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -1410,16 +1392,12 @@ class FermiDirac(Prior):
         -------
         Union[float, array_like]: Log prior probability of val
         """
-
+        val_array = np.atleast_1d(val)
         norm = -np.log(self.sigma * np.log(1. + np.exp(self.r)))
+        lnp = -np.inf * np.ones(len(val_array))
+        idx = val_array >= self.minimum
+        lnp[idx] = norm - np.logaddexp((val_array[idx] / self.sigma) - self.r, 0.)
+
         if isinstance(val, (float, int)):
-            if val < self.minimum:
-                return -np.inf
-            else:
-                return norm - np.logaddexp((val / self.sigma) - self.r, 0.)
-        else:
-            val = np.atleast_1d(val)
-            lnp = -np.inf * np.ones(len(val))
-            idx = val >= self.minimum
-            lnp[idx] = norm - np.logaddexp((val[idx] / self.sigma) - self.r, 0.)
-            return lnp
+            return lnp[0]
+        return lnp
