@@ -2,9 +2,9 @@ import numpy as np
 
 from .base import Prior, PriorException
 from bilby.core.prior.interpolated import Interped
-from bilby.core.prior.analytical import DeltaFunction, PowerLaw, Uniform, LogUniform, SymmetricLogUniform, Cosine, Sine, \
-    Gaussian, TruncatedGaussian, HalfGaussian, LogNormal, Exponential, StudentT, Beta, Logistic, Cauchy, Gamma, \
-    ChiSquared, FermiDirac
+from bilby.core.prior.analytical import DeltaFunction, PowerLaw, Uniform, LogUniform, \
+    SymmetricLogUniform, Cosine, Sine, Gaussian, TruncatedGaussian, HalfGaussian, \
+    LogNormal, Exponential, StudentT, Beta, Logistic, Cauchy, Gamma, ChiSquared, FermiDirac
 from bilby.core.utils import infer_args_from_method, infer_parameters_from_function
 
 
