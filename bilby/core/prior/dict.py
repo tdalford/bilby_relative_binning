@@ -7,7 +7,8 @@ import numpy as np
 from future.utils import iteritems
 from matplotlib.cbook import flatten
 
-from bilby.core.prior import Constraint, Prior, create_default_prior
+from bilby.core.prior import Constraint, Prior
+from bilby.core.prior.utils import create_default_prior
 from bilby.core.prior.joint import JointPrior
 from bilby.core.prior.conditional import ConditionalPriorException, IllegalConditionsException
 from bilby.core.prior.analytical import DeltaFunction
