@@ -1,6 +1,6 @@
 import numpy as np
 
-from bilby.core.prior import IllegalRequiredVariablesException, Prior, PriorException, ConditionalPriorDictException
+from .base import Prior, PriorException
 from bilby.core.prior.interpolated import Interped
 from bilby.core.prior.analytical import DeltaFunction, PowerLaw, Uniform, LogUniform, SymmetricLogUniform, Cosine, Sine, \
     Gaussian, TruncatedGaussian, HalfGaussian, LogNormal, Exponential, StudentT, Beta, Logistic, Cauchy, Gamma, \
@@ -227,7 +227,3 @@ ConditionalInterped = conditional_prior_factory(Interped)
 
 class ConditionalPriorException(PriorException):
     """ General base class for all conditional prior exceptions """
-
-
-class IllegalConditionsException(ConditionalPriorDictException):
-    """ Exception class to handle prior dicts that contain unresolvable conditions. """

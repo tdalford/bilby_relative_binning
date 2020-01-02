@@ -2,7 +2,7 @@ import numpy as np
 import scipy.stats
 from scipy.special import erfinv
 
-from bilby.core.prior import Prior, PriorException
+from .base import Prior, PriorException
 from bilby.core.utils import logger, infer_args_from_method
 
 

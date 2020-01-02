@@ -2,7 +2,7 @@ import numpy as np
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
 
-from bilby.core.prior import Prior
+from .base import Prior
 from bilby.core.utils import logger
 
 

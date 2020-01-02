@@ -7,10 +7,9 @@ import numpy as np
 from future.utils import iteritems
 from matplotlib.cbook import flatten
 
-from bilby.core.prior import Constraint, Prior
-from bilby.core.prior.utils import create_default_prior
+from bilby.core.prior.base import Prior, Constraint
 from bilby.core.prior.joint import JointPrior
-from bilby.core.prior.conditional import ConditionalPriorException, IllegalConditionsException
+from bilby.core.prior.conditional import ConditionalPriorException
 from bilby.core.prior.analytical import DeltaFunction
 from bilby.core.utils import logger, check_directory_exists_and_if_not_mkdir, BilbyJsonEncoder, decode_bilby_json
 
@@ -682,3 +681,39 @@ class IllegalRequiredVariablesException(ConditionalPriorException):
 
 class ConditionalPriorDictException(PriorDictException):
     """ General base class for all conditional prior dict exceptions """
+
+
+def create_default_prior(name, default_priors_file=None):
+    """Make a default prior for a parameter with a known name.
+
+    Parameters
+    ----------
+    name: str
+        Parameter name
+    default_priors_file: str, optional
+        If given, a file containing the default priors.
+
+    Return
+    ------
+    prior: Prior
+        Default prior distribution for that parameter, if unknown None is
+        returned.
+    """
+
+    if default_priors_file is None:
+        logger.debug(
+            "No prior file given.")
+        prior = None
+    else:
+        default_priors = PriorDict(filename=default_priors_file)
+        if name in default_priors.keys():
+            prior = default_priors[name]
+        else:
+            logger.debug(
+                "No default prior found for variable {}.".format(name))
+            prior = None
+    return prior
+
+
+class IllegalConditionsException(ConditionalPriorDictException):
+    """ Exception class to handle prior dicts that contain unresolvable conditions. """
