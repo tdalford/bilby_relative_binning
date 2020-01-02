@@ -163,7 +163,7 @@ class PriorDict(dict):
                     module = '.'.join(cls.split('.')[:-1])
                     cls = cls.split('.')[-1]
                 else:
-                    module = __name__.strip('.' + os.path.basename(__file__).strip('.py'))
+                    module = __name__.replace('.' + os.path.basename(__file__).replace('.py', ''), '')
                 cls = getattr(import_module(module), cls, cls)
                 if key.lower() in ["conversion_function", "condition_func"]:
                     setattr(self, key, cls)

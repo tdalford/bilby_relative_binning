@@ -1,6 +1,7 @@
-import json
-import re
 from importlib import import_module
+import json
+import os
+import re
 
 import numpy as np
 import scipy.stats
@@ -412,7 +413,7 @@ class Prior(object):
                 module = '.'.join(other_cls.split('.')[:-1])
                 other_cls = other_cls.split('.')[-1]
             else:
-                module = __name__
+                module = __name__.replace('.' + os.path.basename(__file__).replace('.py', ''), '')
             other_cls = getattr(import_module(module), other_cls)
             val = other_cls.from_repr(vals)
         else:
