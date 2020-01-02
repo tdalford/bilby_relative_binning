@@ -736,8 +736,8 @@ class LogNormal(Prior):
 
         val_array = np.atleast_1d(val)
         cdf = np.zeros(len(val_array))
-        cdf[val_array > self.minimum] = 0.5 + erf((np.log(val_array[val_array > self.minimum]) - self.mu)
-                                                  / self.sigma / np.sqrt(2)) / 2
+        cdf[val_array > self.minimum] = 0.5 + erf((np.log(val_array[val_array > self.minimum]) - self.mu) /
+                                                  self.sigma / np.sqrt(2)) / 2
         if isinstance(val, (float, int)):
             return cdf[0]
         return cdf
@@ -1051,8 +1051,8 @@ class Logistic(Prior):
         rescaled = np.inf * np.ones(len(val_array))
         rescaled[val_array == 0] = -np.inf
         rescaled[(val_array > 0) & (val_array < 1)] = \
-            self.mu + self.scale * np.log(val_array[(val_array > 0) & (val_array < 1)]
-                                          / (1. - val_array[(val_array > 0) & (val_array < 1)]))
+            self.mu + self.scale * np.log(val_array[(val_array > 0) & (val_array < 1)] /
+                                          (1. - val_array[(val_array > 0) & (val_array < 1)]))
 
         if isinstance(val, (float, int)):
             return rescaled[0]
