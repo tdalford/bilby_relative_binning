@@ -53,6 +53,7 @@ def conditional_prior_factory(prior_class):
 
             self._required_variables = None
             self.condition_func = condition_func
+            self.least_recently_sampled = None
             self._reference_params = reference_params
             self.__class__.__name__ = 'Conditional{}'.format(prior_class.__name__)
             self.__class__.__qualname__ = 'Conditional{}'.format(prior_class.__qualname__)
