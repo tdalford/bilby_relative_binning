@@ -70,6 +70,9 @@ class BaseJointPriorDist(object):
         self.reset_rescale()
 
         # a list of sampled parameters
+        self.sampled_parameters = []
+        self.current_sample = {}
+
         self.reset_sampled()
 
     def reset_sampled(self):
@@ -375,6 +378,7 @@ class MultivariateGaussianDist(BaseJointPriorDist):
         self.eigvectors = []
         self.sqeigvalues = []  # square root of the eigenvalues
         self.mvn = []  # list of multivariate normal distributions
+        self.cumweights = []
 
         self._current_sample = {}  # initialise empty sample
         self._uncorrelated = None
@@ -472,9 +476,9 @@ class MultivariateGaussianDist(BaseJointPriorDist):
             self.sigmas.append(np.sqrt(np.diag(self.covs[-1])))  # standard deviations
 
             # convert covariance into a correlation coefficient matrix
-            D = self.sigmas[-1] * np.identity(self.covs[-1].shape[0])
-            Dinv = np.linalg.inv(D)
-            self.corrcoefs.append(np.dot(np.dot(Dinv, self.covs[-1]), Dinv))
+            d = self.sigmas[-1] * np.identity(self.covs[-1].shape[0])
+            d_inv = np.linalg.inv(d)
+            self.corrcoefs.append(np.dot(np.dot(d_inv, self.covs[-1]), d_inv))
         elif corrcoef is not None and sigmas is not None:
             self.corrcoefs.append(np.asarray(corrcoef))
 
@@ -507,8 +511,8 @@ class MultivariateGaussianDist(BaseJointPriorDist):
                                  "same as the number of parameters.")
 
             # convert correlation coefficients to covariance matrix
-            D = self.sigmas[-1] * np.identity(self.corrcoefs[-1].shape[0])
-            self.covs.append(np.dot(D, np.dot(self.corrcoefs[-1], D)))
+            d = self.sigmas[-1] * np.identity(self.corrcoefs[-1].shape[0])
+            self.covs.append(np.dot(d, np.dot(self.corrcoefs[-1], d)))
         else:
             # set unit variance uncorrelated covariance
             self.corrcoefs.append(np.eye(self.num_vars))
