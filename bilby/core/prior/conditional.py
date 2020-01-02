@@ -227,3 +227,7 @@ ConditionalInterped = conditional_prior_factory(Interped)
 
 class ConditionalPriorException(PriorException):
     """ General base class for all conditional prior exceptions """
+
+
+class IllegalRequiredVariablesException(ConditionalPriorException):
+    """ Exception class for exceptions relating to handling the required variables. """

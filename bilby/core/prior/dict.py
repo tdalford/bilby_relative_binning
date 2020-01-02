@@ -3,14 +3,13 @@ import os
 from importlib import import_module
 from io import open as ioopen
 
-import numpy as np
 from future.utils import iteritems
 from matplotlib.cbook import flatten
 
 from bilby.core.prior.base import Prior, Constraint
 from bilby.core.prior.joint import JointPrior
-from bilby.core.prior.conditional import ConditionalPriorException
-from bilby.core.prior.analytical import DeltaFunction
+# keep 'import *' to make eval() statement further down work consistently
+from bilby.core.prior.analytical import *
 from bilby.core.utils import logger, check_directory_exists_and_if_not_mkdir, BilbyJsonEncoder, decode_bilby_json
 
 
@@ -673,10 +672,6 @@ class ConditionalPriorDict(PriorDict):
     def __delitem__(self, key):
         super(ConditionalPriorDict, self).__delitem__(key)
         self._resolve_conditions()
-
-
-class IllegalRequiredVariablesException(ConditionalPriorException):
-    """ Exception class for exceptions relating to handling the required variables. """
 
 
 class ConditionalPriorDictException(PriorDictException):

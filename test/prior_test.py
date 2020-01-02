@@ -7,6 +7,8 @@ import numpy as np
 import os
 import scipy.stats as ss
 
+import bilby.core.prior.conditional
+
 
 class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
 
@@ -1002,7 +1004,7 @@ class TestConditionalPrior(unittest.TestCase):
         self.assertEqual(self.maximum + 1, self.prior.maximum)
 
     def test_update_conditions_illegal_variables(self):
-        with self.assertRaises(bilby.core.prior.IllegalRequiredVariablesException):
+        with self.assertRaises(bilby.core.prior.conditional.IllegalRequiredVariablesException):
             self.prior.update_conditions(test_parameter_1=self.test_variable_1)
 
     def test_sample_calls_update_conditions(self):
