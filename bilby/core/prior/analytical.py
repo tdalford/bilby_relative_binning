@@ -317,7 +317,7 @@ class SymmetricLogUniform(Prior):
                 return -self.maximum * np.exp(-2 * val * np.log(self.maximum / self.minimum))
             else:
                 return self.minimum * np.exp(np.log(self.maximum / self.minimum) * (2 * val - 1))
-        else:
+        elif isinstance(val, (list, np.ndarray)):
             vals_less_than_5 = val < 0.5
             rescaled = np.empty_like(val)
             rescaled[vals_less_than_5] = -self.maximum * np.exp(-2 * val[vals_less_than_5] *
@@ -499,6 +499,7 @@ class Gaussian(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
+        val = np.atleast_1d(val)
         self.test_valid_for_rescaling(val)
         return self.mu + erfinv(2 * val - 1) * 2 ** 0.5 * self.sigma
 
@@ -678,6 +679,7 @@ class LogNormal(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
+        val = np.atleast_1d(val)
         self.test_valid_for_rescaling(val)
         return np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val - 1))
 
@@ -686,60 +688,61 @@ class LogNormal(Prior):
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: Union[float, int, list, np.ndarray]
 
         Returns
         -------
-        Union[float, array_like]: Prior probability of val
+        Union[float, np.ndarray]: Prior probability of val
         """
+        val_array = np.atleast_1d(val)
+        prob = np.zeros(len(val_array))
+        idx = (val_array > self.minimum)
+        prob[idx] = np.exp(-(np.log(val_array[idx]) - self.mu) ** 2 /
+                           self.sigma ** 2 / 2) / np.sqrt(2 * np.pi) / val_array[idx] / self.sigma
         if isinstance(val, (float, int)):
-            if val <= self.minimum:
-                _prob = 0.
-            else:
-                _prob = np.exp(-(np.log(val) - self.mu) ** 2 / self.sigma ** 2 / 2)\
-                    / np.sqrt(2 * np.pi) / val / self.sigma
-        else:
-            _prob = np.zeros(len(val))
-            idx = (val > self.minimum)
-            _prob[idx] = np.exp(-(np.log(val[idx]) - self.mu) ** 2 / self.sigma ** 2 / 2)\
-                / np.sqrt(2 * np.pi) / val[idx] / self.sigma
-        return _prob
+            return prob[0]
+        return prob
 
     def ln_prob(self, val):
         """Returns the log prior probability of val.
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: Union[float, int, list, np.ndarray]
 
         Returns
         -------
-        Union[float, array_like]: Prior probability of val
+        Union[float, np.ndarray]: Prior probability of val
         """
+        val_array = np.atleast_1d(val)
+        ln_prob = -np.inf * np.ones(len(val_array))
+        idx = (val_array > self.minimum)
+        ln_prob[idx] = \
+            -(np.log(val_array[idx]) - self.mu) ** 2 / self.sigma ** 2 \
+            / 2 - np.log(np.sqrt(2 * np.pi) * val_array[idx] * self.sigma)
         if isinstance(val, (float, int)):
-            if val <= self.minimum:
-                _ln_prob = -np.inf
-            else:
-                _ln_prob = -(np.log(val) - self.mu) ** 2 / self.sigma ** 2 / 2\
-                    - np.log(np.sqrt(2 * np.pi) * val * self.sigma)
-        else:
-            _ln_prob = -np.inf * np.ones(len(val))
-            idx = (val > self.minimum)
-            _ln_prob[idx] = -(np.log(val[idx]) - self.mu) ** 2\
-                / self.sigma ** 2 / 2 - np.log(np.sqrt(2 * np.pi) * val[idx] * self.sigma)
-        return _ln_prob
+            return ln_prob[0]
+        return ln_prob
 
     def cdf(self, val):
+        """Returns the cdf probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, list, np.ndarray]
+
+        Returns
+        -------
+        Union[float, np.ndarray]: Prior probability of val
+        """
+
+        val_array = np.atleast_1d(val)
+        cdf = np.zeros(len(val_array))
+        cdf[val_array > self.minimum] = 0.5 + erf((np.log(val_array[val_array > self.minimum]) - self.mu)
+                                                  / self.sigma / np.sqrt(2)) / 2
         if isinstance(val, (float, int)):
-            if val <= self.minimum:
-                _cdf = 0.
-            else:
-                _cdf = 0.5 + erf((np.log(val) - self.mu) / self.sigma / np.sqrt(2)) / 2
-        else:
-            _cdf = np.zeros(len(val))
-            _cdf[val > self.minimum] = 0.5 + erf((
-                np.log(val[val > self.minimum]) - self.mu) / self.sigma / np.sqrt(2)) / 2
-        return _cdf
+            return cdf[0]
+        return cdf
 
 
 class LogGaussian(LogNormal):
@@ -781,53 +784,54 @@ class Exponential(Prior):
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: Union[float, int, list, np.ndarray]
 
         Returns
         -------
-        Union[float, array_like]: Prior probability of val
+        Union[float, np.ndarray]: Prior probability of val
         """
+        val_array = np.atleast_1d(val)
+        prob = np.zeros(len(val_array))
+        prob[val_array >= self.minimum] = np.exp(-val_array[val_array >= self.minimum] / self.mu) / self.mu
         if isinstance(val, (float, int)):
-            if val < self.minimum:
-                _prob = 0.
-            else:
-                _prob = np.exp(-val / self.mu) / self.mu
-        else:
-            _prob = np.zeros(len(val))
-            _prob[val >= self.minimum] = np.exp(-val[val >= self.minimum] / self.mu) / self.mu
-        return _prob
+            return prob[0]
+        return prob
 
     def ln_prob(self, val):
         """Returns the log prior probability of val.
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: Union[float, int, list, np.ndarray]
 
         Returns
         -------
-        Union[float, array_like]: Prior probability of val
+        Union[float, np.ndarray]: Prior probability of val
         """
+        val_array = np.atleast_1d(val)
+        ln_prob = -np.inf * np.ones(len(val_array))
+        ln_prob[val >= self.minimum] = -val_array[val_array >= self.minimum] / self.mu - np.log(self.mu)
         if isinstance(val, (float, int)):
-            if val < self.minimum:
-                _ln_prob = -np.inf
-            else:
-                _ln_prob = -val / self.mu - np.log(self.mu)
-        else:
-            _ln_prob = -np.inf * np.ones(len(val))
-            _ln_prob[val >= self.minimum] = -val[val >= self.minimum] / self.mu - np.log(self.mu)
-        return _ln_prob
+            return ln_prob[0]
+        return ln_prob
 
     def cdf(self, val):
+        """Returns the cdf probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, list, np.ndarray]
+
+        Returns
+        -------
+        Union[float, np.ndarray]: Prior probability of val
+        """
+        val_array = np.atleast_1d(val)
+        cdf = np.zeros(len(val_array))
+        cdf[val_array >= self.minimum] = 1. - np.exp(-val_array[val_array >= self.minimum] / self.mu)
         if isinstance(val, (float, int)):
-            if val < self.minimum:
-                _cdf = 0.
-            else:
-                _cdf = 1. - np.exp(-val / self.mu)
-        else:
-            _cdf = np.zeros(len(val))
-            _cdf[val >= self.minimum] = 1. - np.exp(-val[val >= self.minimum] / self.mu)
-        return _cdf
+            return cdf[0]
+        return cdf
 
 
 class StudentT(Prior):
@@ -997,7 +1001,7 @@ class Beta(Prior):
             _ln_prob_sub[idx] = _ln_prob[idx]
             return _ln_prob_sub
         else:
-            if np.isfinite(_ln_prob) and val >= self.minimum and val <= self.maximum:
+            if np.isfinite(_ln_prob) and self.minimum <= val <= self.maximum:
                 return _ln_prob
             return -np.inf
 
@@ -1054,18 +1058,15 @@ class Logistic(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
+        val_array = np.atleast_1d(val)
+        rescaled = np.inf * np.ones(len(val_array))
+        rescaled[val_array == 0] = -np.inf
+        rescaled[(val_array > 0) & (val_array < 1)] = \
+            self.mu + self.scale * np.log(val_array[(val_array > 0) & (val_array < 1)]
+                                          / (1. - val_array[(val_array > 0) & (val_array < 1)]))
+
         if isinstance(val, (float, int)):
-            if val == 0:
-                rescaled = -np.inf
-            elif val == 1:
-                rescaled = np.inf
-            else:
-                rescaled = self.mu + self.scale * np.log(val / (1. - val))
-        else:
-            rescaled = np.inf * np.ones(len(val))
-            rescaled[val == 0] = -np.inf
-            rescaled[(val > 0) & (val < 1)] = self.mu + self.scale\
-                * np.log(val[(val > 0) & (val < 1)] / (1. - val[(val > 0) & (val < 1)]))
+            return rescaled[0]
         return rescaled
 
     def prob(self, val):
@@ -1243,17 +1244,16 @@ class Gamma(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
+        val_array = np.atleast_1d(val)
+        ln_prob = -np.inf * np.ones(len(val_array))
+        idx = (val_array >= self.minimum)
+        ln_prob[idx] = \
+            xlogy(self.k - 1, val_array[idx]) - val_array[idx] / self.theta \
+            - xlogy(self.k, self.theta) - gammaln(self.k)
+
         if isinstance(val, (float, int)):
-            if val < self.minimum:
-                _ln_prob = -np.inf
-            else:
-                _ln_prob = xlogy(self.k - 1, val) - val / self.theta - xlogy(self.k, self.theta) - gammaln(self.k)
-        else:
-            _ln_prob = -np.inf * np.ones(len(val))
-            idx = (val >= self.minimum)
-            _ln_prob[idx] = xlogy(self.k - 1, val[idx]) - val[idx] / self.theta\
-                - xlogy(self.k, self.theta) - gammaln(self.k)
-        return _ln_prob
+            return ln_prob[0]
+        return ln_prob
 
     def cdf(self, val):
         if isinstance(val, (float, int)):
