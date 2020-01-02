@@ -153,7 +153,7 @@ class PriorDict(dict):
                 args = '('.join(val.split('(')[1:])[:-1]
                 try:
                     prior[key] = DeltaFunction(peak=float(cls))
-                    logger.debug("{} converted ot DeltaFunction prior".format(
+                    logger.debug("{} converted to DeltaFunction prior".format(
                         key))
                     continue
                 except ValueError:
