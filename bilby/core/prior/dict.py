@@ -1,3 +1,4 @@
+from copy import deepcopy
 from importlib import import_module
 from io import open as ioopen
 import json
@@ -22,7 +23,7 @@ class PriorDict(dict):
 
         Parameters
         ----------
-        dictionary: Union[dict, str, None]
+        dictionary: Union[str, dict, None]
             If given, a dictionary to generate the prior set.
         filename: Union[str, None]
             If given, a file containing the prior to generate the prior set.
@@ -33,7 +34,7 @@ class PriorDict(dict):
         super(PriorDict, self).__init__()
         if isinstance(dictionary, dict):
             self.from_dictionary(dictionary)
-        elif type(dictionary) is str:
+        elif isinstance(dictionary, str):
             logger.debug('Argument "dictionary" is a string.' +
                          ' Assuming it is intended as a file name.')
             self.from_file(dictionary)
@@ -331,7 +332,9 @@ class PriorDict(dict):
                 logger.debug('{} not a known prior.'.format(key))
         return samples
 
-    def sample_subset_constrained(self, keys=iter([]), size=None):
+    def sample_subset_constrained(self, keys=None, size=None):
+        if keys is None:
+            keys = []
         if size is None or size == 1:
             while True:
                 sample = self.sample_subset(keys=keys, size=size)
@@ -455,7 +458,7 @@ class PriorDict(dict):
         for key in self:
             if isinstance(self[key], Constraint):
                 continue
-            temp = self.copy()
+            temp = deepcopy(self)
             del temp[key]
             if temp.test_redundancy(key, disable_logging=True):
                 logger.warning('{} is a redundant key in this {}.'
