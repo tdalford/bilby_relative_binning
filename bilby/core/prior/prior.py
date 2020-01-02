@@ -16,8 +16,8 @@ from scipy.special import erf, erfinv, xlogy, log1p,\
 from matplotlib.cbook import flatten
 
 # Keep import bilby statement, it is necessary for some eval() statements
-from .utils import BilbyJsonEncoder, decode_bilby_json, infer_parameters_from_function
-from .utils import (
+from ..utils import BilbyJsonEncoder, decode_bilby_json, infer_parameters_from_function
+from ..utils import (
     check_directory_exists_and_if_not_mkdir,
     infer_args_from_method, logger
 )
