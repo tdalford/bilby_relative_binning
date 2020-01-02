@@ -107,7 +107,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: Union[float, int, list, np.ndarray]
 
         Returns
         -------
@@ -163,7 +163,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: Union[float, int, np.ndarray, list]
 
         Raises
         -------
