@@ -2,7 +2,7 @@ import numpy as np
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
 
-from .base import consistent_type_use, Prior
+from .base import consistent_type_use, Prior, valid_rescale_check
 from bilby.core.utils import logger
 
 
@@ -82,13 +82,13 @@ class Interped(Prior):
         return self.cumulative_distribution(val)
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the prior.
 
         This maps to the inverse CDF. This is done using interpolation.
         """
-        self.test_valid_for_rescaling(val)
         return self.inverse_cumulative_distribution(val)
 
     @property

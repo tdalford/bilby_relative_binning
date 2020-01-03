@@ -3,7 +3,7 @@ from scipy.special import erfinv
 from scipy.special._ufuncs import xlogy, erf, log1p, stdtrit, gammaln, stdtr, \
     btdtri, betaln, btdtr, gammaincinv, gammainc
 
-from .base import Prior, consistent_type_use
+from .base import consistent_type_use, Prior, valid_rescale_check
 from bilby.core.utils import logger
 
 
@@ -30,6 +30,7 @@ class DeltaFunction(Prior):
         self._is_fixed = True
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """Rescale everything to the peak with the correct shape.
 
@@ -41,7 +42,6 @@ class DeltaFunction(Prior):
         -------
         float: Rescaled probability, equivalent to peak
         """
-        self.test_valid_for_rescaling(val)
         return self.peak * val ** 0
 
     @consistent_type_use
@@ -94,6 +94,7 @@ class PowerLaw(Prior):
         self.alpha = alpha
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the power-law prior.
@@ -109,7 +110,6 @@ class PowerLaw(Prior):
         -------
         Union[float, array_like]: Rescaled probability
         """
-        self.test_valid_for_rescaling(val)
         if self.alpha == -1:
             return self.minimum * np.exp(val * np.log(self.maximum / self.minimum))
         else:
@@ -196,6 +196,7 @@ class Uniform(Prior):
                                       boundary=boundary)
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the power-law prior.
@@ -211,7 +212,6 @@ class Uniform(Prior):
         -------
         Union[float, array_like]: Rescaled probability
         """
-        self.test_valid_for_rescaling(val)
         return self.minimum + val * (self.maximum - self.minimum)
 
     @consistent_type_use
@@ -308,6 +308,7 @@ class SymmetricLogUniform(Prior):
                                                   boundary=boundary)
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the power-law prior.
@@ -323,14 +324,12 @@ class SymmetricLogUniform(Prior):
         -------
         Union[float, array_like]: Rescaled probability
         """
-        self.test_valid_for_rescaling(val)
-        val_array = np.atleast_1d(val)
-        vals_less_than_5 = val_array < 0.5
-        rescaled = np.empty_like(val_array)
-        rescaled[vals_less_than_5] = -self.maximum * np.exp(-2 * val_array[vals_less_than_5] *
+        vals_less_than_5 = val < 0.5
+        rescaled = np.empty_like(val)
+        rescaled[vals_less_than_5] = -self.maximum * np.exp(-2 * val[vals_less_than_5] *
                                                             np.log(self.maximum / self.minimum))
         rescaled[~vals_less_than_5] = self.minimum * np.exp(np.log(self.maximum / self.minimum) *
-                                                            (2 * val_array[~vals_less_than_5] - 1))
+                                                            (2 * val[~vals_less_than_5] - 1))
         return rescaled
 
     @consistent_type_use
@@ -389,13 +388,13 @@ class Cosine(Prior):
                                      minimum=minimum, maximum=maximum, boundary=boundary)
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to a uniform in cosine prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         norm = 1 / (np.sin(self.maximum) - np.sin(self.minimum))
         return np.arcsin(val / norm + np.sin(self.minimum))
 
@@ -446,13 +445,13 @@ class Sine(Prior):
                                    minimum=minimum, maximum=maximum, boundary=boundary)
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to a uniform in sine prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         norm = 1 / (np.cos(self.minimum) - np.cos(self.maximum))
         return np.arccos(np.cos(self.minimum) - val / norm)
 
@@ -503,6 +502,7 @@ class Gaussian(Prior):
         self.sigma = sigma
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Gaussian prior.
@@ -513,7 +513,6 @@ class Gaussian(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return self.mu + erfinv(2 * val - 1) * 2 ** 0.5 * self.sigma
 
     @consistent_type_use
@@ -598,16 +597,15 @@ class TruncatedGaussian(Prior):
             (self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) / 2
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate truncated Gaussian prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
-        val_array = np.atleast_1d(val)
         return \
-            erfinv(2 * val_array * self.normalisation + erf((self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) \
+            erfinv(2 * val * self.normalisation + erf((self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) \
             * 2 ** 0.5 * self.sigma + self.mu
 
     @consistent_type_use
@@ -695,15 +693,14 @@ class LogNormal(Prior):
         self.sigma = sigma
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate LogNormal prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
-        val_array = np.atleast_1d(val)
-        return np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val_array - 1))
+        return np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val - 1))
 
     @consistent_type_use
     def prob(self, val):
@@ -790,13 +787,13 @@ class Exponential(Prior):
         self.mu = mu
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Exponential prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        super().rescale(val)
         return -self.mu * log1p(-val)
 
     @consistent_type_use
@@ -883,13 +880,13 @@ class StudentT(Prior):
         self.scale = scale
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Student's t-prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         rescaled = stdtrit(self.df, val) * self.scale + self.mu
         rescaled[val == 0] = -np.inf
         rescaled[val == 1] = np.inf
@@ -969,13 +966,13 @@ class Beta(Prior):
         self.beta = beta
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Beta prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return btdtri(self.alpha, self.beta, val) * (self.maximum - self.minimum) + self.minimum
 
     @consistent_type_use
@@ -1057,13 +1054,13 @@ class Logistic(Prior):
         self.scale = scale
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Logistic prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         rescaled = np.inf * np.ones(len(val))
         rescaled[val == 0] = -np.inf
         rescaled[(val > 0) & (val < 1)] = \
@@ -1135,13 +1132,13 @@ class Cauchy(Prior):
         self.beta = beta
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Cauchy prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         rescaled = self.alpha + self.beta * np.tan(np.pi * (val - 0.5))
         rescaled[val == 1] = np.inf
         rescaled[val == 0] = -np.inf
@@ -1215,13 +1212,13 @@ class Gamma(Prior):
         self.theta = theta
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Gamma prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
         return gammaincinv(self.k, val) * self.theta
 
     @consistent_type_use
@@ -1353,6 +1350,7 @@ class FermiDirac(Prior):
                              "must be positive.")
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Fermi-Dirac prior.
@@ -1370,8 +1368,6 @@ class FermiDirac(Prior):
         .. [1] M. Pitkin, M. Isi, J. Veitch & G. Woan, `arXiv:1705.08978v1
            <https:arxiv.org/abs/1705.08978v1>`_, 2017.
         """
-        self.test_valid_for_rescaling(val)
-
         inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r)) ** -val +
                np.exp(-1. * self.r) * (1. + np.exp(self.r)) ** -val)
 

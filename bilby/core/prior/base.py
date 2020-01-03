@@ -19,6 +19,12 @@ def consistent_type_use(func):
         return res
     return wrapper
 
+def valid_rescale_check(func):
+    def wrapper(obj, val):
+        obj.test_valid_for_rescaling(val)
+        return func(val)
+    return wrapper
+
 
 class Prior(object):
     _default_latex_labels = {}
@@ -94,6 +100,7 @@ class Prior(object):
         return self.least_recently_sampled
 
     @consistent_type_use
+    @valid_rescale_check
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the prior.
@@ -110,7 +117,6 @@ class Prior(object):
         array_like
 
         """
-        self.test_valid_for_rescaling(val)
         return np.full(len(val), np.nan)
 
     @consistent_type_use
