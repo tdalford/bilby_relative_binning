@@ -23,7 +23,7 @@ def consistent_type_use(func):
 def valid_rescale_check(func):
     def wrapper(obj, val):
         obj.test_valid_for_rescaling(val)
-        return func(val)
+        return func(obj, val)
     return wrapper
 
 
