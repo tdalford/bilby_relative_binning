@@ -3,7 +3,7 @@ from scipy.special import erfinv
 from scipy.special._ufuncs import xlogy, erf, log1p, stdtrit, gammaln, stdtr, \
     btdtri, betaln, btdtr, gammaincinv, gammainc
 
-from .base import Prior
+from .base import Prior, consitent_type_use
 from bilby.core.utils import logger
 
 
@@ -29,6 +29,7 @@ class DeltaFunction(Prior):
         self.peak = peak
         self._is_fixed = True
 
+    @consitent_type_use
     def rescale(self, val):
         """Rescale everything to the peak with the correct shape.
 
@@ -43,6 +44,7 @@ class DeltaFunction(Prior):
         self.test_valid_for_rescaling(val)
         return self.peak * val ** 0
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val
 
@@ -58,6 +60,7 @@ class DeltaFunction(Prior):
         at_peak = (val == self.peak)
         return np.nan_to_num(np.multiply(at_peak, np.inf))
 
+    @consitent_type_use
     def cdf(self, val):
         return np.ones_like(val) * (val > self.peak)
 
@@ -90,6 +93,7 @@ class PowerLaw(Prior):
                                        boundary=boundary)
         self.alpha = alpha
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the power-law prior.
@@ -112,6 +116,7 @@ class PowerLaw(Prior):
             return (self.minimum ** (1 + self.alpha) + val *
                     (self.maximum ** (1 + self.alpha) - self.minimum ** (1 + self.alpha))) ** (1. / (1 + self.alpha))
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val
 
@@ -130,6 +135,7 @@ class PowerLaw(Prior):
                                  (self.maximum ** (1 + self.alpha) -
                                   self.minimum ** (1 + self.alpha))) * self.is_in_prior_range(val)
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Return the logarithmic prior probability of val
 
@@ -151,16 +157,17 @@ class PowerLaw(Prior):
         return (self.alpha * np.nan_to_num(np.log(val)) + np.log(normalising)) + np.log(
             1. * self.is_in_prior_range(val))
 
+    @consitent_type_use
     def cdf(self, val):
         if self.alpha == -1:
-            _cdf = (np.log(val / self.minimum) /
+            cdf = (np.log(val / self.minimum) /
                     np.log(self.maximum / self.minimum))
         else:
-            _cdf = np.atleast_1d(val ** (self.alpha + 1) - self.minimum ** (self.alpha + 1)) / \
+            cdf = np.atleast_1d(val ** (self.alpha + 1) - self.minimum ** (self.alpha + 1)) / \
                 (self.maximum ** (self.alpha + 1) - self.minimum ** (self.alpha + 1))
-        _cdf = np.minimum(_cdf, 1)
-        _cdf = np.maximum(_cdf, 0)
-        return _cdf
+        cdf = np.minimum(cdf, 1)
+        cdf = np.maximum(cdf, 0)
+        return cdf
 
 
 class Uniform(Prior):
@@ -188,6 +195,7 @@ class Uniform(Prior):
                                       minimum=minimum, maximum=maximum, unit=unit,
                                       boundary=boundary)
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the power-law prior.
@@ -206,6 +214,7 @@ class Uniform(Prior):
         self.test_valid_for_rescaling(val)
         return self.minimum + val * (self.maximum - self.minimum)
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val
 
@@ -219,6 +228,7 @@ class Uniform(Prior):
         """
         return ((val >= self.minimum) & (val <= self.maximum)) / (self.maximum - self.minimum)
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Return the log prior probability of val
 
@@ -232,11 +242,12 @@ class Uniform(Prior):
         """
         return xlogy(1, (val >= self.minimum) & (val <= self.maximum)) - xlogy(1, self.maximum - self.minimum)
 
+    @consitent_type_use
     def cdf(self, val):
-        _cdf = (val - self.minimum) / (self.maximum - self.minimum)
-        _cdf = np.minimum(_cdf, 1)
-        _cdf = np.maximum(_cdf, 0)
-        return _cdf
+        cdf = (val - self.minimum) / (self.maximum - self.minimum)
+        cdf = np.minimum(cdf, 1)
+        cdf = np.maximum(cdf, 0)
+        return cdf
 
 
 class LogUniform(PowerLaw):
@@ -296,6 +307,7 @@ class SymmetricLogUniform(Prior):
                                                   minimum=minimum, maximum=maximum, unit=unit,
                                                   boundary=boundary)
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the power-law prior.
@@ -319,11 +331,9 @@ class SymmetricLogUniform(Prior):
                                                             np.log(self.maximum / self.minimum))
         rescaled[~vals_less_than_5] = self.minimum * np.exp(np.log(self.maximum / self.minimum) *
                                                             (2 * val_array[~vals_less_than_5] - 1))
-
-        if isinstance(val, (float, int)):
-            return rescaled[0]
         return rescaled
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val
 
@@ -338,6 +348,7 @@ class SymmetricLogUniform(Prior):
         return (np.nan_to_num(0.5 / np.abs(val) / np.log(self.maximum / self.minimum)) *
                 self.is_in_prior_range(val))
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Return the logarithmic prior probability of val
 
@@ -377,6 +388,7 @@ class Cosine(Prior):
         super(Cosine, self).__init__(name=name, latex_label=latex_label, unit=unit,
                                      minimum=minimum, maximum=maximum, boundary=boundary)
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to a uniform in cosine prior.
@@ -387,6 +399,7 @@ class Cosine(Prior):
         norm = 1 / (np.sin(self.maximum) - np.sin(self.minimum))
         return np.arcsin(val / norm + np.sin(self.minimum))
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val. Defined over [-pi/2, pi/2].
 
@@ -400,12 +413,12 @@ class Cosine(Prior):
         """
         return np.cos(val) / 2 * self.is_in_prior_range(val)
 
+    @consitent_type_use
     def cdf(self, val):
-        _cdf = np.atleast_1d((np.sin(val) - np.sin(self.minimum)) /
-                             (np.sin(self.maximum) - np.sin(self.minimum)))
-        _cdf[val > self.maximum] = 1
-        _cdf[val < self.minimum] = 0
-        return _cdf
+        cdf = (np.sin(val) - np.sin(self.minimum)) / (np.sin(self.maximum) - np.sin(self.minimum))
+        cdf[val > self.maximum] = 1
+        cdf[val < self.minimum] = 0
+        return cdf
 
 
 class Sine(Prior):
@@ -432,6 +445,7 @@ class Sine(Prior):
         super(Sine, self).__init__(name=name, latex_label=latex_label, unit=unit,
                                    minimum=minimum, maximum=maximum, boundary=boundary)
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to a uniform in sine prior.
@@ -442,6 +456,7 @@ class Sine(Prior):
         norm = 1 / (np.cos(self.minimum) - np.cos(self.maximum))
         return np.arccos(np.cos(self.minimum) - val / norm)
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val. Defined over [0, pi].
 
@@ -455,12 +470,12 @@ class Sine(Prior):
         """
         return np.sin(val) / 2 * self.is_in_prior_range(val)
 
+    @consitent_type_use
     def cdf(self, val):
-        _cdf = np.atleast_1d((np.cos(val) - np.cos(self.minimum)) /
-                             (np.cos(self.maximum) - np.cos(self.minimum)))
-        _cdf[val > self.maximum] = 1
-        _cdf[val < self.minimum] = 0
-        return _cdf
+        cdf = (np.cos(val) - np.cos(self.minimum)) / (np.cos(self.maximum) - np.cos(self.minimum))
+        cdf[val > self.maximum] = 1
+        cdf[val < self.minimum] = 0
+        return cdf
 
 
 class Gaussian(Prior):
@@ -487,6 +502,7 @@ class Gaussian(Prior):
         self.mu = mu
         self.sigma = sigma
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Gaussian prior.
@@ -498,12 +514,9 @@ class Gaussian(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-        val_array = np.atleast_1d(val)
-        rescaled = self.mu + erfinv(2 * val_array - 1) * 2 ** 0.5 * self.sigma
-        if isinstance(val, (float, int)):
-            return rescaled[0]
-        return rescaled
+        return self.mu + erfinv(2 * val - 1) * 2 ** 0.5 * self.sigma
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -517,6 +530,7 @@ class Gaussian(Prior):
         """
         return np.exp(-(self.mu - val) ** 2 / (2 * self.sigma ** 2)) / (2 * np.pi) ** 0.5 / self.sigma
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Return the Log prior probability of val.
 
@@ -531,6 +545,7 @@ class Gaussian(Prior):
 
         return -0.5 * ((self.mu - val) ** 2 / self.sigma ** 2 + np.log(2 * np.pi * self.sigma ** 2))
 
+    @consitent_type_use
     def cdf(self, val):
         return (1 - erf((self.mu - val) / 2 ** 0.5 / self.sigma)) / 2
 
@@ -582,6 +597,7 @@ class TruncatedGaussian(Prior):
         return (erf((self.maximum - self.mu) / 2 ** 0.5 / self.sigma) - erf(
             (self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) / 2
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate truncated Gaussian prior.
@@ -590,13 +606,11 @@ class TruncatedGaussian(Prior):
         """
         self.test_valid_for_rescaling(val)
         val_array = np.atleast_1d(val)
-        rescaled = \
+        return \
             erfinv(2 * val_array * self.normalisation + erf((self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) \
             * 2 ** 0.5 * self.sigma + self.mu
-        if isinstance(val, (float, int)):
-            return rescaled[0]
-        return rescaled
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -611,12 +625,13 @@ class TruncatedGaussian(Prior):
         return np.exp(-(self.mu - val) ** 2 / (2 * self.sigma ** 2)) / (2 * np.pi) ** 0.5 \
             / self.sigma / self.normalisation * self.is_in_prior_range(val)
 
+    @consitent_type_use
     def cdf(self, val):
-        _cdf = (erf((val - self.mu) / 2 ** 0.5 / self.sigma) - erf(
+        cdf = (erf((val - self.mu) / 2 ** 0.5 / self.sigma) - erf(
             (self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) / 2 / self.normalisation
-        _cdf[val > self.maximum] = 1
-        _cdf[val < self.minimum] = 0
-        return _cdf
+        cdf[val > self.maximum] = 1
+        cdf[val < self.minimum] = 0
+        return cdf
 
 
 class TruncatedNormal(TruncatedGaussian):
@@ -679,6 +694,7 @@ class LogNormal(Prior):
         self.mu = mu
         self.sigma = sigma
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate LogNormal prior.
@@ -687,11 +703,9 @@ class LogNormal(Prior):
         """
         self.test_valid_for_rescaling(val)
         val_array = np.atleast_1d(val)
-        rescaled = np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val_array - 1))
-        if isinstance(val, (float, int)):
-            return rescaled[0]
-        return rescaled
+        return np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val_array - 1))
 
+    @consitent_type_use
     def prob(self, val):
         """Returns the prior probability of val.
 
@@ -708,10 +722,9 @@ class LogNormal(Prior):
         idx = (val_array > self.minimum)
         prob[idx] = np.exp(-(np.log(val_array[idx]) - self.mu) ** 2 /
                            self.sigma ** 2 / 2) / np.sqrt(2 * np.pi) / val_array[idx] / self.sigma
-        if isinstance(val, (float, int)):
-            return prob[0]
         return prob
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Returns the log prior probability of val.
 
@@ -729,10 +742,9 @@ class LogNormal(Prior):
         ln_prob[idx] = \
             -(np.log(val_array[idx]) - self.mu) ** 2 / self.sigma ** 2 \
             / 2 - np.log(np.sqrt(2 * np.pi) * val_array[idx] * self.sigma)
-        if isinstance(val, (float, int)):
-            return ln_prob[0]
         return ln_prob
 
+    @consitent_type_use
     def cdf(self, val):
         """Returns the cdf probability of val.
 
@@ -749,8 +761,6 @@ class LogNormal(Prior):
         cdf = np.zeros(len(val_array))
         cdf[val_array > self.minimum] = 0.5 + erf((np.log(val_array[val_array > self.minimum]) - self.mu) /
                                                   self.sigma / np.sqrt(2)) / 2
-        if isinstance(val, (float, int)):
-            return cdf[0]
         return cdf
 
 
@@ -779,15 +789,17 @@ class Exponential(Prior):
                                           unit=unit, boundary=boundary)
         self.mu = mu
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Exponential prior.
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        self.test_valid_for_rescaling(val)
+        super().rescale(val)
         return -self.mu * log1p(-val)
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -799,13 +811,11 @@ class Exponential(Prior):
         -------
         Union[float, np.ndarray]: Prior probability of val
         """
-        val_array = np.atleast_1d(val)
-        prob = np.zeros(len(val_array))
-        prob[val_array >= self.minimum] = np.exp(-val_array[val_array >= self.minimum] / self.mu) / self.mu
-        if isinstance(val, (float, int)):
-            return prob[0]
+        prob = np.zeros(len(val))
+        prob[val >= self.minimum] = np.exp(-val[val >= self.minimum] / self.mu) / self.mu
         return prob
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Returns the log prior probability of val.
 
@@ -817,13 +827,11 @@ class Exponential(Prior):
         -------
         Union[float, np.ndarray]: Prior probability of val
         """
-        val_array = np.atleast_1d(val)
-        ln_prob = -np.inf * np.ones(len(val_array))
-        ln_prob[val >= self.minimum] = -val_array[val_array >= self.minimum] / self.mu - np.log(self.mu)
-        if isinstance(val, (float, int)):
-            return ln_prob[0]
+        ln_prob = -np.inf * np.ones(len(val))
+        ln_prob[val >= self.minimum] = -val[val >= self.minimum] / self.mu - np.log(self.mu)
         return ln_prob
 
+    @consitent_type_use
     def cdf(self, val):
         """Returns the cdf probability of val.
 
@@ -835,11 +843,8 @@ class Exponential(Prior):
         -------
         Union[float, np.ndarray]: Prior probability of val
         """
-        val_array = np.atleast_1d(val)
-        cdf = np.zeros(len(val_array))
-        cdf[val_array >= self.minimum] = 1. - np.exp(-val_array[val_array >= self.minimum] / self.mu)
-        if isinstance(val, (float, int)):
-            return cdf[0]
+        cdf = np.zeros(len(val))
+        cdf[val >= self.minimum] = 1. - np.exp(-val[val >= self.minimum] / self.mu)
         return cdf
 
 
