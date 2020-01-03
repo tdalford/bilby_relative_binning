@@ -2,7 +2,7 @@ import numpy as np
 import scipy.stats
 from scipy.special import erfinv
 
-from .base import Prior, PriorException
+from .base import consistent_type_use, Prior, PriorException
 from bilby.core.utils import logger, infer_args_from_method
 
 
@@ -147,6 +147,7 @@ class BaseJointPriorDist(object):
                           for key in instantiation_dict])
         return "{}({})".format(dist_name, args)
 
+    @consistent_type_use
     def prob(self, samp):
         """
         Get the probability of a sample. For bounded priors the
@@ -191,6 +192,7 @@ class BaseJointPriorDist(object):
                 break
         return samp, outbounds
 
+    @consistent_type_use
     def ln_prob(self, value):
         """
         Get the log-probability of a sample. For bounded priors the
@@ -207,10 +209,7 @@ class BaseJointPriorDist(object):
         samp, outbounds = self._check_samp(value)
         lnprob = -np.inf * np.ones(samp.shape[0])
         lnprob = self._ln_prob(samp, lnprob, outbounds)
-        if samp.shape[0] == 1:
-            return lnprob[0]
-        else:
-            return lnprob
+        return lnprob
 
     def _ln_prob(self, samp, lnprob, outbounds):
         """

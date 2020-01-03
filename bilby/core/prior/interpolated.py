@@ -89,10 +89,7 @@ class Interped(Prior):
         This maps to the inverse CDF. This is done using interpolation.
         """
         self.test_valid_for_rescaling(val)
-        rescaled = self.inverse_cumulative_distribution(val)
-        if rescaled.shape == ():
-            rescaled = float(rescaled)
-        return rescaled
+        return self.inverse_cumulative_distribution(val)
 
     @property
     def minimum(self):
