@@ -126,18 +126,29 @@ class Prior(object):
 
         Parameters
         ----------
-        val: Union[float, int, list, np.ndarray]
+        val: array_like
 
         Returns
         -------
-        np.nan
+        array_like
 
         """
         return np.full(len(val), np.nan)
 
     @consistent_type_use
     def cdf(self, val):
-        """ Generic method to calculate CDF, can be overwritten in subclass """
+        """ Generic method to calculate the cumulative distribution function,
+        can be overwritten in subclass .
+
+        Parameters
+        ----------
+        val: array_like
+
+        Returns
+        -------
+        array_like
+
+        """
         if np.any(np.isinf([self.minimum, self.maximum])):
             raise ValueError(
                 "Unable to use the generic CDF calculation for priors with"
@@ -155,11 +166,11 @@ class Prior(object):
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: array_like
 
         Returns
         -------
-        np.nan
+        array_like
 
         """
         return np.log(self.prob(val))
@@ -169,11 +180,11 @@ class Prior(object):
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: array_like
 
         Returns
         -------
-        np.nan
+        array_like
 
         """
         return (val >= self.minimum) & (val <= self.maximum)
@@ -184,7 +195,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: Union[float, int, np.ndarray, list]
+        val: array_like
 
         Raises
         -------

@@ -69,16 +69,26 @@ class Interped(Prior):
 
         Parameters
         ----------
-        val:  Union[float, int, array_like]
+        val:  array_like
 
         Returns
         -------
-         Union[float, array_like]: Prior probability of val
+        array_like: Prior probability of val
         """
         return self.probability_density(val)
 
     @consistent_type_use
     def cdf(self, val):
+        """ Return the CDF probability of val
+
+        Parameters
+        ----------
+        val: array_like
+
+        Returns
+        -------
+        array_like: The CDF probability
+        """
         return self.cumulative_distribution(val)
 
     @consistent_type_use
@@ -86,8 +96,17 @@ class Interped(Prior):
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the prior.
-
         This maps to the inverse CDF. This is done using interpolation.
+
+        Parameters
+        ----------
+        val: array_like
+            Uniform probability
+
+        Returns
+        -------
+        array_like: Rescaled probability
+
         """
         return self.inverse_cumulative_distribution(val)
 
