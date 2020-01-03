@@ -2,7 +2,7 @@ import numpy as np
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
 
-from .base import Prior
+from .base import consistent_type_use, Prior
 from bilby.core.utils import logger
 
 
@@ -63,6 +63,7 @@ class Interped(Prior):
             return True
         return False
 
+    @consistent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -76,9 +77,11 @@ class Interped(Prior):
         """
         return self.probability_density(val)
 
+    @consistent_type_use
     def cdf(self, val):
         return self.cumulative_distribution(val)
 
+    @consistent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the prior.

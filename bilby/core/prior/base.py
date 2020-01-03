@@ -11,7 +11,7 @@ from scipy.interpolate import interp1d
 from bilby.core.utils import infer_args_from_method, BilbyJsonEncoder, decode_bilby_json, logger
 
 
-def consitent_type_use(func):
+def consistent_type_use(func):
     def wrapper(val):
         res = func(np.atleast_1d(val))
         if isinstance(val, (float, int)):
@@ -93,7 +93,7 @@ class Prior(object):
         self.least_recently_sampled = self.rescale(np.random.uniform(0, 1, size))
         return self.least_recently_sampled
 
-    @consitent_type_use
+    @consistent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the prior.
@@ -113,7 +113,7 @@ class Prior(object):
         self.test_valid_for_rescaling(val)
         return None
 
-    @consitent_type_use
+    @consistent_type_use
     def prob(self, val):
         """Return the prior probability of val, this should be overwritten
 
@@ -128,7 +128,7 @@ class Prior(object):
         """
         return np.nan
 
-    @consitent_type_use
+    @consistent_type_use
     def cdf(self, val):
         """ Generic method to calculate CDF, can be overwritten in subclass """
         if np.any(np.isinf([self.minimum, self.maximum])):
@@ -142,7 +142,7 @@ class Prior(object):
                           fill_value=(0, 1))
         return interp(val)
 
-    @consitent_type_use
+    @consistent_type_use
     def ln_prob(self, val):
         """Return the prior ln probability of val, this should be overwritten
 
@@ -449,11 +449,11 @@ class Constraint(Prior):
                                          latex_label=latex_label, unit=unit)
         self._is_fixed = True
 
-    @consitent_type_use
+    @consistent_type_use
     def prob(self, val):
         return (val > self.minimum) & (val < self.maximum)
 
-    @consitent_type_use
+    @consistent_type_use
     def ln_prob(self, val):
         return np.log((val > self.minimum) & (val < self.maximum))
 
