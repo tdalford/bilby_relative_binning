@@ -497,9 +497,12 @@ class Gaussian(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        val = np.atleast_1d(val)
         self.test_valid_for_rescaling(val)
-        return self.mu + erfinv(2 * val - 1) * 2 ** 0.5 * self.sigma
+        val_array = np.atleast_1d(val)
+        rescaled = self.mu + erfinv(2 * val_array - 1) * 2 ** 0.5 * self.sigma
+        if isinstance(val, (float, int)):
+            return rescaled[0]
+        return rescaled
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -586,8 +589,13 @@ class TruncatedGaussian(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-        return erfinv(2 * val * self.normalisation + erf(
-            (self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) * 2 ** 0.5 * self.sigma + self.mu
+        val_array = np.atleast_1d(val)
+        rescaled = \
+            erfinv(2 * val_array * self.normalisation + erf((self.minimum - self.mu) / 2 ** 0.5 / self.sigma)) \
+            * 2 ** 0.5 * self.sigma + self.mu
+        if isinstance(val, (float, int)):
+            return rescaled[0]
+        return rescaled
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -677,9 +685,12 @@ class LogNormal(Prior):
 
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
-        val = np.atleast_1d(val)
         self.test_valid_for_rescaling(val)
-        return np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val - 1))
+        val_array = np.atleast_1d(val)
+        rescaled = np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val_array - 1))
+        if isinstance(val, (float, int)):
+            return rescaled[0]
+        return rescaled
 
     def prob(self, val):
         """Returns the prior probability of val.
