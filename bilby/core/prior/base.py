@@ -19,6 +19,7 @@ def consistent_type_use(func):
         return res
     return wrapper
 
+
 def valid_rescale_check(func):
     def wrapper(obj, val):
         obj.test_valid_for_rescaling(val)
@@ -109,7 +110,7 @@ class Prior(object):
 
         Parameters
         ----------
-        val: Union[float, int, array_like]
+        val: array_like
             A random number between 0 and 1
 
         Returns

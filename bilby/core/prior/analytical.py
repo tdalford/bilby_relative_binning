@@ -714,11 +714,10 @@ class LogNormal(Prior):
         -------
         Union[float, np.ndarray]: Prior probability of val
         """
-        val_array = np.atleast_1d(val)
-        prob = np.zeros(len(val_array))
-        idx = (val_array > self.minimum)
-        prob[idx] = np.exp(-(np.log(val_array[idx]) - self.mu) ** 2 /
-                           self.sigma ** 2 / 2) / np.sqrt(2 * np.pi) / val_array[idx] / self.sigma
+        prob = np.zeros(len(val))
+        idx = (val > self.minimum)
+        prob[idx] = np.exp(-(np.log(val[idx]) - self.mu) ** 2 /
+                           self.sigma ** 2 / 2) / np.sqrt(2 * np.pi) / val[idx] / self.sigma
         return prob
 
     @consistent_type_use
@@ -733,12 +732,11 @@ class LogNormal(Prior):
         -------
         Union[float, np.ndarray]: Prior probability of val
         """
-        val_array = np.atleast_1d(val)
-        ln_prob = -np.inf * np.ones(len(val_array))
-        idx = (val_array > self.minimum)
+        ln_prob = -np.inf * np.ones(len(val))
+        idx = (val > self.minimum)
         ln_prob[idx] = \
-            -(np.log(val_array[idx]) - self.mu) ** 2 / self.sigma ** 2 \
-            / 2 - np.log(np.sqrt(2 * np.pi) * val_array[idx] * self.sigma)
+            -(np.log(val[idx]) - self.mu) ** 2 / self.sigma ** 2 \
+            / 2 - np.log(np.sqrt(2 * np.pi) * val[idx] * self.sigma)
         return ln_prob
 
     @consistent_type_use
@@ -754,9 +752,8 @@ class LogNormal(Prior):
         Union[float, np.ndarray]: Prior probability of val
         """
 
-        val_array = np.atleast_1d(val)
-        cdf = np.zeros(len(val_array))
-        cdf[val_array > self.minimum] = 0.5 + erf((np.log(val_array[val_array > self.minimum]) - self.mu) /
+        cdf = np.zeros(len(val))
+        cdf[val > self.minimum] = 0.5 + erf((np.log(val[val > self.minimum]) - self.mu) /
                                                   self.sigma / np.sqrt(2)) / 2
         return cdf
 
@@ -1256,9 +1253,8 @@ class Gamma(Prior):
 
     @consistent_type_use
     def cdf(self, val):
-        val_array = np.atleast_1d(val)
-        cdf = np.zeros(len(val_array))
-        cdf[val_array >= self.minimum] = gammainc(self.k, val_array[val_array >= self.minimum] / self.theta)
+        cdf = np.zeros(len(val))
+        cdf[val >= self.minimum] = gammainc(self.k, val[val >= self.minimum] / self.theta)
 
         if isinstance(val, (float, int)):
             return cdf[0]
