@@ -181,8 +181,9 @@ class PowerLaw(Prior):
         """
 
         if self.alpha == -1:
-            cdf = (np.log(val / self.minimum) /
-                    np.log(self.maximum / self.minimum))
+            cdf = \
+                (np.log(val / self.minimum) /
+                 np.log(self.maximum / self.minimum))
         else:
             cdf = np.atleast_1d(val ** (self.alpha + 1) - self.minimum ** (self.alpha + 1)) / \
                 (self.maximum ** (self.alpha + 1) - self.minimum ** (self.alpha + 1))
@@ -858,8 +859,8 @@ class LogNormal(Prior):
         array_like: The CDF probability
         """
         cdf = np.zeros(len(val))
-        cdf[val > self.minimum] = 0.5 + erf((np.log(val[val > self.minimum]) - self.mu) /
-                                                  self.sigma / np.sqrt(2)) / 2
+        cdf[val > self.minimum] = \
+            0.5 + erf((np.log(val[val > self.minimum]) - self.mu) / self.sigma / np.sqrt(2)) / 2
         return cdf
 
 
