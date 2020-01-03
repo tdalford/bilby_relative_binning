@@ -882,6 +882,7 @@ class StudentT(Prior):
         self.mu = mu
         self.scale = scale
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Student's t-prior.
@@ -889,15 +890,12 @@ class StudentT(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-        val_array = np.atleast_1d(val)
-        rescaled = stdtrit(self.df, val_array) * self.scale + self.mu
-        rescaled[val_array == 0] = -np.inf
-        rescaled[val_array == 1] = np.inf
-
-        if isinstance(val, (float, int)):
-            return rescaled[0]
+        rescaled = stdtrit(self.df, val) * self.scale + self.mu
+        rescaled[val == 0] = -np.inf
+        rescaled[val == 1] = np.inf
         return rescaled
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -911,6 +909,7 @@ class StudentT(Prior):
         """
         return np.exp(self.ln_prob(val))
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Returns the log prior probability of val.
 
@@ -926,6 +925,7 @@ class StudentT(Prior):
             - np.log(np.sqrt(np.pi * self.df) * self.scale) - (self.df + 1) / 2 *\
             np.log(1 + ((val - self.mu) / self.scale) ** 2 / self.df)
 
+    @consitent_type_use
     def cdf(self, val):
         return stdtr(self.df, (val - self.mu) / self.scale)
 
@@ -968,6 +968,7 @@ class Beta(Prior):
         self.alpha = alpha
         self.beta = beta
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Beta prior.
@@ -977,6 +978,7 @@ class Beta(Prior):
         self.test_valid_for_rescaling(val)
         return btdtri(self.alpha, self.beta, val) * (self.maximum - self.minimum) + self.minimum
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -990,6 +992,7 @@ class Beta(Prior):
         """
         return np.exp(self.ln_prob(val))
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Returns the log prior probability of val.
 
@@ -1006,24 +1009,21 @@ class Beta(Prior):
 
         # deal with the fact that if alpha or beta are < 1 you get infinities at 0 and 1
         if isinstance(val, np.ndarray):
-            _ln_prob_sub = -np.inf * np.ones(len(val))
+            ln_prob_sub = -np.inf * np.ones(len(val))
             idx = np.isfinite(ln_prob) & (val >= self.minimum) & (val <= self.maximum)
-            _ln_prob_sub[idx] = ln_prob[idx]
-            return _ln_prob_sub
+            ln_prob_sub[idx] = ln_prob[idx]
+            return ln_prob_sub
         else:
             if np.isfinite(ln_prob) and self.minimum <= val <= self.maximum:
                 return ln_prob
             return -np.inf
 
+    @consitent_type_use
     def cdf(self, val):
-        val_array = np.atleast_1d(val)
         cdf = np.nan_to_num(btdtr(self.alpha, self.beta,
-                                  (val_array - self.minimum) / (self.maximum - self.minimum)))
-        cdf[val_array < self.minimum] = 0.
-        cdf[val_array > self.maximum] = 1.
-
-        if isinstance(val, (float, int)):
-            return cdf[0]
+                                  (val - self.minimum) / (self.maximum - self.minimum)))
+        cdf[val < self.minimum] = 0.
+        cdf[val > self.maximum] = 1.
         return cdf
 
 
@@ -1056,6 +1056,7 @@ class Logistic(Prior):
         self.mu = mu
         self.scale = scale
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Logistic prior.
@@ -1063,17 +1064,14 @@ class Logistic(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-        val_array = np.atleast_1d(val)
-        rescaled = np.inf * np.ones(len(val_array))
-        rescaled[val_array == 0] = -np.inf
-        rescaled[(val_array > 0) & (val_array < 1)] = \
-            self.mu + self.scale * np.log(val_array[(val_array > 0) & (val_array < 1)] /
-                                          (1. - val_array[(val_array > 0) & (val_array < 1)]))
-
-        if isinstance(val, (float, int)):
-            return rescaled[0]
+        rescaled = np.inf * np.ones(len(val))
+        rescaled[val == 0] = -np.inf
+        rescaled[(val > 0) & (val < 1)] = \
+            self.mu + self.scale * np.log(val[(val > 0) & (val < 1)] /
+                                          (1. - val[(val > 0) & (val < 1)]))
         return rescaled
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -1087,6 +1085,7 @@ class Logistic(Prior):
         """
         return np.exp(self.ln_prob(val))
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Returns the log prior probability of val.
 
@@ -1101,6 +1100,7 @@ class Logistic(Prior):
         return -(val - self.mu) / self.scale -\
             2. * np.log(1. + np.exp(-(val - self.mu) / self.scale)) - np.log(self.scale)
 
+    @consitent_type_use
     def cdf(self, val):
         return 1. / (1. + np.exp(-(val - self.mu) / self.scale))
 
@@ -1134,6 +1134,7 @@ class Cauchy(Prior):
         self.alpha = alpha
         self.beta = beta
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Cauchy prior.
@@ -1141,14 +1142,12 @@ class Cauchy(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-        val_array = np.atleast_1d(val)
-        rescaled = self.alpha + self.beta * np.tan(np.pi * (val_array - 0.5))
-        rescaled[val_array == 1] = np.inf
-        rescaled[val_array == 0] = -np.inf
-        if isinstance(val, (float, int)):
-            return rescaled[0]
+        rescaled = self.alpha + self.beta * np.tan(np.pi * (val - 0.5))
+        rescaled[val == 1] = np.inf
+        rescaled[val == 0] = -np.inf
         return rescaled
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -1162,6 +1161,7 @@ class Cauchy(Prior):
         """
         return 1. / self.beta / np.pi / (1. + ((val - self.alpha) / self.beta) ** 2)
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Return the log prior probability of val.
 
@@ -1175,6 +1175,7 @@ class Cauchy(Prior):
         """
         return - np.log(self.beta * np.pi) - np.log(1. + ((val - self.alpha) / self.beta) ** 2)
 
+    @consitent_type_use
     def cdf(self, val):
         return 0.5 + np.arctan((val - self.alpha) / self.beta) / np.pi
 
@@ -1213,6 +1214,7 @@ class Gamma(Prior):
         self.k = k
         self.theta = theta
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Gamma prior.
@@ -1222,6 +1224,7 @@ class Gamma(Prior):
         self.test_valid_for_rescaling(val)
         return gammaincinv(self.k, val) * self.theta
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -1235,6 +1238,7 @@ class Gamma(Prior):
         """
         return np.exp(self.ln_prob(val))
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Returns the log prior probability of val.
 
@@ -1246,17 +1250,14 @@ class Gamma(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-        val_array = np.atleast_1d(val)
-        ln_prob = -np.inf * np.ones(len(val_array))
-        idx = (val_array >= self.minimum)
+        ln_prob = -np.inf * np.ones(len(val))
+        idx = (val >= self.minimum)
         ln_prob[idx] = \
-            xlogy(self.k - 1, val_array[idx]) - val_array[idx] / self.theta \
+            xlogy(self.k - 1, val[idx]) - val[idx] / self.theta \
             - xlogy(self.k, self.theta) - gammaln(self.k)
-
-        if isinstance(val, (float, int)):
-            return ln_prob[0]
         return ln_prob
 
+    @consitent_type_use
     def cdf(self, val):
         val_array = np.atleast_1d(val)
         cdf = np.zeros(len(val_array))
@@ -1351,6 +1352,7 @@ class FermiDirac(Prior):
             raise ValueError("For the Fermi-Dirac prior the values of sigma and r "
                              "must be positive.")
 
+    @consitent_type_use
     def rescale(self, val):
         """
         'Rescale' a sample from the unit line element to the appropriate Fermi-Dirac prior.
@@ -1369,21 +1371,18 @@ class FermiDirac(Prior):
            <https:arxiv.org/abs/1705.08978v1>`_, 2017.
         """
         self.test_valid_for_rescaling(val)
-        val_array = np.atleast_1d(val)
 
-        inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r)) ** -val_array +
-               np.exp(-1. * self.r) * (1. + np.exp(self.r)) ** -val_array)
+        inv = (-np.exp(-1. * self.r) + (1. + np.exp(self.r)) ** -val +
+               np.exp(-1. * self.r) * (1. + np.exp(self.r)) ** -val)
 
         # if val is 1 this will cause inv to be negative (due to numerical
         # issues), so return np.inf
         idx = inv >= 0.
-        tmpinv = np.inf * np.ones(len(np.atleast_1d(val_array)))
+        tmpinv = np.inf * np.ones(len(val))
         tmpinv[idx] = -self.sigma * np.log(inv[idx])
-
-        if isinstance(val, (float, int)):
-            return tmpinv[0]
         return tmpinv
 
+    @consitent_type_use
     def prob(self, val):
         """Return the prior probability of val.
 
@@ -1397,6 +1396,7 @@ class FermiDirac(Prior):
         """
         return np.exp(self.ln_prob(val))
 
+    @consitent_type_use
     def ln_prob(self, val):
         """Return the log prior probability of val.
 
@@ -1408,12 +1408,8 @@ class FermiDirac(Prior):
         -------
         Union[float, array_like]: Log prior probability of val
         """
-        val_array = np.atleast_1d(val)
         norm = -np.log(self.sigma * np.log(1. + np.exp(self.r)))
-        lnp = -np.inf * np.ones(len(val_array))
-        idx = val_array >= self.minimum
-        lnp[idx] = norm - np.logaddexp((val_array[idx] / self.sigma) - self.r, 0.)
-
-        if isinstance(val, (float, int)):
-            return lnp[0]
+        lnp = -np.inf * np.ones(len(val))
+        idx = val >= self.minimum
+        lnp[idx] = norm - np.logaddexp((val[idx] / self.sigma) - self.r, 0.)
         return lnp
