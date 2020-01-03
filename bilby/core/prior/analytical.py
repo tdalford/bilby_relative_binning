@@ -1141,15 +1141,10 @@ class Beta(Prior):
             - betaln(self.alpha, self.beta) - xlogy(self.alpha + self.beta - 1, self.maximum - self.minimum)
 
         # deal with the fact that if alpha or beta are < 1 you get infinities at 0 and 1
-        if isinstance(val, np.ndarray):
-            ln_prob_sub = -np.inf * np.ones(len(val))
-            idx = np.isfinite(ln_prob) & (val >= self.minimum) & (val <= self.maximum)
-            ln_prob_sub[idx] = ln_prob[idx]
-            return ln_prob_sub
-        else:
-            if np.isfinite(ln_prob) and self.minimum <= val <= self.maximum:
-                return ln_prob
-            return -np.inf
+        ln_prob_sub = -np.inf * np.ones(len(val))
+        idx = np.isfinite(ln_prob) & (val >= self.minimum) & (val <= self.maximum)
+        ln_prob_sub[idx] = ln_prob[idx]
+        return ln_prob_sub
 
     @consistent_type_use
     def cdf(self, val):
@@ -1438,7 +1433,7 @@ class Gamma(Prior):
         -------
         array_like: Log Prior probability of val
         """
-        ln_prob = -np.inf * np.ones(len(val))
+        ln_prob = np.full(len(val), -np.inf)
         idx = (val >= self.minimum)
         ln_prob[idx] = \
             xlogy(self.k - 1, val[idx]) - val[idx] / self.theta \
@@ -1459,9 +1454,6 @@ class Gamma(Prior):
         """
         cdf = np.zeros(len(val))
         cdf[val >= self.minimum] = gammainc(self.k, val[val >= self.minimum] / self.theta)
-
-        if isinstance(val, (float, int)):
-            return cdf[0]
         return cdf
 
 
