@@ -3,6 +3,7 @@ import scipy.stats
 from scipy.special import erfinv
 
 from .base import consistent_type_use, Prior, PriorException
+from .utils import get_instantiation_dict
 from bilby.core.utils import logger, infer_args_from_method
 
 
@@ -112,20 +113,7 @@ class BaseJointPriorDist(object):
             self.rescale_parameters[name] = None
 
     def get_instantiation_dict(self):
-        subclass_args = infer_args_from_method(self.__init__)
-        property_names = [p for p in dir(self.__class__)
-                          if isinstance(getattr(self.__class__, p), property)]
-        dict_with_properties = self.__dict__.copy()
-        for key in property_names:
-            dict_with_properties[key] = getattr(self, key)
-        instantiation_dict = dict()
-        for key in subclass_args:
-            if isinstance(dict_with_properties[key], list):
-                value = np.asarray(dict_with_properties[key]).tolist()
-            else:
-                value = dict_with_properties[key]
-            instantiation_dict[key] = value
-        return instantiation_dict
+        return get_instantiation_dict(self)
 
     def __len__(self):
         return len(self.names)

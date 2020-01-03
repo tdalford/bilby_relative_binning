@@ -8,6 +8,7 @@ import scipy.stats
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
 
+from .utils import get_instantiation_dict
 from bilby.core.utils import infer_args_from_method, BilbyJsonEncoder, decode_bilby_json, logger
 
 
@@ -302,16 +303,7 @@ class Prior(object):
         self._maximum = maximum
 
     def get_instantiation_dict(self):
-        subclass_args = infer_args_from_method(self.__init__)
-        property_names = [p for p in dir(self.__class__)
-                          if isinstance(getattr(self.__class__, p), property)]
-        dict_with_properties = self.__dict__.copy()
-        for key in property_names:
-            dict_with_properties[key] = getattr(self, key)
-        instantiation_dict = dict()
-        for key in subclass_args:
-            instantiation_dict[key] = dict_with_properties[key]
-        return instantiation_dict
+        return get_instantiation_dict(self)
 
     @property
     def boundary(self):
