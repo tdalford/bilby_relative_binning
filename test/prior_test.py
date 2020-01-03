@@ -33,7 +33,7 @@ class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
         self.assertEqual(self.prior.sample(), self.prior())
 
     def test_base_rescale_method(self):
-        self.assertIsNone(self.prior.rescale(1))
+        self.assertTrue(np.isnan(self.prior.rescale(1)))
 
     def test_base_repr(self):
         """

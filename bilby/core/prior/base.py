@@ -12,8 +12,8 @@ from bilby.core.utils import infer_args_from_method, BilbyJsonEncoder, decode_bi
 
 
 def consistent_type_use(func):
-    def wrapper(val):
-        res = func(np.atleast_1d(val))
+    def wrapper(obj, val):
+        res = func(obj, np.atleast_1d(val))
         if isinstance(val, (float, int)):
             return res[0]
         return res
@@ -107,11 +107,11 @@ class Prior(object):
 
         Returns
         -------
-        None
+        array_like
 
         """
         self.test_valid_for_rescaling(val)
-        return None
+        return np.full(len(val), np.nan)
 
     @consistent_type_use
     def prob(self, val):
@@ -126,7 +126,7 @@ class Prior(object):
         np.nan
 
         """
-        return np.nan
+        return np.full(len(val), np.nan)
 
     @consistent_type_use
     def cdf(self, val):
