@@ -4,7 +4,7 @@ from scipy.special import erfinv
 
 from .base import consistent_type_use, Prior, PriorException
 from .utils import get_instantiation_dict
-from bilby.core.utils import logger, infer_args_from_method
+from bilby.core.utils import logger
 
 
 class BaseJointPriorDist(object):
