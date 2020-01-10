@@ -1,0 +1,5 @@
+#!/bin/bash
+swig -python -py3 seobnre.i
+gcc -m64 -fPIC -c -O2 -I/home/$USER/anaconda3/include/python3.6m -I/usr/local/include Panyi_elip.c Panyicomm_elip.c PNwaveformPRD544813.c seobnre.c seobnre_wrap.c
+gcc -m64 -shared -lpython3.6m Panyi_elip.o Panyicomm_elip.o PNwaveformPRD544813.o seobnre.o seobnre_wrap.o -L/home/$USER/anaconda3/lib -L/usr/local/lib -I/home/$USER/anaconda3/include/python3.6m -I/usr/local/include -o _seobnre.so -lgsl -lgslcblas -lm -fPIC
+python setup.py build_ext --inplace -I/home/$USER/anaconda3/include -I/usr/local/include -L/home/$USER/anaconda3/lib -L/usr/local/lib -lgsl -lgslcblas -lm -pedantic -lpython3.6m

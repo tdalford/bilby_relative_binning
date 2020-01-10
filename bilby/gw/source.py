@@ -1,6 +1,8 @@
 from __future__ import division, print_function
 
 import numpy as np
+from .pycentricity.waveform import seobnre_bbh_with_spin_and_eccentricity
+from .pycentricity.overlap import process_signal, wrap_at_maximum
 
 from ..core import utils
 from ..core.utils import logger
@@ -176,6 +178,31 @@ def lal_binary_neutron_star(
         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_12=phi_12,
         phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2, **waveform_kwargs)
+
+
+def lal_eccentric_binary_black_hole_with_spins(
+        time_array, mass_1, mass_2, eccentricity, luminosity_distance, theta_jn, phase,
+        psi, chi_1, chi_2, geocent_time, ra, dec, **kwargs):
+    # Set default waveform kwargs
+    waveform_kwargs = dict(
+        waveform_approximant='SEOBNRE', duration=4, reference_frequency=10.0,
+        minimum_frequency=10.0, maximum_frequency=2048, sampling_frequency=4096)
+    # Update waveform kwargs
+    waveform_kwargs.update(kwargs)
+    # Set up the parameters
+    parameters = dict(mass_1=mass_1, mass_2=mass_2, eccentricity=eccentricity, 
+                      luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase, psi=psi, 
+                      chi_1=chi_1, chi_2=chi_2, geocent_time=geocent_time, ra=ra, dec=dec)
+    # Make the basic waveform
+    waveform = seobnre_bbh_with_spin_and_eccentricity(parameters, sampling_frequency=waveform_kwargs['sampling_frequency'], 
+                                                      minimum_frequency=waveform_kwargs['minimum_frequency'])
+    # Now make sure it's the right length
+    length = waveform_kwargs['sampling_frequency'] * waveform_kwargs['duration']
+    waveform = process_signal(waveform, length)
+    # Wrap at the end to bring the coalescence to the end of the time series
+    coalescence_index = len(waveform['plus']) - 1
+    waveform, _ = wrap_at_maximum(waveform, coalescence_index)
+    return waveform
 
 
 def lal_eccentric_binary_black_hole_no_spins(
