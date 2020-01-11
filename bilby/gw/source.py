@@ -197,7 +197,7 @@ def lal_eccentric_binary_black_hole_with_spins(
     waveform = seobnre_bbh_with_spin_and_eccentricity(parameters, sampling_frequency=waveform_kwargs['sampling_frequency'], 
                                                       minimum_frequency=waveform_kwargs['minimum_frequency'])
     # Now make sure it's the right length
-    length = waveform_kwargs['sampling_frequency'] * waveform_kwargs['duration']
+    length = int(waveform_kwargs['sampling_frequency'] * waveform_kwargs['duration'])
     waveform = process_signal(waveform, length)
     # Wrap at the end to bring the coalescence to the end of the time series
     coalescence_index = len(waveform['plus']) - 1
