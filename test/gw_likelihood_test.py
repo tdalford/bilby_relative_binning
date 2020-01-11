@@ -45,7 +45,7 @@ class TestBasicGWTransient(unittest.TestCase):
         """Test log likelihood matches precomputed value"""
         self.likelihood.log_likelihood()
         self.assertAlmostEqual(self.likelihood.log_likelihood(),
-                               -4055.25243177871, 3)
+                               -4055.265194950631, 3)
 
     def test_log_likelihood_ratio(self):
         """Test log likelihood ratio returns the correct value"""
@@ -114,7 +114,7 @@ class TestGWTransient(unittest.TestCase):
         """Test log likelihood matches precomputed value"""
         self.likelihood.log_likelihood()
         self.assertAlmostEqual(self.likelihood.log_likelihood(),
-                               -4055.25243177871, 3)
+                               -4055.265194950631, 3)
 
     def test_log_likelihood_ratio(self):
         """Test log likelihood ratio returns the correct value"""
@@ -772,12 +772,6 @@ class TestRescaledROQLikelihood(unittest.TestCase):
 
         scale_factor = 0.5
         params = np.genfromtxt(self.params_file, names=True)
-        params['flow'] *= scale_factor
-        params['fhigh'] *= scale_factor
-        params['seglen'] /= scale_factor
-        params['chirpmassmin'] /= scale_factor
-        params['chirpmassmax'] /= scale_factor
-        params['compmin'] /= scale_factor
 
         self.duration = 4 / scale_factor
         self.sampling_frequency = 2048 * scale_factor
@@ -807,8 +801,9 @@ class TestRescaledROQLikelihood(unittest.TestCase):
 
         self.roq = bilby.gw.likelihood.ROQGravitationalWaveTransient(
             interferometers=ifos, waveform_generator=self.roq_wfg,
-            linear_matrix=linear_matrix_file, roq_params=params,
-            quadratic_matrix=quadratic_matrix_file, priors=self.priors)
+            linear_matrix=linear_matrix_file, roq_params=params, 
+            roq_scale_factor=scale_factor, quadratic_matrix=quadratic_matrix_file,
+            priors=self.priors)
 
 
 class TestBBHLikelihoodSetUp(unittest.TestCase):
