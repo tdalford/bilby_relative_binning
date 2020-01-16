@@ -35,11 +35,6 @@ stages:
           ${script} --help;
       done
 
-# test basic setup on python2
-basic-2.7:
-  <<: *test-python
-  image: python:2.7
-
 # test basic setup on python3
 basic-3.7:
   <<: *test-python
@@ -72,13 +67,13 @@ python-3.7:
       - docs/_build/html/
 
 # test example on python 3.6
-#python-3.6:
-#  stage: test
-#  image: bilbydev/v2-dockerfile-test-suite-python36
-#  script:
-#    - python -m pip install .
-#
-#    - pytest
+python-3.6:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python36
+  script:
+    - python -m pip install .
+
+    - pytest
 
 # Tests run at a fixed schedule rather than on push
 scheduled-python-3.7:
