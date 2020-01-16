@@ -112,8 +112,11 @@ class GravitationalWaveTransient(Likelihood):
 
         if self.time_marginalization:
             self._check_prior_is_set(key='geocent_time')
+            min_time = self.priors["geocent_time"].minimum
+            max_time = self.priors["geocent_time"].maximum
+            self.reference_time = .5 * (min_time + max_time)
             self._setup_time_marginalization()
-            priors['geocent_time'] = float(self.interferometers.start_time)
+            priors['geocent_time'] = float(self.reference_time)
             if self.jitter_time:
                 priors['time_jitter'] = Uniform(
                     minimum=- self._delta_tc / 2, maximum=self._delta_tc / 2,
@@ -382,16 +385,20 @@ class GravitationalWaveTransient(Likelihood):
 
         times = create_time_series(
             sampling_frequency=16384,
-            starting_time=self.parameters['geocent_time'] - self.waveform_generator.start_time,
+            starting_time=self.parameters['geocent_time'] - self.reference_time,
             duration=self.waveform_generator.duration)
         times = times % self.waveform_generator.duration
-        times += self.waveform_generator.start_time
+        print(times)
+        times += self.reference_time
 
         time_prior_array = self.priors['geocent_time'].prob(times)
         time_post = (
             np.exp(time_log_like - max(time_log_like)) * time_prior_array)
 
+        print(len(times), times[0], times[-1])
+        print(len(time_post), time_post)
         keep = (time_post > max(time_post) / 1000)
+        print(keep)
         time_post = time_post[keep]
         times = times[keep]
 
@@ -401,7 +408,7 @@ class GravitationalWaveTransient(Likelihood):
         else:
             raise MarginalizedLikelihoodReconstructionError(
                 "Time posterior reconstruction failed, at least two samples "
-                "are required."
+                "are required. BLAH"
             )
 
     def generate_distance_sample_from_marginalized_likelihood(
@@ -672,7 +679,7 @@ class GravitationalWaveTransient(Likelihood):
     def _setup_time_marginalization(self):
         self._delta_tc = 2 / self.waveform_generator.sampling_frequency
         self._times =\
-            self.interferometers.start_time + np.linspace(
+            self.reference_time + np.linspace(
                 0, self.interferometers.duration,
                 int(self.interferometers.duration / 2 *
                     self.waveform_generator.sampling_frequency + 1))[1:]
