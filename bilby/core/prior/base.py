@@ -32,7 +32,7 @@ class Prior(object):
     _default_latex_labels = {}
 
     def __init__(self, name=None, latex_label=None, unit=None, minimum=-np.inf,
-                 maximum=np.inf, boundary=None, no_rescale_check=False):
+                 maximum=np.inf, boundary=None, check_range_nonzero=True, no_rescale_check=False):
         """ Implements a Prior object
 
         Parameters
@@ -47,17 +47,26 @@ class Prior(object):
             Minimum of the domain, default=-np.inf
         maximum: float, optional
             Maximum of the domain, default=np.inf
+        check_range_nonzero: boolean, optional
+            If True, checks that the prior range is non-zero
         boundary: str, optional
             The boundary condition of the prior, can be 'periodic', 'reflective'
             Currently implemented in cpnest, dynesty and pymultinest.
         no_rescale_check: str, optional
             Skips check if prior value can be rescale. Might speed up things but not all errors will be caught
         """
+        if check_range_nonzero and maximum <= minimum:
+            raise ValueError(
+                "maximum {} <= minimum {} for {} prior on {}".format(
+                    maximum, minimum, type(self).__name__, name
+                )
+            )
         self.name = name
         self.latex_label = latex_label
         self.unit = unit
         self.minimum = minimum
         self.maximum = maximum
+        self.check_range_non_zero = check_range_nonzero
         self.least_recently_sampled = None
         self.boundary = boundary
         self._is_fixed = False
