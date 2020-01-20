@@ -19,7 +19,7 @@ class TestPriorDict(unittest.TestCase):
                            length=self.third_prior)
         self.prior_set_from_dict = bilby.core.prior.PriorDict(dictionary=self.priors)
         self.default_prior_file = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                               'prior_files/binary_black_holes.prior')
+                                               '../prior_files/binary_black_holes.prior')
         self.prior_set_from_file = bilby.core.prior.PriorDict(filename=self.default_prior_file)
 
     def tearDown(self):
