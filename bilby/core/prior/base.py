@@ -132,7 +132,7 @@ class Prior(object):
         array_like
 
         """
-        return np.full(len(val), np.nan)
+        return val*np.nan
 
     @consistent_type_use
     def prob(self, val):
@@ -147,7 +147,7 @@ class Prior(object):
         array_like
 
         """
-        return np.full(len(val), np.nan)
+        return val*np.nan
 
     @consistent_type_use
     def cdf(self, val):
