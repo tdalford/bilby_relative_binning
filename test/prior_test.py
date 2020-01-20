@@ -36,16 +36,11 @@ class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
         self.assertTrue(np.isnan(self.prior.rescale(1)))
 
     def test_base_repr(self):
-        """
-        We compare that the strings contain all of the same characters in not
-        necessarily the same order as python2 doesn't conserve the order of the
-        arguments.
-        """
         self.prior = bilby.core.prior.Prior(name='test_name', latex_label='test_label', minimum=0, maximum=1,
                                             check_range_nonzero=True, boundary=None)
         expected_string = "Prior(name='test_name', latex_label='test_label', unit=None, minimum=0, maximum=1, " \
                           "check_range_nonzero=True, boundary=None)"
-        self.assertTrue(sorted(expected_string) == sorted(self.prior.__repr__()))
+        self.assertTrue(expected_string == self.prior.__repr__())
 
     def test_base_prob(self):
         self.assertTrue(np.isnan(self.prior.prob(5)))
