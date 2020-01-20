@@ -670,6 +670,7 @@ class JointPrior(Prior):
     def minimum(self, minimum):
         self._minimum = minimum
         self.dist.bounds[self.name] = (minimum, self.dist.bounds[self.name][1])
+        self._check_valid_range()
 
     @property
     def maximum(self):
@@ -679,6 +680,7 @@ class JointPrior(Prior):
     def maximum(self, maximum):
         self._maximum = maximum
         self.dist.bounds[self.name] = (self.dist.bounds[self.name][0], maximum)
+        self._check_valid_range()
 
     def rescale(self, val, **kwargs):
         """

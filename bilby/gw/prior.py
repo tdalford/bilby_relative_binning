@@ -112,8 +112,8 @@ class Cosmological(Interped):
                 unit = units.Unit(unit)
             label_args['unit'] = unit
         self.unit = label_args['unit']
-        self._minimum = dict()
-        self._maximum = dict()
+        self._minimum_dict = dict()
+        self._maximum_dict = dict()
         self.minimum = minimum
         self.maximum = maximum
         if name == 'redshift':
@@ -129,61 +129,63 @@ class Cosmological(Interped):
 
     @property
     def minimum(self):
-        return self._minimum[self.name]
+        return self._minimum_dict[self.name]
 
     @minimum.setter
     def minimum(self, minimum):
         cosmology = get_cosmology(self.cosmology)
-        self._minimum[self.name] = minimum
+        self._minimum_dict[self.name] = minimum
         if self.name == 'redshift':
-            self._minimum['luminosity_distance'] =\
+            self._minimum_dict['luminosity_distance'] =\
                 cosmology.luminosity_distance(minimum).value
-            self._minimum['comoving_distance'] =\
+            self._minimum_dict['comoving_distance'] =\
                 cosmology.comoving_distance(minimum).value
         elif self.name == 'luminosity_distance':
             if minimum == 0:
-                self._minimum['redshift'] = 0
+                self._minimum_dict['redshift'] = 0
             else:
-                self._minimum['redshift'] = cosmo.z_at_value(
+                self._minimum_dict['redshift'] = cosmo.z_at_value(
                     cosmology.luminosity_distance, minimum * self.unit)
-            self._minimum['comoving_distance'] = self._minimum['redshift']
+            self._minimum_dict['comoving_distance'] = self._minimum_dict['redshift']
         elif self.name == 'comoving_distance':
             if minimum == 0:
-                self._minimum['redshift'] = 0
+                self._minimum_dict['redshift'] = 0
             else:
-                self._minimum['redshift'] = cosmo.z_at_value(
+                self._minimum_dict['redshift'] = cosmo.z_at_value(
                     cosmology.comoving_distance, minimum * self.unit)
-            self._minimum['luminosity_distance'] = self._minimum['redshift']
+            self._minimum_dict['luminosity_distance'] = self._minimum_dict['redshift']
         try:
             self._update_instance()
         except (AttributeError, KeyError):
             pass
+        self._check_valid_range()
 
     @property
     def maximum(self):
-        return self._maximum[self.name]
+        return self._maximum_dict[self.name]
 
     @maximum.setter
     def maximum(self, maximum):
         cosmology = get_cosmology(self.cosmology)
-        self._maximum[self.name] = maximum
+        self._maximum_dict[self.name] = maximum
         if self.name == 'redshift':
-            self._maximum['luminosity_distance'] = \
+            self._maximum_dict['luminosity_distance'] = \
                 cosmology.luminosity_distance(maximum).value
-            self._maximum['comoving_distance'] = \
+            self._maximum_dict['comoving_distance'] = \
                 cosmology.comoving_distance(maximum).value
         elif self.name == 'luminosity_distance':
-            self._maximum['redshift'] = cosmo.z_at_value(
+            self._maximum_dict['redshift'] = cosmo.z_at_value(
                 cosmology.luminosity_distance, maximum * self.unit)
-            self._maximum['comoving_distance'] = self._maximum['redshift']
+            self._maximum_dict['comoving_distance'] = self._maximum_dict['redshift']
         elif self.name == 'comoving_distance':
-            self._maximum['redshift'] = cosmo.z_at_value(
+            self._maximum_dict['redshift'] = cosmo.z_at_value(
                 cosmology.comoving_distance, maximum * self.unit)
-            self._maximum['luminosity_distance'] = self._maximum['redshift']
+            self._maximum_dict['luminosity_distance'] = self._maximum_dict['redshift']
         try:
             self._update_instance()
         except (AttributeError, KeyError):
             pass
+        self._check_valid_range()
 
     def get_corresponding_prior(self, name=None, unit=None):
         subclass_args = infer_args_from_method(self.__init__)
@@ -195,8 +197,8 @@ class Cosmological(Interped):
 
     def _convert_to(self, new, args_dict):
         args_dict.update(self._default_args_dict[new])
-        args_dict['minimum'] = self._minimum[args_dict['name']]
-        args_dict['maximum'] = self._maximum[args_dict['name']]
+        args_dict['minimum'] = self._minimum_dict[args_dict['name']]
+        args_dict['maximum'] = self._maximum_dict[args_dict['name']]
 
     def _get_comoving_distance_arrays(self):
         zs, p_dz = self._get_redshift_arrays()
@@ -243,8 +245,8 @@ class Cosmological(Interped):
 class UniformComovingVolume(Cosmological):
 
     def _get_redshift_arrays(self):
-        zs = np.linspace(self._minimum['redshift'] * 0.99,
-                         self._maximum['redshift'] * 1.01, 1000)
+        zs = np.linspace(self._minimum_dict['redshift'] * 0.99,
+                         self._maximum_dict['redshift'] * 1.01, 1000)
         p_dz = self.cosmology.differential_comoving_volume(zs).value
         return zs, p_dz
 
@@ -259,8 +261,8 @@ class UniformSourceFrame(Cosmological):
     """
 
     def _get_redshift_arrays(self):
-        zs = np.linspace(self._minimum['redshift'] * 0.99,
-                         self._maximum['redshift'] * 1.01, 1000)
+        zs = np.linspace(self._minimum_dict['redshift'] * 0.99,
+                         self._maximum_dict['redshift'] * 1.01, 1000)
         p_dz = self.cosmology.differential_comoving_volume(zs).value / (1 + zs)
         return zs, p_dz
 
@@ -558,26 +560,26 @@ Prior._default_latex_labels = {
     'mass_1': '$m_1$',
     'mass_2': '$m_2$',
     'total_mass': '$M$',
-    'chirp_mass': '$\mathcal{M}$',
+    'chirp_mass': '$\\mathcal{M}$',
     'mass_ratio': '$q$',
-    'symmetric_mass_ratio': '$\eta$',
+    'symmetric_mass_ratio': '$\\eta$',
     'a_1': '$a_1$',
     'a_2': '$a_2$',
     'tilt_1': '$\\theta_1$',
     'tilt_2': '$\\theta_2$',
-    'cos_tilt_1': '$\cos\\theta_1$',
-    'cos_tilt_2': '$\cos\\theta_2$',
-    'phi_12': '$\Delta\phi$',
-    'phi_jl': '$\phi_{JL}$',
+    'cos_tilt_1': '$\\cos\\theta_1$',
+    'cos_tilt_2': '$\\cos\\theta_2$',
+    'phi_12': '$\\Delta\\phi$',
+    'phi_jl': '$\\phi_{JL}$',
     'luminosity_distance': '$d_L$',
-    'dec': '$\mathrm{DEC}$',
-    'ra': '$\mathrm{RA}$',
-    'iota': '$\iota$',
-    'cos_iota': '$\cos\iota$',
+    'dec': '$\\mathrm{DEC}$',
+    'ra': '$\\mathrm{RA}$',
+    'iota': '$\\iota$',
+    'cos_iota': '$\\cos\\iota$',
     'theta_jn': '$\\theta_{JN}$',
-    'cos_theta_jn': '$\cos\\theta_{JN}$',
-    'psi': '$\psi$',
-    'phase': '$\phi$',
+    'cos_theta_jn': '$\\cos\\theta_{JN}$',
+    'psi': '$\\psi$',
+    'phase': '$\\phi$',
     'geocent_time': '$t_c$',
     'lambda_1': '$\\Lambda_1$',
     'lambda_2': '$\\Lambda_2$',

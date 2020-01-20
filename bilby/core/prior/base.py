@@ -297,13 +297,12 @@ class Prior(object):
         self._check_valid_range()
 
     def _check_valid_range(self):
-        if self._maximum <= self._minimum:
+        if self.maximum <= self.minimum:
             raise IllegalPriorRangeException(
                 "maximum {} <= minimum {} for {} prior on {}".format(
-                    self._maximum, self._minimum, type(self).__name__, self.name
+                    self.maximum, self.minimum, type(self).__name__, self.name
                 )
             )
-
 
     def get_instantiation_dict(self):
         return get_instantiation_dict(self)
