@@ -32,7 +32,7 @@ class Prior(object):
     _default_latex_labels = {}
 
     def __init__(self, name=None, latex_label=None, unit=None, minimum=-np.inf,
-                 maximum=np.inf, boundary=None, check_range_nonzero=True, no_rescale_check=False):
+                 maximum=np.inf, boundary=None, check_range_nonzero=True, rescale_check=True):
         """ Implements a Prior object
 
         Parameters
@@ -52,8 +52,9 @@ class Prior(object):
         boundary: str, optional
             The boundary condition of the prior, can be 'periodic', 'reflective'
             Currently implemented in cpnest, dynesty and pymultinest.
-        no_rescale_check: str, optional
-            Skips check if prior value can be rescale. Might speed up things but not all errors will be caught
+        rescale_check: bool, optional
+            Skips check if prior value can be rescale if False.
+            Might speed up things but not all errors will be caught
         """
         if check_range_nonzero and maximum <= minimum:
             raise ValueError(
@@ -70,7 +71,7 @@ class Prior(object):
         self.least_recently_sampled = None
         self.boundary = boundary
         self._is_fixed = False
-        self.no_rescale_check = no_rescale_check
+        self.rescale_check = rescale_check
 
     def __call__(self):
         """Overrides the __call__ special method. Calls the sample method.
@@ -213,7 +214,7 @@ class Prior(object):
         -------
         ValueError: If val is not between 0 and 1
         """
-        if self.no_rescale_check:
+        if not self.rescale_check:
             return
         valarray = np.atleast_1d(val)
         tests = (valarray < 0) + (valarray > 1)
