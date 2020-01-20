@@ -66,7 +66,7 @@ class Prior(object):
         self.unit = unit
         self.minimum = minimum
         self.maximum = maximum
-        self.check_range_non_zero = check_range_nonzero
+        self.check_range_nonzero = check_range_nonzero
         self.least_recently_sampled = None
         self.boundary = boundary
         self._is_fixed = False
