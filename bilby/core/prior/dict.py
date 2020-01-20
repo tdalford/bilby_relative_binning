@@ -18,7 +18,7 @@ from bilby.core.utils import logger, check_directory_exists_and_if_not_mkdir, Bi
 
 class PriorDict(dict):
     def __init__(self, dictionary=None, filename=None,
-                 conversion_function=None):
+                 conversion_function=None, rescale_check=True):
         """ A set of priors
 
         Parameters
@@ -49,6 +49,8 @@ class PriorDict(dict):
             self.conversion_function = conversion_function
         else:
             self.conversion_function = self.default_conversion_function
+
+        self.rescale_check = rescale_check
 
     def evaluate_constraints(self, sample):
         out_sample = self.conversion_function(sample)
@@ -425,6 +427,20 @@ class PriorDict(dict):
                 keep = np.array(self.evaluate_constraints(sample), dtype=bool)
                 constrained_ln_prob[keep] = ln_prob[keep]
                 return constrained_ln_prob
+
+    @property
+    def rescale_check(self):
+        """Collectively sets the `rescale_check argument for all priors.
+        This is useful if performing this check is a substantial amount
+        of CPU time in the inference run. This may be the case for
+        likelihoods that are very fast to evaluate."""
+        return self._rescale_check
+
+    @rescale_check.setter
+    def rescale_check(self, rescale_check):
+        self._rescale_check = rescale_check
+        for key in self:
+            self[key].rescale_check = rescale_check
 
     def rescale(self, keys, theta):
         """Rescale samples from unit cube to prior
