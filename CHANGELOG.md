@@ -1,5 +1,12 @@
 # All notable changes will be documented in this file
 
+##
+### Added
+- Added an `rescale_check` attribute for `Prior` and `PriorDict` classes. 
+  Setting `rescale_check = False` will skip a safety check in the `Prior.rescale`
+  method. This can substantially speed up runs where this is a bottleneck. (!689)
+- Changed the `_is_fixed` attribute of priors to be the public static constant `IS_FIXED` (!689)
+
 ## [0.6.3] 2020-01-03
 ### Changed
 - Fixed an issue with the ROQ segment scaling (!690)
