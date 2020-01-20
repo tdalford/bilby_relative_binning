@@ -141,6 +141,33 @@ class TestPriorBoundary(unittest.TestCase):
             self.prior.boundary = 'else'
 
 
+class TestPriorValidMinimumMaximum(unittest.TestCase):
+
+    def setUp(self):
+        self.prior_1 = bilby.core.prior.Uniform(minimum=0, maximum=1)
+        self.prior_2 = bilby.core.prior.DeltaFunction(peak=1)
+
+    def tearDown(self):
+        del self.prior_1
+        del self.prior_2
+
+    def test_zero_range_raises_exception(self):
+        with self.assertRaises(bilby.core.prior.IllegalPriorRangeException):
+            self.prior_1.maximum = 0
+
+    def test_negative_range_raises_exception(self):
+        with self.assertRaises(bilby.core.prior.IllegalPriorRangeException):
+            self.prior_1.maximum = -1
+
+    def test_delta_function_zero_range(self):
+        self.prior_2.minimum = self.prior_2.peak
+        self.prior_2.maximum = self.prior_2.peak
+
+    def test_delta_function_negative_range_raises_exception(self):
+        with self.assertRaises(bilby.core.prior.IllegalPriorRangeException):
+            self.prior_2.maximum = -1
+
+
 class TestPriorClasses(unittest.TestCase):
 
     def setUp(self):
