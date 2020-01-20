@@ -860,6 +860,11 @@ class TestPriorDict(unittest.TestCase):
         self.assertListEqual(sorted(expected), sorted(self.prior_set_from_dict.rescale(
             keys=self.prior_set_from_dict.keys(), theta=theta)))
 
+    def test_set_rescale_check(self):
+        self.prior_set_from_dict.rescale_check = False
+        for prior in self.prior_set_from_dict.values():
+            self.assertFalse(prior.rescale_check)
+
     def test_redundancy(self):
         for key in self.prior_set_from_dict.keys():
             self.assertFalse(self.prior_set_from_dict.test_redundancy(key=key))
