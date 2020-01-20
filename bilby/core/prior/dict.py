@@ -440,7 +440,8 @@ class PriorDict(dict):
     def rescale_check(self, rescale_check):
         self._rescale_check = rescale_check
         for key in self:
-            self[key].rescale_check = rescale_check
+            if isinstance(self[key], Prior):
+                self[key].rescale_check = rescale_check
 
     def rescale(self, keys, theta):
         """Rescale samples from unit cube to prior
