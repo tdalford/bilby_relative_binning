@@ -8,6 +8,7 @@ from bilby.core.utils import logger
 
 
 class DeltaFunction(Prior):
+    IS_FIXED = True
 
     def __init__(self, peak, name=None, latex_label=None, unit=None):
         """Dirac delta function prior, this always returns peak.
@@ -27,7 +28,6 @@ class DeltaFunction(Prior):
         super(DeltaFunction, self).__init__(name=name, latex_label=latex_label, unit=unit,
                                             minimum=peak, maximum=peak, check_range_nonzero=False)
         self.peak = peak
-        self._is_fixed = True
 
     @consistent_type_use
     @valid_rescale_check

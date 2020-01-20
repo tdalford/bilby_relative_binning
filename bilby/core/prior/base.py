@@ -30,6 +30,7 @@ def valid_rescale_check(func):
 
 class Prior(object):
     _default_latex_labels = {}
+    IS_FIXED = False
 
     def __init__(self, name=None, latex_label=None, unit=None, minimum=-np.inf,
                  maximum=np.inf, boundary=None, check_range_nonzero=True, rescale_check=True):
@@ -70,7 +71,6 @@ class Prior(object):
         self.check_range_nonzero = check_range_nonzero
         self.least_recently_sampled = None
         self.boundary = boundary
-        self._is_fixed = False
         self.rescale_check = rescale_check
 
     def __call__(self):
@@ -249,20 +249,6 @@ class Prior(object):
         for key in property_names.intersection(subclass_args):
             dict_with_properties[key] = getattr(self, key)
         return {key: dict_with_properties[key] for key in subclass_args}
-
-    @property
-    def is_fixed(self):
-        """
-        Returns True if the prior is fixed and should not be used in the sampler. Does this by checking if this instance
-        is an instance of DeltaFunction.
-
-
-        Returns
-        -------
-        bool: Whether it's fixed or not!
-
-        """
-        return self._is_fixed
 
     @property
     def latex_label(self):
@@ -466,12 +452,12 @@ class Prior(object):
 
 
 class Constraint(Prior):
+    IS_FIXED = True
 
     def __init__(self, minimum, maximum, name=None, latex_label=None,
                  unit=None):
         super(Constraint, self).__init__(minimum=minimum, maximum=maximum, name=name,
                                          latex_label=latex_label, unit=unit)
-        self._is_fixed = True
 
     @consistent_type_use
     def prob(self, val):

@@ -202,7 +202,7 @@ class Sampler(object):
         """
         for key in self.priors:
             if isinstance(self.priors[key], Prior) \
-                    and self.priors[key].is_fixed is False:
+                    and self.priors[key].IS_FIXED is False:
                 self._search_parameter_keys.append(key)
             elif isinstance(self.priors[key], Constraint):
                 self._constraint_parameter_keys.append(key)

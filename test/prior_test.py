@@ -23,7 +23,7 @@ class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
         self.assertIsNone(self.prior.latex_label)
 
     def test_is_fixed(self):
-        self.assertFalse(self.prior.is_fixed)
+        self.assertFalse(self.prior.IS_FIXED)
 
     def test_class_instance(self):
         self.assertIsInstance(self.prior, bilby.core.prior.Prior)
@@ -115,15 +115,15 @@ class TestPriorIsFixed(unittest.TestCase):
 
     def test_is_fixed_parent_class(self):
         self.prior = bilby.core.prior.Prior()
-        self.assertFalse(self.prior.is_fixed)
+        self.assertFalse(self.prior.IS_FIXED)
 
     def test_is_fixed_delta_function_class(self):
         self.prior = bilby.core.prior.DeltaFunction(peak=0)
-        self.assertTrue(self.prior.is_fixed)
+        self.assertTrue(self.prior.IS_FIXED)
 
     def test_is_fixed_uniform_class(self):
         self.prior = bilby.core.prior.Uniform(minimum=0, maximum=10)
-        self.assertFalse(self.prior.is_fixed)
+        self.assertFalse(self.prior.IS_FIXED)
 
 
 class TestPriorBoundary(unittest.TestCase):
