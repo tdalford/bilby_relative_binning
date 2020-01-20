@@ -35,9 +35,9 @@ class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
 
     def test_base_repr(self):
         self.prior = bilby.core.prior.Prior(name='test_name', latex_label='test_label', minimum=0, maximum=1,
-                                            check_range_nonzero=True, boundary=None, rescale_check=True)
+                                            boundary=None, rescale_check=True)
         expected_string = "Prior(name='test_name', latex_label='test_label', unit=None, minimum=0, maximum=1, " \
-                          "boundary=None, check_range_nonzero=True, rescale_check=True)"
+                          "boundary=None, rescale_check=True)"
         self.assertEqual(expected_string, self.prior.__repr__())
 
     def test_base_prob(self):

@@ -3,7 +3,7 @@ from scipy.special import erfinv
 from scipy.special._ufuncs import xlogy, erf, log1p, stdtrit, gammaln, stdtr, \
     btdtri, betaln, btdtr, gammaincinv, gammainc
 
-from .base import consistent_type_use, Prior, valid_rescale_check
+from .base import consistent_type_use, IllegalPriorRangeException, Prior, valid_rescale_check
 from bilby.core.utils import logger
 
 
@@ -26,7 +26,7 @@ class DeltaFunction(Prior):
 
         """
         super(DeltaFunction, self).__init__(name=name, latex_label=latex_label, unit=unit,
-                                            minimum=peak, maximum=peak, check_range_nonzero=False)
+                                            minimum=peak, maximum=peak)
         self.peak = peak
 
     @consistent_type_use
@@ -74,6 +74,14 @@ class DeltaFunction(Prior):
 
         """
         return np.ones_like(val) * (val > self.peak)
+
+    def _check_valid_range(self):
+        if self._maximum != self._minimum:
+            raise IllegalPriorRangeException(
+                "maximum {} != minimum {} for {} prior on {}".format(
+                    self._maximum, self._minimum, type(self).__name__, self.name
+                )
+            )
 
 
 class PowerLaw(Prior):

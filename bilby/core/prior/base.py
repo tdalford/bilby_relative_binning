@@ -33,7 +33,7 @@ class Prior(object):
     IS_FIXED = False
 
     def __init__(self, name=None, latex_label=None, unit=None, minimum=-np.inf,
-                 maximum=np.inf, boundary=None, check_range_nonzero=True, rescale_check=True):
+                 maximum=np.inf, boundary=None, rescale_check=True):
         """ Implements a Prior object
 
         Parameters
@@ -48,8 +48,6 @@ class Prior(object):
             Minimum of the domain, default=-np.inf
         maximum: float, optional
             Maximum of the domain, default=np.inf
-        check_range_nonzero: boolean, optional
-            If True, checks that the prior range is non-zero
         boundary: str, optional
             The boundary condition of the prior, can be 'periodic', 'reflective'
             Currently implemented in cpnest, dynesty and pymultinest.
@@ -57,18 +55,12 @@ class Prior(object):
             Skips check if prior value can be rescale if False.
             Might speed up things but not all errors will be caught
         """
-        if check_range_nonzero and maximum <= minimum:
-            raise ValueError(
-                "maximum {} <= minimum {} for {} prior on {}".format(
-                    maximum, minimum, type(self).__name__, name
-                )
-            )
         self.name = name
         self.latex_label = latex_label
         self.unit = unit
-        self.minimum = minimum
-        self.maximum = maximum
-        self.check_range_nonzero = check_range_nonzero
+        self._minimum = minimum
+        self._maximum = maximum
+        self._check_valid_range()
         self.least_recently_sampled = None
         self.boundary = boundary
         self.rescale_check = rescale_check
@@ -293,6 +285,7 @@ class Prior(object):
     @minimum.setter
     def minimum(self, minimum):
         self._minimum = minimum
+        self._check_valid_range()
 
     @property
     def maximum(self):
@@ -301,6 +294,16 @@ class Prior(object):
     @maximum.setter
     def maximum(self, maximum):
         self._maximum = maximum
+        self._check_valid_range()
+
+    def _check_valid_range(self):
+        if self._maximum <= self._minimum:
+            raise IllegalPriorRangeException(
+                "maximum {} <= minimum {} for {} prior on {}".format(
+                    self._maximum, self._minimum, type(self).__name__, self.name
+                )
+            )
+
 
     def get_instantiation_dict(self):
         return get_instantiation_dict(self)
@@ -470,3 +473,7 @@ class Constraint(Prior):
 
 class PriorException(Exception):
     """ General base class for all prior exceptions """
+
+
+class IllegalPriorRangeException(PriorException):
+    """ Class for exceptions relating to incorrect prior ranges """
