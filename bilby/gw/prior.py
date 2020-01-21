@@ -309,7 +309,9 @@ class AlignedSpin(Interped):
 class CBCPriorDict(PriorDict):
     @property
     def minimum_chirp_mass(self):
-        mass_1, mass_2 = self._get_component_masses(bound='maximum')
+        if "chirp_mass" in self:
+            return getattr(self["chirp_mass"], 'minimum')
+        mass_1, mass_2 = self._get_component_masses(bound='minimum')
         if mass_1 is not None and mass_2 is not None:
             s = generate_mass_parameters(dict(mass_1=mass_1, mass_2=mass_2))
             return s["chirp_mass"]
@@ -319,6 +321,8 @@ class CBCPriorDict(PriorDict):
 
     @property
     def maximum_chirp_mass(self):
+        if "chirp_mass" in self:
+            return getattr(self["chirp_mass"], 'maximum')
         mass_1, mass_2 = self._get_component_masses(bound='maximum')
         if mass_1 is not None and mass_2 is not None:
             s = generate_mass_parameters(dict(mass_1=mass_1, mass_2=mass_2))
@@ -330,9 +334,7 @@ class CBCPriorDict(PriorDict):
     def _get_component_masses(self, bound):
         mass_1 = None
         mass_2 = None
-        if "chirp_mass" in self:
-            return getattr(self["chirp_mass"], bound)
-        elif "mass_1" in self:
+        if "mass_1" in self:
             mass_1 = getattr(self['mass_1'], bound)
             if "mass_2" in self:
                 mass_2 = getattr(self['mass_2'], bound)
