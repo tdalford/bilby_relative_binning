@@ -114,7 +114,7 @@ class Cosmological(Interped):
         self.unit = label_args['unit']
         self._minimum_dict = {self.name: minimum}
         self._maximum_dict = {self.name: maximum}
-        self._check_valid_range()
+        self._force_boundary_update()
         if name == 'redshift':
             xx, yy = self._get_redshift_arrays()
         elif name == 'comoving_distance':
@@ -134,30 +134,9 @@ class Cosmological(Interped):
     def minimum(self, minimum):
         cosmology = get_cosmology(self.cosmology)
         self._minimum_dict[self.name] = minimum
-        if self.name == 'redshift':
-            self._minimum_dict['luminosity_distance'] =\
-                cosmology.luminosity_distance(minimum).value
-            self._minimum_dict['comoving_distance'] =\
-                cosmology.comoving_distance(minimum).value
-        elif self.name == 'luminosity_distance':
-            if minimum == 0:
-                self._minimum_dict['redshift'] = 0
-            else:
-                self._minimum_dict['redshift'] = cosmo.z_at_value(
-                    cosmology.luminosity_distance, minimum * self.unit)
-            self._minimum_dict['comoving_distance'] = self._minimum_dict['redshift']
-        elif self.name == 'comoving_distance':
-            if minimum == 0:
-                self._minimum_dict['redshift'] = 0
-            else:
-                self._minimum_dict['redshift'] = cosmo.z_at_value(
-                    cosmology.comoving_distance, minimum * self.unit)
-            self._minimum_dict['luminosity_distance'] = self._minimum_dict['redshift']
-        try:
-            self._update_instance()
-        except (AttributeError, KeyError):
-            pass
-        self._check_valid_range()
+        self._minimum_dict = self._update_boundary_dict(cosmology=cosmology,
+                                                        boundary_dict=self._minimum_dict,
+                                                        bound=minimum)
 
     @property
     def maximum(self):
@@ -167,24 +146,44 @@ class Cosmological(Interped):
     def maximum(self, maximum):
         cosmology = get_cosmology(self.cosmology)
         self._maximum_dict[self.name] = maximum
+        self._maximum_dict = self._update_boundary_dict(cosmology=cosmology,
+                                                        boundary_dict=self._maximum_dict,
+                                                        bound=maximum)
+
+    def _update_boundary_dict(self, cosmology, boundary_dict, bound):
         if self.name == 'redshift':
-            self._maximum_dict['luminosity_distance'] = \
-                cosmology.luminosity_distance(maximum).value
-            self._maximum_dict['comoving_distance'] = \
-                cosmology.comoving_distance(maximum).value
+            boundary_dict['luminosity_distance'] = \
+                cosmology.luminosity_distance(bound).value
+            boundary_dict['comoving_distance'] = \
+                cosmology.comoving_distance(bound).value
         elif self.name == 'luminosity_distance':
-            self._maximum_dict['redshift'] = cosmo.z_at_value(
-                cosmology.luminosity_distance, maximum * self.unit)
-            self._maximum_dict['comoving_distance'] = self._maximum_dict['redshift']
+            if bound == 0:
+                boundary_dict['redshift'] = 0
+            else:
+                boundary_dict['redshift'] = cosmo.z_at_value(
+                    cosmology.luminosity_distance, bound * self.unit)
+            boundary_dict['comoving_distance'] = boundary_dict['redshift']
         elif self.name == 'comoving_distance':
-            self._maximum_dict['redshift'] = cosmo.z_at_value(
-                cosmology.comoving_distance, maximum * self.unit)
-            self._maximum_dict['luminosity_distance'] = self._maximum_dict['redshift']
+            if bound == 0:
+                boundary_dict['redshift'] = 0
+            else:
+                boundary_dict['redshift'] = cosmo.z_at_value(
+                    cosmology.comoving_distance, bound * self.unit)
+            boundary_dict['luminosity_distance'] = boundary_dict['redshift']
         try:
             self._update_instance()
         except (AttributeError, KeyError):
             pass
         self._check_valid_range()
+        return boundary_dict
+
+    def _force_boundary_update(self):
+        self._minimum_dict = self._update_boundary_dict(cosmology=self.cosmology,
+                                                        boundary_dict=self._minimum_dict,
+                                                        bound=self.minimum)
+        self._maximum_dict = self._update_boundary_dict(cosmology=self.cosmology,
+                                                        boundary_dict=self._maximum_dict,
+                                                        bound=self.maximum)
 
     def get_corresponding_prior(self, name=None, unit=None):
         subclass_args = infer_args_from_method(self.__init__)
