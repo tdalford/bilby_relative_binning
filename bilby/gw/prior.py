@@ -112,10 +112,9 @@ class Cosmological(Interped):
                 unit = units.Unit(unit)
             label_args['unit'] = unit
         self.unit = label_args['unit']
-        self._minimum_dict = dict()
-        self._maximum_dict = dict()
-        self.minimum = minimum
-        self.maximum = maximum
+        self._minimum_dict = {self.name: minimum}
+        self._maximum_dict = {self.name: maximum}
+        self._check_valid_range()
         if name == 'redshift':
             xx, yy = self._get_redshift_arrays()
         elif name == 'comoving_distance':
