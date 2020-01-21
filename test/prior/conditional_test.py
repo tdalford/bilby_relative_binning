@@ -100,8 +100,8 @@ class TestConditionalPrior(unittest.TestCase):
             m.assert_has_calls(calls)
 
     def test_reset_to_reference_parameters(self):
-        self.prior.minimum = 10
         self.prior.maximum = 20
+        self.prior.minimum = 10
         self.prior.reset_to_reference_parameters()
         self.assertEqual(self.prior.reference_params['minimum'], self.prior.minimum)
         self.assertEqual(self.prior.reference_params['maximum'], self.prior.maximum)
