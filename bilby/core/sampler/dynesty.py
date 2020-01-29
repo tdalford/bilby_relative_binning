@@ -330,7 +330,7 @@ class Dynesty(NestedSampler):
         sampler_kwargs['add_live'] = True
         self.start_time = datetime.datetime.now()
         while True:
-            sampler_kwargs['maxcall'] += self.n_check_point
+            # sampler_kwargs['maxcall'] += self.n_check_point
             self._run_nested_wrapper(sampler_kwargs)
             if self.sampler.ncall == old_ncall:
                 break
@@ -559,6 +559,7 @@ def sample_rwalk_bilby(args):
     walks = kwargs.get('walks', 25)  # minimum number of steps
     maxmcmc = kwargs.get('maxmcmc', 2000)  # Maximum number of steps
     nact = kwargs.get('nact', 5)  # Number of ACT
+    old_act = kwargs.get('old_act', walks)
 
     # Initialize internal variables
     accept = 0
@@ -593,8 +594,7 @@ def sample_rwalk_bilby(args):
         drhat /= linalg.norm(drhat)
 
         # Scale based on dimensionality.
-        # dr = drhat * rstate.rand()**(1. / n)  # CHANGED FROM DYNESTY 1.0
-        dr = drhat * rstate.rand(n)
+        dr = drhat * rstate.rand() ** (1. / n)
 
         # Transform to proposal distribution.
         du = np.dot(axes, dr)
@@ -620,12 +620,12 @@ def sample_rwalk_bilby(args):
             continue
 
         # Check if we're stuck generating bad numbers.
-        if nfail > 100 * walks:
-            warnings.warn("Random number generation appears to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nfail = 0
-            scale *= math.exp(-1. / n)
+        # if nfail > 100 * walks:
+        #     warnings.warn("Random number generation appears to be "
+        #                   "extremely inefficient. Adjusting the "
+        #                   "scale-factor accordingly.")
+        #     nfail = 0
+        #     scale *= math.exp(-1. / n)
 
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
@@ -649,7 +649,9 @@ def sample_rwalk_bilby(args):
         # If we've taken the minimum number of steps, calculate the ACT
         if accept + reject > walks:
             act = estimate_nmcmc(
-                accept_ratio=accept / (accept + reject + nfail), maxmcmc=maxmcmc)
+                accept_ratio=accept / (accept + reject + nfail),
+                old_act=old_act, maxmcmc=maxmcmc
+            )
 
         # If we've taken too many likelihood evaluations then break
         if accept + reject > maxmcmc and accept > 0:
@@ -664,11 +666,11 @@ def sample_rwalk_bilby(args):
                 break
 
         # Check if we're stuck generating bad points.
-        if accept + reject > 50 * walks:
-            scale *= math.exp(-1. / n)
-            warnings.warn("Random walk proposals appear to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
+        # if accept + reject > 50 * walks:
+        #     scale *= math.exp(-1. / n)
+        #     warnings.warn("Random walk proposals appear to be "
+        #                   "extremely inefficient. Adjusting the "
+        #                   "scale-factor accordingly.")
 
     # If the act is finite, pick randomly from within the chain
     if np.isfinite(act) and act < len(u_list):
@@ -689,12 +691,13 @@ def sample_rwalk_bilby(args):
         logl = logl_list[idx]
 
     blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
+    kwargs["old_act"] = act
 
     ncall = accept + reject
     return u, v, logl, ncall, blob
 
 
-def estimate_nmcmc(accept_ratio, maxmcmc, safety=5, tau=None):
+def estimate_nmcmc(accept_ratio, old_act, maxmcmc, safety=5, tau=None):
     """ Estimate autocorrelation length of chain using acceptance fraction
 
     Using ACL = (2/acc) - 1 multiplied by a safety margin. Code adapated from
@@ -706,8 +709,8 @@ def estimate_nmcmc(accept_ratio, maxmcmc, safety=5, tau=None):
     ----------
     accept_ratio: float [0, 1]
         Ratio of the number of accepted points to the total number of points
-    minmcmc: int
-        The minimum length of the MCMC chain to use
+    old_act: int
+        The act for the previous step in the chain
     maxmcmc: int
         The maximum length of the MCMC chain to use
     safety: int
@@ -720,12 +723,14 @@ def estimate_nmcmc(accept_ratio, maxmcmc, safety=5, tau=None):
         tau = maxmcmc / safety
 
     if accept_ratio == 0.0:
-        return np.inf
+        Nmcmc_exact = (1.0 + 1.0 / tau) * old_act
     else:
-        Nmcmc_exact = (safety / tau) * (2. / accept_ratio - 1.)
+        Nmcmc_exact = (
+            (1. - 1. / tau) * old_act +
+            (safety / tau) * (2. / accept_ratio - 1.)
+        )
         Nmcmc_exact = float(min(Nmcmc_exact, maxmcmc))
-        Nmcmc = max(safety, int(Nmcmc_exact))
-        return Nmcmc
+    return max(safety, int(Nmcmc_exact))
 
 
 class DynestySetupError(Exception):
