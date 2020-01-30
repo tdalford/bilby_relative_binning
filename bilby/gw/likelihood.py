@@ -15,7 +15,7 @@ except ImportError:
     from scipy.misc import logsumexp
 from scipy.special import i0e
 
-from ..core.likelihood import Likelihood, MarginalizedLikelihoodReconstructionError
+from ..core.likelihood import Likelihood
 from ..core.utils import BilbyJsonEncoder, decode_bilby_json
 from ..core.utils import (
     logger, UnsortedInterp2d, create_frequency_series, create_time_series,
