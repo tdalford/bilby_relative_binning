@@ -1,7 +1,6 @@
 from importlib import import_module
 from io import open as ioopen
 import json
-import numpy as np
 import os
 
 from future.utils import iteritems

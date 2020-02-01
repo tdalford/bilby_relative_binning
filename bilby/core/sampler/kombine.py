@@ -1,4 +1,3 @@
-from __future__ import absolute_import, print_function
 from ..utils import logger, get_progress_bar
 import numpy as np
 import os

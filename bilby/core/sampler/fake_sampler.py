@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import numpy as np
 from .base_sampler import Sampler
 from ..result import read_in_result
