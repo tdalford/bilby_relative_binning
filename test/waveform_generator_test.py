@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import unittest
 import bilby
 import numpy as np

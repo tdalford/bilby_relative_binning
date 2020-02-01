@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import bilby
 from bilby.core import prior
 import unittest
