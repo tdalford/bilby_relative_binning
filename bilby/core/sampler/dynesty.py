@@ -118,6 +118,7 @@ class Dynesty(NestedSampler):
             n_check_point_raw = (check_point_delta_t / self._log_likelihood_eval_time)
             n_check_point_rnd = int(float("{:1.0g}".format(n_check_point_raw)))
             self.n_check_point = n_check_point_rnd
+        self.kwargs["search_parameter_keys"] = self.search_parameter_keys
 
         logger.info("Checkpoint every n_check_point = {}".format(self.n_check_point))
 
@@ -484,7 +485,7 @@ class Dynesty(NestedSampler):
             labels = [label.replace('_', ' ') for label in self.search_parameter_keys]
             filename = "{}/{}_checkpoint_trace.png".format(self.outdir, self.label)
             try:
-                fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
+                fig = dyplot.traceplot(self.sampler.results, labels=labels, connect=True, connect_highlight=3)[0]
                 fig.tight_layout()
                 fig.savefig(filename)
                 plt.close('all')
@@ -497,7 +498,7 @@ class Dynesty(NestedSampler):
         filename = '{}/{}_trace.png'.format(self.outdir, self.label)
         logger.debug("Writing trace plot to {}".format(filename))
         from dynesty import plotting as dyplot
-        fig, axes = dyplot.traceplot(dynesty_results,
+        fig, axes = dyplot.traceplot(dynesty_results, connect=True, connect_highlight=3,
                                      labels=self.result.parameter_labels)
         fig.tight_layout()
         fig.savefig(filename)

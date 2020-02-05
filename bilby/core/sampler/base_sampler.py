@@ -575,14 +575,20 @@ class NestedSampler(Sampler):
         """
 
         idxs = []
+        print_warn = 0
         for ii in range(len(unsorted_loglikelihoods)):
             idx = np.where(np.all(sorted_samples[ii] == unsorted_samples,
                                   axis=1))[0]
             if len(idx) > 1:
-                logger.warning(
-                    "Multiple likelihood matches found between sorted and "
-                    "unsorted samples. Taking the first match.")
+                print_warn += 1
             idxs.append(idx[0])
+
+        if print_warn > 0:
+            logger.warning(
+                "Multiple likelihood matches found between sorted and "
+                "unsorted samples for {} occurance. Taking the first match."
+                .format(print_warn))
+
         return unsorted_loglikelihoods[idxs]
 
     def log_likelihood(self, theta):
