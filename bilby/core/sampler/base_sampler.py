@@ -452,11 +452,14 @@ class Sampler(object):
             True if the likelihood and prior are finite, false otherwise
 
         """
-        if np.isinf(self.log_prior(theta)):
+        not_inf = [np.nan_to_num(-np.inf), np.nan_to_num(np.inf)]
+        log_prior = self.log_prior(theta)
+        if np.isinf(log_prior) or log_prior in not_inf:
             if warning:
                 logger.warning('Prior draw {} has inf prior'.format(theta))
             return False
-        if np.isinf(self.log_likelihood(theta)):
+        log_likelihood = self.log_likelihood(theta)
+        if np.isinf(log_likelihood) or log_likelihood in not_inf:
             if warning:
                 logger.warning('Prior draw {} has inf likelihood'.format(theta))
             return False
