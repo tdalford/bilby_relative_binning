@@ -1,10 +1,21 @@
 import numpy as np
+from bilby.core.utils import logger
 from scipy.special import erfinv
-from scipy.special._ufuncs import xlogy, erf, log1p, stdtrit, gammaln, stdtr, \
-    btdtri, betaln, btdtr, gammaincinv, gammainc
+from scipy.special._ufuncs import (
+    betaln,
+    btdtr,
+    btdtri,
+    erf,
+    gammainc,
+    gammaincinv,
+    gammaln,
+    log1p,
+    stdtr,
+    stdtrit,
+    xlogy,
+)
 
 from .base import Prior
-from bilby.core.utils import logger
 
 
 class DeltaFunction(Prior):
@@ -270,7 +281,7 @@ class SymmetricLogUniform(Prior):
 
     def __init__(self, minimum, maximum, name=None, latex_label=None,
                  unit=None, boundary=None):
-        """Symmetric Log-Uniform distribtions with bounds
+        """Symmetric Log-Uniform distribution with bounds
 
         This is identical to a Log-Uniform distribution, but mirrored about
         the zero-axis and subsequently normalized. As such, the distribution

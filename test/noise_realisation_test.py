@@ -1,7 +1,9 @@
 from __future__ import absolute_import
-import numpy as np
+
 import unittest
+
 import bilby
+import numpy as np
 
 
 class TestNoiseRealisation(unittest.TestCase):
@@ -33,8 +35,8 @@ class TestNoiseRealisation(unittest.TestCase):
         # generate some toy-model signal for matched filtering SNR testing
         n_avg = 1000
         snr = np.zeros(n_avg)
-        mu = (np.exp(-(time_array-duration/2.)**2 / (2.*0.1**2))
-              * np.sin(2 * np.pi * 100 * time_array))
+        mu = (np.exp(-(time_array - duration / 2.)**2 / (2. * 0.1**2)) *
+              np.sin(2 * np.pi * 100 * time_array))
         muf, frequency_array = bilby.core.utils.nfft(mu, sampling_frequency)
         for x in range(0, n_avg):
             interferometer = bilby.gw.detector.get_empty_interferometer('H1')

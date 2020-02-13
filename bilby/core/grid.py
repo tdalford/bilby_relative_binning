@@ -1,15 +1,20 @@
 from __future__ import division
 
-import numpy as np
-import os
 import json
+import os
 from collections import OrderedDict
 
+import numpy as np
+
 from .prior import Prior, PriorDict
-from .utils import (logtrapzexp, check_directory_exists_and_if_not_mkdir,
-                    logger)
-from .utils import BilbyJsonEncoder, decode_bilby_json
 from .result import FileMovedError
+from .utils import (
+    BilbyJsonEncoder,
+    check_directory_exists_and_if_not_mkdir,
+    decode_bilby_json,
+    logger,
+    logtrapzexp,
+)
 
 
 def grid_file_name(outdir, label, gzip=False):

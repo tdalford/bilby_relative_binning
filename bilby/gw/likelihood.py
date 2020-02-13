@@ -1,32 +1,42 @@
 from __future__ import division
 
-import gc
-import os
-import json
 import copy
+import gc
+import json
+import os
+from collections import namedtuple
 
 import numpy as np
 import scipy.integrate as integrate
 from scipy.interpolate import interp1d
+from scipy.special import i0e
+
+from ..core.likelihood import Likelihood
+from ..core.prior import Interped, Prior, Uniform
+from ..core.utils import (
+    BilbyJsonEncoder,
+    UnsortedInterp2d,
+    create_frequency_series,
+    create_time_series,
+    decode_bilby_json,
+    logger,
+    radius_of_earth,
+    speed_of_light,
+)
+from .detector import InterferometerList
+from .prior import BBHPriorDict, CBCPriorDict
+from .source import lal_binary_black_hole
+from .utils import (
+    blockwise_dot_product,
+    build_roq_weights,
+    noise_weighted_inner_product,
+)
+from .waveform_generator import WaveformGenerator
 
 try:
     from scipy.special import logsumexp
 except ImportError:
     from scipy.misc import logsumexp
-from scipy.special import i0e
-
-from ..core.likelihood import Likelihood
-from ..core.utils import BilbyJsonEncoder, decode_bilby_json
-from ..core.utils import (
-    logger, UnsortedInterp2d, create_frequency_series, create_time_series,
-    speed_of_light, radius_of_earth)
-from ..core.prior import Interped, Prior, Uniform
-from .detector import InterferometerList
-from .prior import BBHPriorDict, CBCPriorDict
-from .source import lal_binary_black_hole
-from .utils import noise_weighted_inner_product, build_roq_weights, blockwise_dot_product
-from .waveform_generator import WaveformGenerator
-from collections import namedtuple
 
 
 class GravitationalWaveTransient(Likelihood):
@@ -335,7 +345,7 @@ class GravitationalWaveTransient(Likelihood):
         Generate a single sample from the posterior distribution for coalescence
         time when using a likelihood which explicitly marginalises over time.
 
-        In order to resolve the posterior we artifically upsample to 16kHz.
+        In order to resolve the posterior we artificially upsample to 16kHz.
 
         See Eq. (C29-C32) of https://arxiv.org/abs/1809.02293
 
@@ -1154,7 +1164,7 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         if format is None:
             format = filename.split(".")[-1]
         if format not in ["json", "npz"]:
-            raise IOError("Format {} not recongized.".format(format))
+            raise IOError("Format {} not recognized.".format(format))
         logger.info("Loading ROQ weights from {}".format(filename))
         if format == "json":
             with open(filename, 'r') as file:

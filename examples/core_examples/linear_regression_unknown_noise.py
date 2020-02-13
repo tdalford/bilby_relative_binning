@@ -6,9 +6,10 @@ data with background Gaussian noise with unknown variance.
 
 """
 from __future__ import division
+
 import bilby
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 # A few simple setup steps
 label = 'linear_regression_unknown_noise'

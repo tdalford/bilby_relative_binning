@@ -1,10 +1,9 @@
-from __future__ import division, absolute_import
-import unittest
-import mock
+from __future__ import absolute_import, division
 
-import numpy as np
+import unittest
 
 import bilby
+import numpy as np
 from bilby.gw import conversion
 
 
@@ -13,7 +12,7 @@ class TestBasicConversions(unittest.TestCase):
     def setUp(self):
         self.mass_1 = 1.4
         self.mass_2 = 1.3
-        self.mass_ratio = 13/14
+        self.mass_ratio = 13 / 14
         self.total_mass = 2.7
         self.chirp_mass = (1.4 * 1.3)**0.6 / 2.7**0.2
         self.symmetric_mass_ratio = (1.4 * 1.3) / 2.7**2
@@ -31,14 +30,14 @@ class TestBasicConversions(unittest.TestCase):
             * (self.lambda_1 - self.lambda_2)
         )
         self.delta_lambda_tilde = 1 / 2 * (
-                (1 - 4 * self.symmetric_mass_ratio)**0.5
-                * (1 - 13272 / 1319 * self.symmetric_mass_ratio
-                   + 8944 / 1319 * self.symmetric_mass_ratio**2)
-                * (self.lambda_1 + self.lambda_2)
-                + (1 - 15910 / 1319 * self.symmetric_mass_ratio
-                   + 32850 / 1319 * self.symmetric_mass_ratio**2
-                   + 3380 / 1319 * self.symmetric_mass_ratio**3)
-                * (self.lambda_1 - self.lambda_2)
+            (1 - 4 * self.symmetric_mass_ratio)**0.5
+            * (1 - 13272 / 1319 * self.symmetric_mass_ratio
+               + 8944 / 1319 * self.symmetric_mass_ratio**2)
+            * (self.lambda_1 + self.lambda_2)
+            + (1 - 15910 / 1319 * self.symmetric_mass_ratio
+               + 32850 / 1319 * self.symmetric_mass_ratio**2
+               + 3380 / 1319 * self.symmetric_mass_ratio**3)
+            * (self.lambda_1 - self.lambda_2)
         )
 
     def tearDown(self):
@@ -64,7 +63,8 @@ class TestBasicConversions(unittest.TestCase):
         self.assertAlmostEqual(self.mass_ratio, mass_ratio)
 
     def test_chirp_mass_and_total_mass_to_symmetric_mass_ratio(self):
-        symmetric_mass_ratio = conversion.chirp_mass_and_total_mass_to_symmetric_mass_ratio(self.chirp_mass, self.total_mass)
+        symmetric_mass_ratio = conversion.chirp_mass_and_total_mass_to_symmetric_mass_ratio(
+            self.chirp_mass, self.total_mass)
         self.assertAlmostEqual(self.symmetric_mass_ratio, symmetric_mass_ratio)
 
     def test_chirp_mass_and_mass_ratio_to_total_mass(self):

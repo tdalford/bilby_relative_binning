@@ -1,6 +1,7 @@
-from bilby.gw import calibration
 import unittest
+
 import numpy as np
+from bilby.gw import calibration
 
 
 class TestBaseClass(unittest.TestCase):

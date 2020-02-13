@@ -1,12 +1,13 @@
 from __future__ import absolute_import
-import datetime
-import numpy as np
 
+import datetime
+
+import numpy as np
 from pandas import DataFrame
 
-from ..utils import logger, command_line_args, Counter
-from ..prior import Prior, PriorDict, DeltaFunction, Constraint
+from ..prior import Constraint, DeltaFunction, Prior, PriorDict
 from ..result import Result, read_in_result
+from ..utils import Counter, command_line_args, logger
 
 
 class Sampler(object):

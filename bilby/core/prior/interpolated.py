@@ -1,9 +1,9 @@
 import numpy as np
+from bilby.core.utils import logger
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
 
 from .base import Prior
-from bilby.core.utils import logger
 
 
 class Interped(Prior):

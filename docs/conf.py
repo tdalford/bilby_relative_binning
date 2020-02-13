@@ -18,7 +18,9 @@
 #
 import os
 import sys
+
 import bilby
+
 sys.path.insert(0, os.path.abspath('../bilby/'))
 
 # -- General configuration ------------------------------------------------
@@ -173,5 +175,3 @@ texinfo_documents = [
 ]
 
 numpydoc_show_class_members = False
-
-

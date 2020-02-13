@@ -1,11 +1,13 @@
 from __future__ import absolute_import, division
-import bilby
+
+import os
 import unittest
-from mock import Mock
+
+import bilby
 import mock
 import numpy as np
-import os
 import scipy.stats as ss
+from mock import Mock
 
 
 class TestPriorInstantiationWithoutOptionalPriors(unittest.TestCase):
@@ -164,7 +166,7 @@ class TestPriorClasses(unittest.TestCase):
         hp_map_file = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                    'prior_files/GW150914_testing_skymap.fits')
         hp_dist = bilby.gw.prior.HealPixMapPriorDist(hp_map_file,
-                                                 names=['testra', 'testdec'])
+                                                     names=['testra', 'testdec'])
         hp_3d_dist = bilby.gw.prior.HealPixMapPriorDist(hp_map_file,
                                                         names=['testra', 'testdec', 'testdistance'], distance=True)
 
@@ -207,24 +209,38 @@ class TestPriorClasses(unittest.TestCase):
             bilby.core.prior.MultivariateNormal(dist=mvn, name='testa', unit='unit'),
             bilby.core.prior.MultivariateNormal(dist=mvn, name='testb', unit='unit'),
             bilby.core.prior.ConditionalDeltaFunction(condition_func=condition_func, name='test', unit='unit', peak=1),
-            bilby.core.prior.ConditionalGaussian(condition_func=condition_func, name='test', unit='unit', mu=0, sigma=1),
-            bilby.core.prior.ConditionalPowerLaw(condition_func=condition_func, name='test', unit='unit', alpha=0, minimum=0, maximum=1),
-            bilby.core.prior.ConditionalPowerLaw(condition_func=condition_func, name='test', unit='unit', alpha=-1, minimum=0.5, maximum=1),
-            bilby.core.prior.ConditionalPowerLaw(condition_func=condition_func, name='test', unit='unit', alpha=2, minimum=1, maximum=1e2),
-            bilby.core.prior.ConditionalUniform(condition_func=condition_func, name='test', unit='unit', minimum=0, maximum=1),
-            bilby.core.prior.ConditionalLogUniform(condition_func=condition_func, name='test', unit='unit', minimum=5e0, maximum=1e2),
-            bilby.gw.prior.ConditionalUniformComovingVolume(condition_func=condition_func, name='redshift', minimum=0.1, maximum=1.0),
-            bilby.gw.prior.ConditionalUniformSourceFrame(condition_func=condition_func, name='redshift', minimum=0.1, maximum=1.0),
+            bilby.core.prior.ConditionalGaussian(condition_func=condition_func,
+                                                 name='test', unit='unit', mu=0, sigma=1),
+            bilby.core.prior.ConditionalPowerLaw(condition_func=condition_func,
+                                                 name='test', unit='unit', alpha=0, minimum=0, maximum=1),
+            bilby.core.prior.ConditionalPowerLaw(condition_func=condition_func,
+                                                 name='test', unit='unit', alpha=-1, minimum=0.5, maximum=1),
+            bilby.core.prior.ConditionalPowerLaw(condition_func=condition_func,
+                                                 name='test', unit='unit', alpha=2, minimum=1, maximum=1e2),
+            bilby.core.prior.ConditionalUniform(condition_func=condition_func,
+                                                name='test', unit='unit', minimum=0, maximum=1),
+            bilby.core.prior.ConditionalLogUniform(condition_func=condition_func,
+                                                   name='test', unit='unit', minimum=5e0, maximum=1e2),
+            bilby.gw.prior.ConditionalUniformComovingVolume(
+                condition_func=condition_func, name='redshift', minimum=0.1, maximum=1.0),
+            bilby.gw.prior.ConditionalUniformSourceFrame(
+                condition_func=condition_func, name='redshift', minimum=0.1, maximum=1.0),
             bilby.core.prior.ConditionalSine(condition_func=condition_func, name='test', unit='unit'),
             bilby.core.prior.ConditionalCosine(condition_func=condition_func, name='test', unit='unit'),
-            bilby.core.prior.ConditionalTruncatedGaussian(condition_func=condition_func, name='test', unit='unit', mu=1, sigma=0.4, minimum=-1, maximum=1),
+            bilby.core.prior.ConditionalTruncatedGaussian(
+                condition_func=condition_func, name='test', unit='unit', mu=1, sigma=0.4, minimum=-1, maximum=1),
             bilby.core.prior.ConditionalHalfGaussian(condition_func=condition_func, name='test', unit='unit', sigma=1),
-            bilby.core.prior.ConditionalLogNormal(condition_func=condition_func, name='test', unit='unit', mu=0, sigma=1),
+            bilby.core.prior.ConditionalLogNormal(condition_func=condition_func,
+                                                  name='test', unit='unit', mu=0, sigma=1),
             bilby.core.prior.ConditionalExponential(condition_func=condition_func, name='test', unit='unit', mu=1),
-            bilby.core.prior.ConditionalStudentT(condition_func=condition_func, name='test', unit='unit', df=3, mu=0, scale=1),
-            bilby.core.prior.ConditionalBeta(condition_func=condition_func, name='test', unit='unit', alpha=2.0, beta=2.0),
-            bilby.core.prior.ConditionalLogistic(condition_func=condition_func, name='test', unit='unit', mu=0, scale=1),
-            bilby.core.prior.ConditionalCauchy(condition_func=condition_func, name='test', unit='unit', alpha=0, beta=1),
+            bilby.core.prior.ConditionalStudentT(condition_func=condition_func,
+                                                 name='test', unit='unit', df=3, mu=0, scale=1),
+            bilby.core.prior.ConditionalBeta(condition_func=condition_func, name='test',
+                                             unit='unit', alpha=2.0, beta=2.0),
+            bilby.core.prior.ConditionalLogistic(condition_func=condition_func,
+                                                 name='test', unit='unit', mu=0, scale=1),
+            bilby.core.prior.ConditionalCauchy(condition_func=condition_func,
+                                               name='test', unit='unit', alpha=0, beta=1),
             bilby.core.prior.ConditionalGamma(condition_func=condition_func, name='test', unit='unit', k=1, theta=1),
             bilby.core.prior.ConditionalChiSquared(condition_func=condition_func, name='test', unit='unit', nu=2),
             bilby.gw.prior.HealPixPrior(dist=hp_dist, name='testra', unit='unit'),
@@ -314,7 +330,7 @@ class TestPriorClasses(unittest.TestCase):
                         continue
                 self.assertTrue(all(prior.prob(outside_domain) == 0))
 
-    def test_least_recently_sampled(self):
+    def test_least_recently_sampled_2(self):
         for prior in self.priors:
             lrs = prior.sample()
             self.assertEqual(lrs, prior.least_recently_sampled)
@@ -322,7 +338,7 @@ class TestPriorClasses(unittest.TestCase):
     def test_prob_and_ln_prob(self):
         for prior in self.priors:
             sample = prior.sample()
-            if not bilby.core.prior.JointPrior in prior.__class__.__mro__:
+            if bilby.core.prior.JointPrior in prior.__class__.__mro__ is False:
                 # due to the way that the Multivariate Gaussian prior must sequentially call
                 # the prob and ln_prob functions, it must be ignored in this test.
                 self.assertAlmostEqual(np.log(prior.prob(sample)), prior.ln_prob(sample), 12)
@@ -330,7 +346,7 @@ class TestPriorClasses(unittest.TestCase):
     def test_many_prob_and_many_ln_prob(self):
         for prior in self.priors:
             samples = prior.sample(10)
-            if not bilby.core.prior.JointPrior in prior.__class__.__mro__:
+            if bilby.core.prior.JointPrior in prior.__class__.__mro__ is False:
                 ln_probs = prior.ln_prob(samples)
                 probs = prior.prob(samples)
                 for sample, logp, p in zip(samples, ln_probs, probs):
@@ -474,7 +490,7 @@ class TestPriorClasses(unittest.TestCase):
         self.assertTrue(np.allclose(mvg.corrcoefs[0], corrcoef))
         self.assertTrue(np.allclose(mvg.sigmas[0], sigma))
         self.assertTrue(np.allclose(np.diag(mvg.covs[0]), np.square(sigma)))
-        self.assertTrue(np.allclose(np.diag(np.fliplr(mvg.covs[0])), 2.*np.ones(2)))
+        self.assertTrue(np.allclose(np.diag(np.fliplr(mvg.covs[0])), 2. * np.ones(2)))
 
     def test_fermidirac_fail(self):
         with self.assertRaises(ValueError):
@@ -662,13 +678,13 @@ class TestPriorClasses(unittest.TestCase):
                     'bilby.core.prior.MultivariateGaussianDist'
                 )
             elif isinstance(prior, bilby.gw.prior.HealPixPrior):
-                repr_prior_string = 'bilby.gw.prior.'+repr(prior)
+                repr_prior_string = 'bilby.gw.prior.' + repr(prior)
                 repr_prior_string = repr_prior_string.replace('HealPixMapPriorDist',
                                                               'bilby.gw.prior.HealPixMapPriorDist')
             elif isinstance(prior, bilby.gw.prior.UniformComovingVolume):
                 repr_prior_string = 'bilby.gw.prior.' + repr(prior)
             elif 'Conditional' in prior.__class__.__name__:
-                continue # This feature does not exist because we cannot recreate the condition function
+                continue  # This feature does not exist because we cannot recreate the condition function
             else:
                 repr_prior_string = 'bilby.core.prior.' + repr(prior)
             repr_prior = eval(repr_prior_string, None, dict(inf=np.inf))
@@ -769,7 +785,7 @@ class TestPriorDict(unittest.TestCase):
             psi=bilby.core.prior.Uniform(name='psi', minimum=0, maximum=np.pi, boundary='periodic'),
             phase=bilby.core.prior.Uniform(
                 name='phase', minimum=0, maximum=2 * np.pi, boundary='periodic')
-            )
+        )
         self.assertDictEqual(expected, self.prior_set_from_file)
 
     def test_to_file(self):
@@ -1236,7 +1252,7 @@ class TestConditionalPriorDict(unittest.TestCase):
                                                           minimum=0.0, maximum=1.0)
 
         priors['c'] = bilby.core.prior.LogUniform(minimum=1, maximum=10)
-        sample = priors.sample()
+        _ = priors.sample()
         res = priors.rescale(['a', 'b', 'd', 'c'], [0.5, 0.5, 0.5, 0.5])
         print(res)
 
@@ -1255,7 +1271,7 @@ class TestJsonIO(unittest.TestCase):
         hp_map_file = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                    'prior_files/GW150914_testing_skymap.fits')
         hp_dist = bilby.gw.prior.HealPixMapPriorDist(hp_map_file,
-                                                 names=['testra', 'testdec'])
+                                                     names=['testra', 'testdec'])
         hp_3d_dist = bilby.gw.prior.HealPixMapPriorDist(hp_map_file,
                                                         names=['testra', 'testdec', 'testdistance'], distance=True)
 
@@ -1271,7 +1287,7 @@ class TestJsonIO(unittest.TestCase):
             i=bilby.gw.prior.UniformComovingVolume(name='redshift', minimum=0.1, maximum=1.0),
             j=bilby.gw.prior.UniformSourceFrame(name='luminosity_distance', minimum=1.0, maximum=1000.0),
             k=bilby.core.prior.Sine(name='test', unit='unit'),
-            l=bilby.core.prior.Cosine(name='test', unit='unit'),
+            ll=bilby.core.prior.Cosine(name='test', unit='unit'),
             m=bilby.core.prior.Interped(name='test', unit='unit', xx=np.linspace(0, 10, 1000),
                                         yy=np.linspace(0, 10, 1000) ** 4,
                                         minimum=3, maximum=5),

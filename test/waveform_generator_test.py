@@ -1,11 +1,13 @@
 from __future__ import absolute_import
+
 import unittest
+
 import bilby
-import numpy as np
-import mock
-from mock import MagicMock
 import lal
 import lalsimulation as lalsim
+import mock
+import numpy as np
+from mock import MagicMock
 
 
 def dummy_func_array_return_value(frequency_array, amplitude, mu, sigma, ra, dec, geocent_time, psi, **kwargs):
@@ -762,23 +764,15 @@ def get_lalsim_psd_list():
     psd_list = []
     # Avoid the string 'SimNoisePSD'
     for name in lalsim.__dict__:
-        if (
-            name != PSD_prefix
-            and name.startswith(PSD_prefix)
-            and not name.endswith(PSD_suffix)
-        ):
+        if (name != PSD_prefix and name.startswith(PSD_prefix) and not name.endswith(PSD_suffix)):
             # if name in blacklist:
             name = name[len(PSD_prefix):]
-            if (
-                name not in blacklist
-                and not name.startswith("iLIGO")
-                and not name.startswith("eLIGO")
-            ):
+            if name not in blacklist and not name.startswith("iLIGO") and not name.startswith("eLIGO"):
                 psd_list.append(name)
     return sorted(psd_list)
 
 
-# Function te generate PSDs
+# Function to generate PSDs
 def generate_PSD(psd_name="aLIGOZeroDetHighPower", length=None, delta_f=None):
     psd_list = get_lalsim_psd_list()
 

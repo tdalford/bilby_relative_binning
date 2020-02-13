@@ -1,18 +1,17 @@
 from __future__ import absolute_import, print_function
 
-from collections import namedtuple
 import os
 import signal
-from shutil import copyfile
 import sys
+from collections import namedtuple
+from distutils.version import LooseVersion
+from shutil import copyfile
 
+import dill as pickle
 import numpy as np
 from pandas import DataFrame
-from distutils.version import LooseVersion
-import dill as pickle
 
-from ..utils import (
-    logger, get_progress_bar, check_directory_exists_and_if_not_mkdir)
+from ..utils import check_directory_exists_and_if_not_mkdir, get_progress_bar, logger
 from .base_sampler import MCMCSampler, SamplerError
 
 
@@ -266,7 +265,7 @@ class Emcee(MCMCSampler):
             pickle.dump(self._sampler, f)
 
     def checkpoint_and_exit(self, signum, frame):
-        logger.info("Recieved signal {}".format(signum))
+        logger.info("Received signal {}".format(signum))
         self.checkpoint()
         sys.exit()
 
@@ -278,7 +277,7 @@ class Emcee(MCMCSampler):
     def sampler(self):
         """ Returns the ptemcee sampler object
 
-        If, alrady initialized, returns the stored _sampler value. Otherwise,
+        If, already initialized, returns the stored _sampler value. Otherwise,
         first checks if there is a pickle file from which to load. If there is
         not, then initialize the sampler and set the initial random draw
 

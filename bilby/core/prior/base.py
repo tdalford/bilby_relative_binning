@@ -1,14 +1,18 @@
-from importlib import import_module
 import json
 import os
 import re
+from importlib import import_module
 
 import numpy as np
 import scipy.stats
+from bilby.core.utils import (
+    BilbyJsonEncoder,
+    decode_bilby_json,
+    infer_args_from_method,
+    logger,
+)
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
-
-from bilby.core.utils import infer_args_from_method, BilbyJsonEncoder, decode_bilby_json, logger
 
 
 class Prior(object):
@@ -397,7 +401,7 @@ class Prior(object):
         Parameters
         ----------
         val: str
-            The string version of the agument
+            The string version of the argument.
 
         Returns
         -------

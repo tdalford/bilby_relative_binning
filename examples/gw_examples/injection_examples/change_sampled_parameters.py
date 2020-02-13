@@ -8,9 +8,9 @@ mass ratio and redshift.
 The cosmology is according to the Planck 2015 data release.
 """
 from __future__ import division, print_function
+
 import bilby
 import numpy as np
-
 
 bilby.core.utils.setup_logger(log_level="info")
 

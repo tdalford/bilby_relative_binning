@@ -1,18 +1,22 @@
+import json
+import os
 from importlib import import_module
 from io import open as ioopen
-import json
-import numpy as np
-import os
 
+import numpy as np
+from bilby.core.prior.analytical import *  # noqa
+# keep 'import *' to make eval() statement further down work consistently
+from bilby.core.prior.analytical import DeltaFunction
+from bilby.core.prior.base import Constraint, Prior
+from bilby.core.prior.joint import JointPrior
+from bilby.core.utils import (
+    BilbyJsonEncoder,
+    check_directory_exists_and_if_not_mkdir,
+    decode_bilby_json,
+    logger,
+)
 from future.utils import iteritems
 from matplotlib.cbook import flatten
-
-# keep 'import *' to make eval() statement further down work consistently
-from bilby.core.prior.analytical import *  # noqa
-from bilby.core.prior.analytical import DeltaFunction
-from bilby.core.prior.base import Prior, Constraint
-from bilby.core.prior.joint import JointPrior
-from bilby.core.utils import logger, check_directory_exists_and_if_not_mkdir, BilbyJsonEncoder, decode_bilby_json
 
 
 class PriorDict(dict):

@@ -1,18 +1,18 @@
 from __future__ import absolute_import
 
-import bilby
-import inspect
-import unittest
-import mock
-from mock import MagicMock
-from mock import patch
-import numpy as np
-import scipy.signal.windows
+import inspect  # noqa
+import logging
 import os
 import sys
+import unittest
 from shutil import rmtree
-import logging
+
+import bilby
 import deepdish as dd
+import mock
+import numpy as np
+import scipy.signal.windows
+from mock import MagicMock, patch
 
 
 class TestInterferometerGeometry(unittest.TestCase):
@@ -403,8 +403,8 @@ class TestInterferometer(unittest.TestCase):
 
     def test_inject_signal_from_waveform_generator_correct_return_value(self):
         self.ifo.get_detector_response = lambda x, params: x['plus'] + x['cross']
-        returned_polarizations = self.ifo.inject_signal_from_waveform_generator(parameters=self.parameters,
-                                                                                waveform_generator=self.waveform_generator)
+        returned_polarizations = self.ifo.inject_signal_from_waveform_generator(
+            parameters=self.parameters, waveform_generator=self.waveform_generator)
         self.assertTrue(np.array_equal(self.wg_polarizations['plus'], returned_polarizations['plus']))
         self.assertTrue(np.array_equal(self.wg_polarizations['cross'], returned_polarizations['cross']))
 
@@ -419,8 +419,8 @@ class TestInterferometer(unittest.TestCase):
     def test_inject_signal_from_waveform_generator_correct_injection(self):
         original_strain = self.ifo.strain_data.frequency_domain_strain
         self.ifo.get_detector_response = lambda x, params: x['plus'] + x['cross']
-        injection_polarizations = self.ifo.inject_signal_from_waveform_generator(parameters=self.parameters,
-                                                                                 waveform_generator=self.waveform_generator)
+        injection_polarizations = self.ifo.inject_signal_from_waveform_generator(
+            parameters=self.parameters, waveform_generator=self.waveform_generator)
         expected = injection_polarizations['plus'] + injection_polarizations['cross'] + original_strain
         self.assertTrue(np.array_equal(expected, self.ifo.strain_data._frequency_domain_strain))
 
@@ -763,7 +763,7 @@ class TestInterferometerStrainData(unittest.TestCase):
         self.ifosd._time_domain_strain = None
         self.ifosd._frequency_domain_strain = None
         with self.assertRaises(ValueError):
-            test = self.ifosd.time_domain_strain
+            _ = self.ifosd.time_domain_strain
 
     def test_frequency_domain_strain_when_set(self):
         self.ifosd.sampling_frequency = 200
@@ -787,7 +787,7 @@ class TestInterferometerStrainData(unittest.TestCase):
         self.ifosd._time_domain_strain = None
         self.ifosd._frequency_domain_strain = None
         with self.assertRaises(ValueError):
-            test = self.ifosd.frequency_domain_strain
+            _ = self.ifosd.frequency_domain_strain
 
     def test_set_frequency_domain_strain(self):
         self.ifosd.duration = 4
@@ -1319,34 +1319,34 @@ class TestPowerSpectralDensityWithFiles(unittest.TestCase):
         logger = logging.getLogger('bilby')
         m = MagicMock()
         logger.warning = m
-        psd = bilby.gw.detector.PowerSpectralDensity(psd_file=self.asd_file)
+        _ = bilby.gw.detector.PowerSpectralDensity(psd_file=self.asd_file)
         self.assertEqual(4, m.call_count)
 
     def test_check_file_not_called_psd_file_set_to_psd_file(self):
         logger = logging.getLogger('bilby')
         m = MagicMock()
         logger.warning = m
-        psd = bilby.gw.detector.PowerSpectralDensity(psd_file=self.psd_file)
+        _ = bilby.gw.detector.PowerSpectralDensity(psd_file=self.psd_file)
         self.assertEqual(0, m.call_count)
 
     def test_check_file_asd_file_set_to_psd_file(self):
         logger = logging.getLogger('bilby')
         m = MagicMock()
         logger.warning = m
-        psd = bilby.gw.detector.PowerSpectralDensity(asd_file=self.psd_file)
+        _ = bilby.gw.detector.PowerSpectralDensity(asd_file=self.psd_file)
         self.assertEqual(4, m.call_count)
 
     def test_check_file_not_called_asd_file_set_to_asd_file(self):
         logger = logging.getLogger('bilby')
         m = MagicMock()
         logger.warning = m
-        psd = bilby.gw.detector.PowerSpectralDensity(asd_file=self.asd_file)
+        _ = bilby.gw.detector.PowerSpectralDensity(asd_file=self.asd_file)
         self.assertEqual(0, m.call_count)
 
     def test_from_frame_file(self):
         expected_frequency_array = np.array([1., 2., 3.])
         expected_psd_array = np.array([16., 25., 36.])
-        with mock.patch('bilby.gw.detector.InterferometerStrainData.set_from_frame_file') as m:
+        with mock.patch('bilby.gw.detector.InterferometerStrainData.set_from_frame_file') as _:
             with mock.patch('bilby.gw.detector.InterferometerStrainData.create_power_spectral_density') as n:
                 n.return_value = expected_frequency_array, expected_psd_array
                 psd = bilby.gw.detector.PowerSpectralDensity.from_frame_file(frame_file=self.asd_file,

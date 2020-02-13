@@ -1,7 +1,8 @@
 import unittest
+
+import bilby.hyper as hyp
 import numpy as np
 import pandas as pd
-import bilby.hyper as hyp
 
 
 class TestHyperLikelihood(unittest.TestCase):

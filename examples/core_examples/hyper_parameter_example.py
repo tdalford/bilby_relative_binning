@@ -3,12 +3,13 @@
 An example of how to use bilby to perform parameter estimation for hyper params
 """
 from __future__ import division
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
 from bilby.core.likelihood import GaussianLikelihood
 from bilby.core.prior import Uniform
-from bilby.core.sampler import run_sampler
 from bilby.core.result import make_pp_plot
+from bilby.core.sampler import run_sampler
 from bilby.hyper.likelihood import HyperparameterLikelihood
 
 outdir = 'outdir'

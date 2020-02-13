@@ -2,9 +2,8 @@ from __future__ import absolute_import
 
 import os
 
-import numpy as np
-
 import bilby
+import numpy as np
 from bilby.gw.waveform_generator import WaveformGenerator
 
 np.random.seed(10)

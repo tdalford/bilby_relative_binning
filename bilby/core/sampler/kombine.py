@@ -1,9 +1,12 @@
 from __future__ import absolute_import, print_function
-from ..utils import logger, get_progress_bar
-import numpy as np
+
 import os
-from .emcee import Emcee
+
+import numpy as np
+
+from ..utils import get_progress_bar, logger
 from .base_sampler import SamplerError
+from .emcee import Emcee
 
 
 class Kombine(Emcee):

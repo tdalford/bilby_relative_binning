@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """
-An example of how to use bilby to perform paramater estimation for
+An example of how to use bilby to perform parameter estimation for
 fitting a linear function to data with background Gaussian noise.
 This will compare the output of using a stochastic sampling method
 to evaluating the posterior on a grid.
 """
 from __future__ import division
-import numpy as np
-import matplotlib.pyplot as plt
 
 import bilby
+import matplotlib.pyplot as plt
+import numpy as np
 
 # A few simple setup steps
 label = 'linear_regression_grid'

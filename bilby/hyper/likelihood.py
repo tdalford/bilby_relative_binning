@@ -5,8 +5,8 @@ import logging
 import numpy as np
 
 from ..core.likelihood import Likelihood
-from .model import Model
 from ..core.prior import PriorDict
+from .model import Model
 
 
 class HyperparameterLikelihood(Likelihood):

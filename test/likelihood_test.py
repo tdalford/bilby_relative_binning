@@ -1,12 +1,20 @@
 from __future__ import absolute_import
+
 # import bilby
 import unittest
-from mock import MagicMock
+
 import mock
 import numpy as np
 from bilby.core.likelihood import (
-    Likelihood, GaussianLikelihood, PoissonLikelihood, StudentTLikelihood,
-    Analytical1DLikelihood, ExponentialLikelihood, JointLikelihood)
+    Analytical1DLikelihood,
+    ExponentialLikelihood,
+    GaussianLikelihood,
+    JointLikelihood,
+    Likelihood,
+    PoissonLikelihood,
+    StudentTLikelihood,
+)
+from mock import MagicMock
 
 
 class TestLikelihoodBase(unittest.TestCase):

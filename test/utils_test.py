@@ -1,11 +1,11 @@
 from __future__ import absolute_import, division
 
 import unittest
-import numpy as np
-from astropy import constants
-import lal
 
 import bilby
+import lal
+import numpy as np
+from astropy import constants
 from bilby.core import utils
 
 
@@ -14,14 +14,14 @@ class TestConstants(unittest.TestCase):
     def test_speed_of_light(self):
         self.assertEqual(utils.speed_of_light, lal.C_SI)
         self.assertLess(
-           abs(utils.speed_of_light - constants.c.value) / utils.speed_of_light,
-           1e-16)
+            abs(utils.speed_of_light - constants.c.value) / utils.speed_of_light,
+            1e-16)
 
     def test_parsec(self):
         self.assertEqual(utils.parsec, lal.PC_SI)
         self.assertLess(
-           abs(utils.parsec - constants.pc.value) / utils.parsec,
-           1e-11)
+            abs(utils.parsec - constants.pc.value) / utils.parsec,
+            1e-11)
 
     def test_solar_mass(self):
         self.assertEqual(utils.solar_mass, lal.MSUN_SI)
@@ -86,7 +86,6 @@ class TestInferParameters(unittest.TestCase):
         del self.source1
         del self.source2
 
-        
     def test_args_kwargs_handling(self):
         expected = ['a', 'b']
         actual = utils.infer_parameters_from_function(self.source1)
@@ -96,11 +95,12 @@ class TestInferParameters(unittest.TestCase):
         expected = ['a', 'b']
         actual = utils.infer_args_from_method(self.source2)
         self.assertListEqual(expected, actual)
-        
+
     def test_self_handling_method_as_function(self):
         expected = ['a', 'b']
         actual = utils.infer_parameters_from_function(self.source3)
         self.assertListEqual(expected, actual)
+
 
 class TestTimeAndFrequencyArrays(unittest.TestCase):
 
@@ -176,7 +176,8 @@ class TestTimeAndFrequencyArrays(unittest.TestCase):
         self.assertTrue(np.allclose(self.time_array, new_time_array))
 
     def test_consistency_frequency_array_to_frequency_array(self):
-        new_sampling_frequency, new_duration = utils.get_sampling_frequency_and_duration_from_frequency_array(self.frequency_array)
+        new_sampling_frequency, new_duration = utils.get_sampling_frequency_and_duration_from_frequency_array(
+            self.frequency_array)
         new_frequency_array = \
             utils.create_frequency_series(sampling_frequency=new_sampling_frequency,
                                           duration=new_duration)
@@ -195,31 +196,32 @@ class TestReflect(unittest.TestCase):
         xprime = np.array([0.1, 0.5, 0.9])
         x = np.array([0.1, 0.5, 0.9])
         self.assertTrue(
-            np.testing.assert_allclose(utils.reflect(xprime),  x) is None)
+            np.testing.assert_allclose(utils.reflect(xprime), x) is None)
 
     def test_in_one_to_two(self):
         xprime = np.array([1.1, 1.5, 1.9])
         x = np.array([0.9, 0.5, 0.1])
         self.assertTrue(
-            np.testing.assert_allclose(utils.reflect(xprime),  x) is None)
+            np.testing.assert_allclose(utils.reflect(xprime), x) is None)
 
     def test_in_two_to_three(self):
         xprime = np.array([2.1, 2.5, 2.9])
         x = np.array([0.1, 0.5, 0.9])
         self.assertTrue(
-            np.testing.assert_allclose(utils.reflect(xprime),  x) is None)
+            np.testing.assert_allclose(utils.reflect(xprime), x) is None)
 
     def test_in_minus_one_to_zero(self):
         xprime = np.array([-0.9, -0.5, -0.1])
         x = np.array([0.9, 0.5, 0.1])
         self.assertTrue(
-            np.testing.assert_allclose(utils.reflect(xprime),  x) is None)
+            np.testing.assert_allclose(utils.reflect(xprime), x) is None)
 
     def test_in_minus_two_to_minus_one(self):
         xprime = np.array([-1.9, -1.5, -1.1])
         x = np.array([0.1, 0.5, 0.9])
         self.assertTrue(
-            np.testing.assert_allclose(utils.reflect(xprime),  x) is None)
+            np.testing.assert_allclose(utils.reflect(xprime), x) is None)
+
 
 if __name__ == '__main__':
     unittest.main()

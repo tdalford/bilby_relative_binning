@@ -1,21 +1,34 @@
-import os
 import copy
+import os
 
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline, interp1d
 from scipy.integrate import cumtrapz
+from scipy.interpolate import InterpolatedUnivariateSpline, interp1d
 from scipy.stats import norm
 
-from ..core.prior import (PriorDict, Uniform, Prior, DeltaFunction, Gaussian,
-                          Interped, Constraint, conditional_prior_factory,
-                          BaseJointPriorDist, JointPrior, JointPriorDistError)
+from ..core.prior import (
+    BaseJointPriorDist,
+    Constraint,
+    DeltaFunction,
+    Gaussian,
+    Interped,
+    JointPrior,
+    JointPriorDistError,
+    Prior,
+    PriorDict,
+    Uniform,
+    conditional_prior_factory,
+)
 from ..core.utils import infer_args_from_method, logger
 from .conversion import (
-    convert_to_lal_binary_black_hole_parameters,
-    convert_to_lal_binary_neutron_star_parameters, generate_mass_parameters,
-    generate_tidal_parameters, fill_from_fixed_priors,
     chirp_mass_and_mass_ratio_to_total_mass,
-    total_mass_and_mass_ratio_to_component_masses)
+    convert_to_lal_binary_black_hole_parameters,
+    convert_to_lal_binary_neutron_star_parameters,
+    fill_from_fixed_priors,
+    generate_mass_parameters,
+    generate_tidal_parameters,
+    total_mass_and_mass_ratio_to_component_masses,
+)
 from .cosmology import get_cosmology
 
 try:
@@ -777,7 +790,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
     ----------
 
     hp_file : file path to .fits file
-        .fits file that containes the 2D or 3D Healpix Map
+        .fits file that contains the 2D or 3D Healpix Map
     names : list (optional)
         list of names of parameters included in the JointPriorDist, defaults to ['ra', 'dec']
     bounds : dict or list (optional)
@@ -900,7 +913,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         Parameters
         ----------
         pix_idx : int
-            pixel index value to create the distribtuion for
+            pixel index value to create the distribution for
 
         Returns
         -------

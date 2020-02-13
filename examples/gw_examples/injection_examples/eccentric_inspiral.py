@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Tutorial to demonstrate running parameter estimation on a reduced parameter
-space for an injected eccentric binary black hole signal with masses & distnace
+space for an injected eccentric binary black hole signal with masses & distance
 similar to GW150914.
 
 This uses the same binary parameters that were used to make Figures 1, 2 & 5 in
@@ -12,8 +12,8 @@ For a more comprehensive look at what goes on in each step, refer to the
 """
 from __future__ import division
 
-import numpy as np
 import bilby
+import numpy as np
 
 duration = 64.
 sampling_frequency = 256.

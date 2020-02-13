@@ -1,13 +1,13 @@
 from __future__ import absolute_import, division
 
-import unittest
-import numpy as np
-import pandas as pd
-import shutil
-import os
 import json
+import os
+import shutil
+import unittest
 
 import bilby
+import numpy as np
+import pandas as pd
 
 
 class TestJson(unittest.TestCase):
@@ -250,7 +250,7 @@ class TestResult(unittest.TestCase):
         self.assertFalse(os.path.isfile(
             '{}/{}_result.h5.old'.format(self.result.outdir, self.result.label)))
 
-    def test_save_and_overwrite_default(self):
+    def test_save_and_overwrite_default_without_extension(self):
         shutil.rmtree(
             '{}/{}_result.json.old'.format(self.result.outdir, self.result.label),
             ignore_errors=True)
@@ -290,7 +290,7 @@ class TestResult(unittest.TestCase):
         self.assertTrue(all(self.result.posterior['x'] == x))
         self.assertTrue(all(self.result.posterior['y'] == y))
         self.assertTrue(np.all(
-            None == self.result.posterior.log_likelihood.values))
+            [val is None for val in self.result.posterior.log_likelihood.values]))
 
     def test_samples_to_posterior(self):
         self.result.posterior = None
@@ -410,7 +410,7 @@ class TestResult(unittest.TestCase):
 
 
 class TestResultListError(unittest.TestCase):
-    
+
     def setUp(self):
         np.random.seed(7)
         bilby.utils.command_line_args.bilby_test_mode = False

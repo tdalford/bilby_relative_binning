@@ -5,6 +5,7 @@ any other arbitrary point). This is based off the
 linear_regression_with_unknown_noise.py example.
 """
 from __future__ import division
+
 import bilby
 import numpy as np
 import pandas as pd

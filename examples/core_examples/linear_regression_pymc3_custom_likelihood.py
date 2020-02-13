@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-An example of how to use bilby to perform paramater estimation for
+An example of how to use bilby to perform parameter estimation for
 non-gravitational wave data. In this case, fitting a linear function to
 data with background Gaussian noise. This example uses a custom
 likelihood function to show how it should be defined, although this
@@ -9,10 +9,12 @@ would give equivalent results as using the pre-defined 'Gaussian Likelihood'
 """
 
 from __future__ import division
-import bilby
-import numpy as np
-import matplotlib.pyplot as plt
+
 import inspect
+
+import bilby
+import matplotlib.pyplot as plt
+import numpy as np
 import pymc3 as pm
 
 # A few simple setup steps

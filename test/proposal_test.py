@@ -1,10 +1,9 @@
-import unittest
-import mock
 import random
-
-import numpy as np
+import unittest
 
 import bilby.gw.sampler.proposal
+import mock
+import numpy as np
 from bilby.core import prior
 from bilby.core.sampler import proposal
 
@@ -165,7 +164,7 @@ class TestEnsembleWalk(unittest.TestCase):
         self.assertEqual(random.random, self.jump_proposal.random_number_generator)
 
     def test_get_center_of_mass(self):
-        samples = [proposal.Sample(dict(reflective=0.1*i, periodic=0.1*i, default=0.1*i)) for i in range(3)]
+        samples = [proposal.Sample(dict(reflective=0.1 * i, periodic=0.1 * i, default=0.1 * i)) for i in range(3)]
         expected = proposal.Sample(dict(reflective=0.1, periodic=0.1, default=0.1))
         actual = self.jump_proposal.get_center_of_mass(samples)
         for key in samples[0].keys():
@@ -257,8 +256,9 @@ class TestDifferentialEvolution(unittest.TestCase):
     def test_jump_proposal_call(self):
         with mock.patch('random.sample') as m:
             with mock.patch('random.gauss') as n:
-                m.return_value = proposal.Sample(dict(periodic=0.2, reflective=0.2, default=0.2)),\
-                                 proposal.Sample(dict(periodic=0.3, reflective=0.3, default=0.3))
+                m.return_value = (
+                    proposal.Sample(dict(periodic=0.2, reflective=0.2, default=0.2)),
+                    proposal.Sample(dict(periodic=0.3, reflective=0.3, default=0.3)))
                 n.return_value = 1
                 sample = proposal.Sample(dict(periodic=0.1, reflective=0.1, default=0.1))
                 expected = proposal.Sample(dict(periodic=0.2, reflective=0.2, default=0.2))
@@ -308,7 +308,8 @@ class TestEnsembleEigenVector(unittest.TestCase):
                 m.side_effect = lambda x: x
                 n.return_value = 1, 2
                 self.jump_proposal.update_eigenvectors(coordinates)
-                self.assertTrue(np.array_equal(np.array([[0.3, 0.1], [0.3, 0.1], [0.3, 0.1]]), self.jump_proposal.covariance))
+                self.assertTrue(np.array_equal(
+                    np.array([[0.3, 0.1], [0.3, 0.1], [0.3, 0.1]]), self.jump_proposal.covariance))
                 self.assertEqual(1, self.jump_proposal.eigen_values)
                 self.assertEqual(2, self.jump_proposal.eigen_vectors)
 
@@ -316,8 +317,8 @@ class TestEnsembleEigenVector(unittest.TestCase):
         self.jump_proposal.update_eigenvectors = lambda x: None
         self.jump_proposal.eigen_values = np.array([1, np.nan, np.nan])
         self.jump_proposal.eigen_vectors = np.array([[0.1, np.nan, np.nan],
-                                                    [0.4, np.nan, np.nan],
-                                                    [0.7, np.nan, np.nan]])
+                                                     [0.4, np.nan, np.nan],
+                                                     [0.7, np.nan, np.nan]])
         with mock.patch('random.randrange') as m:
             with mock.patch('random.gauss') as n:
                 m.return_value = 0
@@ -338,7 +339,7 @@ class TestEnsembleEigenVector(unittest.TestCase):
 class TestSkyLocationWanderJump(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(ra=prior.Uniform(minimum=0.0, maximum=2*np.pi, boundary='periodic'),
+        self.priors = prior.PriorDict(dict(ra=prior.Uniform(minimum=0.0, maximum=2 * np.pi, boundary='periodic'),
                                            dec=prior.Uniform(minimum=0.0, maximum=np.pi, boundary='reflective')))
         self.jump_proposal = bilby.gw.sampler.proposal.SkyLocationWanderJump(priors=self.priors)
 
@@ -370,7 +371,7 @@ class TestSkyLocationWanderJump(unittest.TestCase):
 class TestCorrelatedPolarisationPhaseJump(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2*np.pi),
+        self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2 * np.pi),
                                            psi=prior.Uniform(minimum=0.0, maximum=np.pi)))
         self.jump_proposal = bilby.gw.sampler.proposal.CorrelatedPolarisationPhaseJump(priors=self.priors)
 
@@ -384,7 +385,7 @@ class TestCorrelatedPolarisationPhaseJump(unittest.TestCase):
             sample = proposal.Sample(dict(phase=0.2, psi=0.5))
             alpha = 3.0 * np.pi * 0.3
             beta = 0.3
-            expected = proposal.Sample(dict(phase=0.5*(alpha-beta), psi=0.5*(alpha+beta)))
+            expected = proposal.Sample(dict(phase=0.5 * (alpha - beta), psi=0.5 * (alpha + beta)))
             self.assertEqual(expected, self.jump_proposal(sample, coordinates=None))
 
     def test_jump_proposal_call_case_2(self):
@@ -393,14 +394,14 @@ class TestCorrelatedPolarisationPhaseJump(unittest.TestCase):
             sample = proposal.Sample(dict(phase=0.2, psi=0.5))
             alpha = 0.7
             beta = 3.0 * np.pi * 0.7 - 2 * np.pi
-            expected = proposal.Sample(dict(phase=0.5*(alpha-beta), psi=0.5*(alpha+beta)))
+            expected = proposal.Sample(dict(phase=0.5 * (alpha - beta), psi=0.5 * (alpha + beta)))
             self.assertEqual(expected, self.jump_proposal(sample))
 
 
 class TestPolarisationPhaseJump(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2*np.pi),
+        self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2 * np.pi),
                                            psi=prior.Uniform(minimum=0.0, maximum=np.pi)))
         self.jump_proposal = bilby.gw.sampler.proposal.PolarisationPhaseJump(priors=self.priors)
 
@@ -410,14 +411,14 @@ class TestPolarisationPhaseJump(unittest.TestCase):
 
     def test_jump_proposal_call(self):
         sample = proposal.Sample(dict(phase=0.2, psi=0.5))
-        expected = proposal.Sample(dict(phase=0.2+np.pi, psi=0.5+np.pi/2))
+        expected = proposal.Sample(dict(phase=0.2 + np.pi, psi=0.5 + np.pi / 2))
         self.assertEqual(expected, self.jump_proposal(sample))
 
 
 class TestDrawFlatPrior(unittest.TestCase):
 
     def setUp(self):
-        self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2*np.pi),
+        self.priors = prior.PriorDict(dict(phase=prior.Uniform(minimum=0.0, maximum=2 * np.pi),
                                            psi=prior.Cosine(minimum=0.0, maximum=np.pi)))
         self.jump_proposal = proposal.DrawFlatPrior(priors=self.priors)
 

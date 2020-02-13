@@ -11,7 +11,7 @@ approximate by a Gaussian.
 The Occam factor penalizes models with larger numbers of parameters (or
 equivalently a larger "prior volume"). This example won't try to go through
 explaining the meaning of this, or how it is calculated (those details are
-sufficiently well done in Mackay's book linked above). Insetad, it demonstrates
+sufficiently well done in Mackay's book linked above). Instead, it demonstrates
 how to calculate the Occam factor in :code:`bilby` and shows an example of it
 working in practise.
 
@@ -31,9 +31,10 @@ improved by increasing this to say 500 or 1000.
 
 """
 from __future__ import division
+
 import bilby
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 # A few simple setup steps
 label = 'occam_factor'

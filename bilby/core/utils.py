@@ -1,22 +1,22 @@
 from __future__ import division
 
-import logging
-import os
-from math import fmod
 import argparse
-import traceback
 import inspect
-import types
-import subprocess
-import multiprocessing
-from importlib import import_module
 import json
+import logging
+import multiprocessing
+import os
+import subprocess
+import traceback
+import types
 import warnings
+from importlib import import_module
+from math import fmod
 
 import numpy as np
+import pandas as pd
 from scipy.interpolate import interp2d
 from scipy.special import logsumexp
-import pandas as pd
 
 logger = logging.getLogger('bilby')
 
@@ -567,7 +567,7 @@ def set_up_command_line_arguments():
     In the following example we demonstrate how to setup a custom command line for a
     project which uses bilby.
 
-        # Here we import bilby, which initialses and parses the default command-line args
+        # Here we import bilby, which initialises and parses the default command-line args
         >>> import bilby
         # The command line arguments can then be accessed via
         >>> bilby.core.utils.command_line_args
@@ -664,7 +664,7 @@ def derivatives(vals, func, releps=1e-3, abseps=None, mineps=1e-9, reltol=1e-3,
         raise ValueError("To many non-fixed values")
 
     if max(nonfixedidx) >= len(vals) or min(nonfixedidx) < 0:
-        raise ValueError("Non-fixed indexes contain non-existant indices")
+        raise ValueError("Non-fixed indexes contain non-existent indices")
 
     grads = np.zeros(len(nonfixedidx))
 

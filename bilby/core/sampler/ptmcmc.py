@@ -5,8 +5,8 @@ import shutil
 
 import numpy as np
 
-from .base_sampler import MCMCSampler, SamplerNotInstalledError
 from ..utils import logger
+from .base_sampler import MCMCSampler, SamplerNotInstalledError
 
 
 class PTMCMCSampler(MCMCSampler):

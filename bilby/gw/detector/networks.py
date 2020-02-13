@@ -1,9 +1,9 @@
+import math
 import os
 import sys
 import warnings
 
 import numpy as np
-import math
 
 from ...core import utils
 from ...core.utils import logger

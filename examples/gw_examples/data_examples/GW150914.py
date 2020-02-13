@@ -10,6 +10,7 @@ the LIGO Data Grid instead.
 [1] https://gwpy.github.io/docs/stable/timeseries/remote-access.html
 """
 from __future__ import division, print_function
+
 import bilby
 from gwpy.timeseries import TimeSeries
 

@@ -1,13 +1,14 @@
 from __future__ import absolute_import
-import shutil
-import os
-import logging
-from packaging import version
 
+import logging
+import os
+import shutil
 import unittest
-import numpy as np
+
 import bilby
+import numpy as np
 import scipy
+from packaging import version
 from scipy.stats import ks_2samp, kstest
 
 

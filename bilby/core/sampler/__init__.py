@@ -1,16 +1,17 @@
+import datetime
 import inspect
 import sys
-import datetime
 from collections import OrderedDict
 
+from ..prior import DeltaFunction, PriorDict
 from ..utils import command_line_args, logger
-from ..prior import PriorDict, DeltaFunction
-
+from . import proposal
 from .base_sampler import Sampler, SamplingMarginalisedParameterError
 from .cpnest import Cpnest
 from .dynamic_dynesty import DynamicDynesty
 from .dynesty import Dynesty
 from .emcee import Emcee
+from .fake_sampler import FakeSampler
 from .kombine import Kombine
 from .nestle import Nestle
 from .polychord import PyPolyChord
@@ -18,8 +19,6 @@ from .ptemcee import Ptemcee
 from .ptmcmc import PTMCMCSampler
 from .pymc3 import Pymc3
 from .pymultinest import Pymultinest
-from .fake_sampler import FakeSampler
-from . import proposal
 
 IMPLEMENTED_SAMPLERS = {
     'cpnest': Cpnest, 'dynamic_dynesty': DynamicDynesty, 'dynesty': Dynesty,

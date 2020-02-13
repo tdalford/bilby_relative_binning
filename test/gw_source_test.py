@@ -1,10 +1,10 @@
-from __future__ import division, absolute_import
-import unittest
+from __future__ import absolute_import, division
 
-import numpy as np
+import unittest
 from copy import copy
 
 import bilby
+import numpy as np
 
 
 class TestLalBBH(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestLalBBH(unittest.TestCase):
         self.frequency_array = bilby.core.utils.create_frequency_series(2048, 4)
         self.bad_parameters = copy(self.parameters)
         self.bad_parameters['mass_1'] = -30.
-    
+
     def tearDown(self):
         del self.parameters
         del self.waveform_kwargs
@@ -41,7 +41,7 @@ class TestLalBBH(unittest.TestCase):
     def test_waveform_error_raising(self):
         raise_error_parameters = copy(self.bad_parameters)
         raise_error_parameters.update(self.waveform_kwargs)
-        raise_error_parameters['catch_waveform_errors']=False
+        raise_error_parameters['catch_waveform_errors'] = False
         with self.assertRaises(Exception):
             bilby.gw.source.lal_binary_black_hole(
                 self.frequency_array, **raise_error_parameters)

@@ -47,9 +47,6 @@ python-3.7:
   script:
     - python -m pip install .
 
-    # Run pyflakes
-    - flake8 .
-
     # Run tests and collect coverage data
     - pytest --cov=bilby
     - coverage html
@@ -74,6 +71,34 @@ python-3.6:
     - python -m pip install .
 
     - pytest
+
+precommits-py3.7:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python37
+  script:
+    - source activate python37
+    - mkdir -p .pip37
+    - pip install --upgrade pip
+    - pip --cache-dir=.pip37 install --upgrade bilby
+    - pip --cache-dir=.pip37 install .
+    - pip --cache-dir=.pip37 install pre-commit
+
+    # Run precommits (flake8, spellcheck, isort, no merge conflicts, etc)
+    - pre-commit run --all-files --verbose --show-diff-on-failure
+
+precommits-py3.6:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python36
+  script:
+    - source activate python36
+    - mkdir -p .pip36
+    - pip install --upgrade pip
+    - pip --cache-dir=.pip36 install --upgrade bilby
+    - pip --cache-dir=.pip36 install .
+    - pip --cache-dir=.pip37 install pre-commit
+
+    # Run precommits (flake8, spellcheck, isort, no merge conflicts, etc)
+    - pre-commit run --all-files --verbose --show-diff-on-failure
 
 # Tests run at a fixed schedule rather than on push
 scheduled-python-3.7:

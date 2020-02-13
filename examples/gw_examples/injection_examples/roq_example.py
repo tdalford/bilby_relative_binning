@@ -10,9 +10,8 @@ from the public repository https://git.ligo.org/lscsoft/ROQ_data.
 """
 from __future__ import division, print_function
 
-import numpy as np
-
 import bilby
+import numpy as np
 
 outdir = 'outdir'
 label = 'roq'

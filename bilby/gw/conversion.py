@@ -1,15 +1,16 @@
 from __future__ import division
+
 import sys
 
-from tqdm import tqdm
 import numpy as np
 from pandas import DataFrame
+from tqdm import tqdm
 
 from ..core.likelihood import MarginalizedLikelihoodReconstructionError
-from ..core.utils import logger, solar_mass
 from ..core.prior import DeltaFunction
-from .utils import lalsim_SimInspiralTransformPrecessingNewInitialConditions
+from ..core.utils import logger, solar_mass
 from .cosmology import get_cosmology
+from .utils import lalsim_SimInspiralTransformPrecessingNewInitialConditions
 
 try:
     from astropy import units
@@ -390,7 +391,7 @@ def chirp_mass_and_primary_mass_to_mass_ratio(chirp_mass, mass_1):
 
         (chirp_mass/mass_1)^5 = q^3 / (1 + q)
 
-    Solving for q, we find the releation expressed in python below for q.
+    Solving for q, we find the relation expressed in python below for q.
 
     Parameters
     ----------

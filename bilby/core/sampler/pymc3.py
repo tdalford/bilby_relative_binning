@@ -4,12 +4,16 @@ from collections import OrderedDict
 
 import numpy as np
 
-from ..utils import derivatives, infer_args_from_method
-from ..prior import DeltaFunction, Sine, Cosine, PowerLaw, MultivariateGaussian
-from .base_sampler import MCMCSampler
-from ..likelihood import GaussianLikelihood, PoissonLikelihood, ExponentialLikelihood, \
-    StudentTLikelihood
 from ...gw.likelihood import BasicGravitationalWaveTransient, GravitationalWaveTransient
+from ..likelihood import (
+    ExponentialLikelihood,
+    GaussianLikelihood,
+    PoissonLikelihood,
+    StudentTLikelihood,
+)
+from ..prior import Cosine, DeltaFunction, MultivariateGaussian, PowerLaw, Sine
+from ..utils import derivatives, infer_args_from_method
+from .base_sampler import MCMCSampler
 
 
 class Pymc3(MCMCSampler):

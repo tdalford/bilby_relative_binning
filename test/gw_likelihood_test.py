@@ -1,9 +1,10 @@
-from __future__ import division, absolute_import
-import unittest
-import os
+from __future__ import absolute_import, division
 
-import numpy as np
+import os
+import unittest
+
 import bilby
+import numpy as np
 from bilby.gw.likelihood import BilbyROQParamsRangeError
 
 
@@ -22,7 +23,7 @@ class TestBasicGWTransient(unittest.TestCase):
         self.waveform_generator = bilby.gw.waveform_generator.WaveformGenerator(
             duration=4, sampling_frequency=2048,
             frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole,
-            )
+        )
 
         self.likelihood = bilby.gw.likelihood.BasicGravitationalWaveTransient(
             interferometers=self.interferometers,
@@ -50,8 +51,7 @@ class TestBasicGWTransient(unittest.TestCase):
     def test_log_likelihood_ratio(self):
         """Test log likelihood ratio returns the correct value"""
         self.assertAlmostEqual(
-            self.likelihood.log_likelihood()
-            - self.likelihood.noise_log_likelihood(),
+            self.likelihood.log_likelihood() - self.likelihood.noise_log_likelihood(),
             self.likelihood.log_likelihood_ratio(), 3)
 
     def test_likelihood_zero_when_waveform_is_none(self):
@@ -119,8 +119,7 @@ class TestGWTransient(unittest.TestCase):
     def test_log_likelihood_ratio(self):
         """Test log likelihood ratio returns the correct value"""
         self.assertAlmostEqual(
-            self.likelihood.log_likelihood()
-            - self.likelihood.noise_log_likelihood(),
+            self.likelihood.log_likelihood() - self.likelihood.noise_log_likelihood(),
             self.likelihood.log_likelihood_ratio(), 3)
 
     def test_likelihood_zero_when_waveform_is_none(self):
@@ -338,10 +337,10 @@ class TestMarginalizedLikelihood(unittest.TestCase):
             phase_marginalization=True
         )
         new_prior = self.prior.copy()
-        new_prior['phase'] = bilby.prior.Uniform(minimum=0, maximum=2*np.pi)
+        new_prior['phase'] = bilby.prior.Uniform(minimum=0, maximum=2 * np.pi)
         for key, param in dict(
-            mass_1=31., mass_2=29., a_1=0.4, a_2=0.3, tilt_1=0.0, tilt_2=0.0,
-            phi_12=1.7, phi_jl=0.3, theta_jn=0.4, psi=2.659, ra=1.375, dec=-1.2108).items():
+                mass_1=31., mass_2=29., a_1=0.4, a_2=0.3, tilt_1=0.0, tilt_2=0.0,
+                phi_12=1.7, phi_jl=0.3, theta_jn=0.4, psi=2.659, ra=1.375, dec=-1.2108).items():
             new_prior[key] = param
         with self.assertRaises(bilby.core.sampler.SamplingMarginalisedParameterError):
             bilby.run_sampler(like, new_prior)
@@ -355,8 +354,8 @@ class TestMarginalizedLikelihood(unittest.TestCase):
         new_prior = self.prior.copy()
         new_prior['geocent_time'] = bilby.prior.Uniform(minimum=0, maximum=1)
         for key, param in dict(
-            mass_1=31., mass_2=29., a_1=0.4, a_2=0.3, tilt_1=0.0, tilt_2=0.0,
-            phi_12=1.7, phi_jl=0.3, theta_jn=0.4, psi=2.659, ra=1.375, dec=-1.2108).items():
+                mass_1=31., mass_2=29., a_1=0.4, a_2=0.3, tilt_1=0.0, tilt_2=0.0,
+                phi_12=1.7, phi_jl=0.3, theta_jn=0.4, psi=2.659, ra=1.375, dec=-1.2108).items():
             new_prior[key] = param
         with self.assertRaises(bilby.core.sampler.SamplingMarginalisedParameterError):
             bilby.run_sampler(like, new_prior)
@@ -503,8 +502,7 @@ class TestTimePhaseMarginalization(unittest.TestCase):
             self.phase.parameters['geocent_time'] = time
             like.append(np.exp(self.phase.log_likelihood_ratio()))
 
-        marg_like = np.log(np.trapz(like, times)
-                           / self.waveform_generator.duration)
+        marg_like = np.log(np.trapz(like, times) / self.waveform_generator.duration)
         self.time_phase.parameters = self.parameters.copy()
         self.time_phase.parameters['time_jitter'] = 0.0
         self.assertAlmostEqual(marg_like,
@@ -801,7 +799,7 @@ class TestRescaledROQLikelihood(unittest.TestCase):
 
         self.roq = bilby.gw.likelihood.ROQGravitationalWaveTransient(
             interferometers=ifos, waveform_generator=self.roq_wfg,
-            linear_matrix=linear_matrix_file, roq_params=params, 
+            linear_matrix=linear_matrix_file, roq_params=params,
             roq_scale_factor=scale_factor, quadratic_matrix=quadratic_matrix_file,
             priors=self.priors)
 

@@ -16,13 +16,12 @@ to be searched over.
 
 """
 from __future__ import division, print_function
-import numpy as np
-import bilby
 
+import bilby
 import gwin
+import numpy as np
 from pycbc import psd as pypsd
-from pycbc.waveform.generator import (FDomainDetFrameGenerator,
-                                      FDomainCBCGenerator)
+from pycbc.waveform.generator import FDomainCBCGenerator, FDomainDetFrameGenerator
 
 label = 'using_gwin'
 

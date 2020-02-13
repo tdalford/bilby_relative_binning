@@ -1,15 +1,14 @@
 from __future__ import absolute_import, division
 
-import unittest
 import os
+import unittest
 from shutil import rmtree
 
-import numpy as np
+import bilby
 import gwpy
 import lal
 import lalsimulation as lalsim
-
-import bilby
+import numpy as np
 from bilby.gw import utils as gwutils
 
 
@@ -124,7 +123,7 @@ class TestGWUtils(unittest.TestCase):
         strain = gwutils.read_frame_file(
             filename, start_time=None, end_time=None, channel=channel)
         self.assertEqual(strain.channel.name, channel)
-        self.assertTrue(np.all(strain.value==data[:-1]))
+        self.assertTrue(np.all(strain.value == data[:-1]))
 
         # Check reading with time limits
         start_cut = 2
@@ -133,17 +132,17 @@ class TestGWUtils(unittest.TestCase):
             filename, start_time=start_cut, end_time=end_cut, channel=channel)
         idxs = (times > start_cut) & (times < end_cut)
         # Dropping the last element - for some reason gwpy drops the last element when reading in data
-        self.assertTrue(np.all(strain.value==data[idxs][:-1]))
+        self.assertTrue(np.all(strain.value == data[idxs][:-1]))
 
         # Check reading with unknown channels
         strain = gwutils.read_frame_file(
             filename, start_time=None, end_time=None)
-        self.assertTrue(np.all(strain.value==data[:-1]))
+        self.assertTrue(np.all(strain.value == data[:-1]))
 
         # Check reading with incorrect channel
         strain = gwutils.read_frame_file(
             filename, start_time=None, end_time=None, channel='WRONG')
-        self.assertTrue(np.all(strain.value==data[:-1]))
+        self.assertTrue(np.all(strain.value == data[:-1]))
 
         ts = gwpy.timeseries.TimeSeries(data=data, times=times, t0=0)
         ts.name = 'NOT-A-KNOWN-CHANNEL'
@@ -159,7 +158,7 @@ class TestGWUtils(unittest.TestCase):
             gwutils.convert_args_list_to_float(1, '2', 'ten')
 
     def test_lalsim_SimInspiralTransformPrecessingNewInitialConditions(self):
-        a = gwutils.lalsim_SimInspiralTransformPrecessingNewInitialConditions( 
+        a = gwutils.lalsim_SimInspiralTransformPrecessingNewInitialConditions(
             0.1, 0, 0.6, 0.5, 0.6, 0.1, 0.8, 30.6, 23.2, 50, 0)
         self.assertTrue(len(a) == 7)
 

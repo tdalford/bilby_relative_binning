@@ -3,8 +3,8 @@ import argparse
 import os
 import pickle
 
-import pandas as pd
 import bilby as bilby
+import pandas as pd
 
 
 def setup_command_line_args():

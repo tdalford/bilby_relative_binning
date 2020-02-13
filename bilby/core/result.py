@@ -1,5 +1,6 @@
 from __future__ import division
 
+import json
 import os
 from collections import OrderedDict, namedtuple
 from copy import copy
@@ -7,20 +8,23 @@ from distutils.version import LooseVersion
 from itertools import product
 
 import corner
-import json
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib import lines as mpllines
 import numpy as np
 import pandas as pd
 import scipy.stats
+from matplotlib import lines as mpllines
 from scipy.special import logsumexp
 
 from . import utils
-from .utils import (logger, infer_parameters_from_function,
-                    check_directory_exists_and_if_not_mkdir,)
-from .utils import BilbyJsonEncoder, decode_bilby_json
-from .prior import Prior, PriorDict, DeltaFunction, ConditionalPriorDict
+from .prior import ConditionalPriorDict, DeltaFunction, Prior, PriorDict
+from .utils import (
+    BilbyJsonEncoder,
+    check_directory_exists_and_if_not_mkdir,
+    decode_bilby_json,
+    infer_parameters_from_function,
+    logger,
+)
 
 
 def result_file_name(outdir, label, extension='json', gzip=False):
@@ -438,7 +442,7 @@ class Result(object):
             Determines the method to use to store the data (if True defaults
             to json)
         gzip: bool, optional
-            If true, and outputing to a json file, this will gzip the resulting
+            If true, and outputting to a json file, this will gzip the resulting
             file and add '.gz' to the file extension.
         """
 
@@ -497,7 +501,7 @@ class Result(object):
     def save_posterior_samples(self, filename=None, outdir=None, label=None):
         """ Saves posterior samples to a file
 
-        Generates a .dat file containing the posterior samples and auxillary
+        Generates a .dat file containing the posterior samples and auxiliary
         data saved in the posterior. Note, strings in the posterior are
         removed while complex numbers will be given as absolute values with
         abs appended to the column name
@@ -1229,7 +1233,7 @@ class Result(object):
             return self._kde
 
     def posterior_probability(self, sample):
-        """ Calculate the posterior probabily for a new sample
+        """ Calculate the posterior probability for a new sample
 
         This queries a Kernel Density Estimate of the posterior to calculate
         the posterior probability density for the new sample.
@@ -1313,7 +1317,7 @@ class ResultList(list):
     def __init__(self, results=None):
         """ A class to store a list of :class:`bilby.core.result.Result` objects
         from equivalent runs on the same data. This provides methods for
-        outputing combined results.
+        outputting combined results.
 
         Parameters
         ----------
@@ -1645,7 +1649,7 @@ class ResultError(Exception):
 
 
 class ResultListError(ResultError):
-    """ For Errors occuring during combining results. """
+    """ For Errors occurring during combining results. """
 
 
 class FileMovedError(ResultError):

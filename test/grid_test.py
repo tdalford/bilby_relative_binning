@@ -1,14 +1,12 @@
 from __future__ import absolute_import, division
 
-import unittest
-import numpy as np
-import pandas as pd
-import shutil
 import os
-import json
-from scipy.stats import multivariate_normal
+import shutil
+import unittest
 
 import bilby
+import numpy as np
+from scipy.stats import multivariate_normal
 
 
 # set 2D multivariate Gaussian likelihood
@@ -33,13 +31,13 @@ class TestGrid(unittest.TestCase):
 
     def setUp(self):
         np.random.seed(7)
-        
+
         # set 2D multivariate Gaussian (zero mean, unit variance)
         self.mus = [0., 0.]
         self.cov = [[1., 0.], [0., 1.]]
         dim = len(self.mus)
         self.likelihood = MultiGaussian(self.mus, self.cov)
-        
+
         # set priors out to +/- 5 sigma
         self.priors = bilby.core.prior.PriorDict()
         self.priors.update(
@@ -88,10 +86,10 @@ class TestGrid(unittest.TestCase):
     def test_fail_marginalize(self):
         with self.assertRaises(TypeError):
             self.grid.marginalize_posterior(parameters=2.4)
-        
+
         with self.assertRaises(TypeError):
             self.grid.marginalize_posterior(not_parameters=4.7)
-        
+
         with self.assertRaises(ValueError):
             self.grid.marginalize_posterior(parameters='jkgsd')
 
@@ -104,10 +102,10 @@ class TestGrid(unittest.TestCase):
         # over
         assert np.array_equal(self.grid.ln_likelihood,
                               self.grid.marginalize_ln_likelihood(not_parameters=self.grid.parameter_names))
-    
+
     def test_marginalization_shapes(self):
         assert len(self.grid.marginalize_ln_likelihood().shape) == 0
-        
+
         marg1 = self.grid.marginalize_ln_likelihood(parameters=self.grid.parameter_names[0])
         assert marg1.shape == (self.grid_size,)
 
@@ -122,7 +120,7 @@ class TestGrid(unittest.TestCase):
                               self.grid.marginalize_ln_likelihood(not_parameters=self.grid.parameter_names[1]))
         assert np.array_equal(self.grid.marginalize_ln_likelihood(parameters=self.grid.parameter_names[1]),
                               self.grid.marginalize_ln_likelihood(not_parameters=self.grid.parameter_names[0]))
-    
+
     def test_max_marginalized_likelihood(self):
         # marginalised likelihoods should have max values of 1 (as they are not
         # properly normalised)
@@ -134,7 +132,7 @@ class TestGrid(unittest.TestCase):
 
     def test_fail_grid_size(self):
         with self.assertRaises(TypeError):
-            grid = bilby.core.grid.Grid(
+            _ = bilby.core.grid.Grid(
                 label='label', outdir='outdir', priors=self.priors,
                 grid_size=2.3, likelihood=self.likelihood,
                 save=True
@@ -142,8 +140,8 @@ class TestGrid(unittest.TestCase):
 
     def test_mesh_grid(self):
         assert self.grid.mesh_grid[0].shape == (self.grid_size, self.grid_size)
-        assert self.grid.mesh_grid[0][0,0] == self.priors[self.grid.parameter_names[0]].minimum
-        assert self.grid.mesh_grid[0][-1,-1] == self.priors[self.grid.parameter_names[1]].maximum
+        assert self.grid.mesh_grid[0][0, 0] == self.priors[self.grid.parameter_names[0]].minimum
+        assert self.grid.mesh_grid[0][-1, -1] == self.priors[self.grid.parameter_names[1]].maximum
 
     def test_different_grids(self):
         npoints = [10, 20]
@@ -154,8 +152,8 @@ class TestGrid(unittest.TestCase):
         )
 
         assert grid.mesh_grid[0].shape == tuple(npoints)
-        assert grid.mesh_grid[0][0,0] == self.priors[self.grid.parameter_names[0]].minimum
-        assert grid.mesh_grid[0][-1,-1] == self.priors[self.grid.parameter_names[1]].maximum
+        assert grid.mesh_grid[0][0, 0] == self.priors[self.grid.parameter_names[0]].minimum
+        assert grid.mesh_grid[0][-1, -1] == self.priors[self.grid.parameter_names[1]].maximum
 
         del grid
 
@@ -167,8 +165,8 @@ class TestGrid(unittest.TestCase):
         )
 
         assert grid.mesh_grid[0].shape == (npoints['x0'], npoints['x1'])
-        assert grid.mesh_grid[0][0,0] == self.priors[self.grid.parameter_names[0]].minimum
-        assert grid.mesh_grid[0][-1,-1] == self.priors[self.grid.parameter_names[1]].maximum
+        assert grid.mesh_grid[0][0, 0] == self.priors[self.grid.parameter_names[0]].minimum
+        assert grid.mesh_grid[0][-1, -1] == self.priors[self.grid.parameter_names[1]].maximum
 
         del grid
 
@@ -183,8 +181,8 @@ class TestGrid(unittest.TestCase):
         )
 
         assert grid.mesh_grid[0].shape == (len(x0s), len(x1s))
-        assert grid.mesh_grid[0][0,0] == self.priors[self.grid.parameter_names[0]].minimum
-        assert grid.mesh_grid[0][-1,-1] == self.priors[self.grid.parameter_names[1]].maximum
+        assert grid.mesh_grid[0][0, 0] == self.priors[self.grid.parameter_names[0]].minimum
+        assert grid.mesh_grid[0][-1, -1] == self.priors[self.grid.parameter_names[1]].maximum
         assert np.array_equal(grid.sample_points['x0'], x0s)
         assert np.array_equal(grid.sample_points['x1'], x1s)
 

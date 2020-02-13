@@ -1,9 +1,10 @@
 from __future__ import absolute_import
-import unittest
-import numpy as np
 
-from bilby.core.utils import create_frequency_series, create_time_series
+import unittest
+
+import numpy as np
 from bilby.core.series import CoupledTimeAndFrequencySeries
+from bilby.core.utils import create_frequency_series, create_time_series
 
 
 class TestCoupledTimeAndFrequencySeries(unittest.TestCase):

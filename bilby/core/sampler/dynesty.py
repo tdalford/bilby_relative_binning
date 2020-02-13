@@ -2,21 +2,20 @@ from __future__ import absolute_import
 
 import datetime
 import os
-import sys
 import pickle
 import signal
+import sys
+import warnings
 
-import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
+import tqdm
+from dynesty.utils import unitcheck
+from numpy import linalg
 from pandas import DataFrame
 
-from ..utils import logger, check_directory_exists_and_if_not_mkdir, reflect
-from .base_sampler import Sampler, NestedSampler
-
-from numpy import linalg
-from dynesty.utils import unitcheck
-import warnings
+from ..utils import check_directory_exists_and_if_not_mkdir, logger, reflect
+from .base_sampler import NestedSampler, Sampler
 
 
 class Dynesty(NestedSampler):
@@ -373,7 +372,7 @@ class Dynesty(NestedSampler):
                 with open(self.resume_file, 'rb') as file:
                     saved = pickle.load(file)
                 logger.info(
-                    "Succesfuly read resume file {}".format(self.resume_file))
+                    "Successfully read resume file {}".format(self.resume_file))
             except EOFError as e:
                 logger.warning("Resume file reading failed with error {}".format(e))
                 return False
@@ -672,7 +671,7 @@ def sample_rwalk_bilby(args):
 def estimate_nmcmc(accept_ratio, old_act, maxmcmc, safety=5, tau=None):
     """ Estimate autocorrelation length of chain using acceptance fraction
 
-    Using ACL = (2/acc) - 1 multiplied by a safety margin. Code adapated from
+    Using ACL = (2/acc) - 1 multiplied by a safety margin. Code adapted from
     CPNest:
         - https://github.com/johnveitch/cpnest/blob/master/cpnest/sampler.py
         - http://github.com/farr/Ensemble.jl

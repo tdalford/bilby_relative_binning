@@ -1,17 +1,17 @@
 from __future__ import division
 
 import json
-import pickle
 import os
+import pickle
 
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
 import numpy as np
+from matplotlib import rcParams
 
 from ..core.result import Result as CoreResult
-from ..core.utils import infft, logger, check_directory_exists_and_if_not_mkdir
-from .utils import plot_spline_pos, spline_angle_xform, asd_from_freq_series
-from .detector import get_empty_interferometer, Interferometer
+from ..core.utils import check_directory_exists_and_if_not_mkdir, infft, logger
+from .detector import Interferometer, get_empty_interferometer
+from .utils import asd_from_freq_series, plot_spline_pos, spline_angle_xform
 
 
 class CompactBinaryCoalescenceResult(CoreResult):

@@ -5,9 +5,9 @@ import copy
 import numpy as np
 from pandas import DataFrame
 
+from ..utils import check_directory_exists_and_if_not_mkdir, logger
 from .base_sampler import NestedSampler
-from .proposal import Sample, JumpProposalCycle
-from ..utils import logger, check_directory_exists_and_if_not_mkdir
+from .proposal import JumpProposalCycle, Sample
 
 
 class Cpnest(NestedSampler):

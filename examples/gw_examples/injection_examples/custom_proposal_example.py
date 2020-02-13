@@ -4,10 +4,9 @@ Tutorial for running cpnest with custom jump proposals.
 """
 from __future__ import division, print_function
 
-import numpy as np
 import bilby.gw.sampler.proposal
+import numpy as np
 from bilby.core.sampler import proposal
-
 
 # The set up here is the same as in fast_tutorial.py. Look there for descriptive explanations.
 

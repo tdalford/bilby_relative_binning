@@ -22,9 +22,9 @@ individually. Note that passing extra commands in is not yet implemented.
 
 """
 import argparse
-import pandas as pd
 
 import bilby
+import pandas as pd
 from bilby.core.utils import tcolors
 
 

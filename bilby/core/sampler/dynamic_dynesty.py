@@ -1,13 +1,13 @@
 from __future__ import absolute_import
 
 import os
-import dill as pickle
 import signal
 
+import dill as pickle
 import numpy as np
 from pandas import DataFrame
 
-from ..utils import logger, check_directory_exists_and_if_not_mkdir
+from ..utils import check_directory_exists_and_if_not_mkdir, logger
 from .base_sampler import Sampler
 from .dynesty import Dynesty
 

@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-An example of how to use bilby to perform paramater estimation for
+An example of how to use bilby to perform parameter estimation for
 non-gravitational wave data. In this case, fitting the half-life and
 initial radionuclide number for Polonium 214.
 """
 from __future__ import division
-import bilby
-import numpy as np
-import matplotlib.pyplot as plt
 
+import bilby
+import matplotlib.pyplot as plt
+import numpy as np
 from bilby.core.likelihood import PoissonLikelihood
 from bilby.core.prior import LogUniform
 

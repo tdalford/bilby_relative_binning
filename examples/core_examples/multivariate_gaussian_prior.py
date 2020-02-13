@@ -5,12 +5,12 @@ Gaussian prior distribution.
 """
 
 from __future__ import division
-import bilby
-import numpy as np
-from scipy import linalg, stats
-import matplotlib as mpl
 
+import bilby
+import matplotlib as mpl
+import numpy as np
 from bilby.core.likelihood import GaussianLikelihood
+from scipy import linalg, stats
 
 # A few simple setup steps
 label = 'multivariate_gaussian_prior'

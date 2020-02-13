@@ -3,10 +3,9 @@ from __future__ import absolute_import
 import os
 import unittest
 
+import bilby
 import numpy as np
 from past.builtins import execfile
-
-import bilby
 
 
 class Test(unittest.TestCase):
@@ -36,6 +35,7 @@ class Test(unittest.TestCase):
                 logging.warning(
                     "{} not removed prior to tests".format(self.outdir))
     '''
+
     def test_make_standard_data(self):
         " Load in the saved standard data and compare with new data "
 
@@ -66,7 +66,7 @@ class Test(unittest.TestCase):
             likelihood, priors, sampler='dynesty', verbose=False, npoints=100)
         self.assertAlmostEqual(
             np.mean(result.posterior.luminosity_distance), dL,
-            delta=3*np.std(result.posterior.luminosity_distance))
+            delta=3 * np.std(result.posterior.luminosity_distance))
 
 
 if __name__ == '__main__':

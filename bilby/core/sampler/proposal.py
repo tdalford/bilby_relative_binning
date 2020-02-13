@@ -1,8 +1,8 @@
+import random
 from collections import OrderedDict
 from inspect import isclass
 
 import numpy as np
-import random
 
 from ..prior import Uniform
 

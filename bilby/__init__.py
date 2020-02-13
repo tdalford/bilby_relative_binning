@@ -17,13 +17,13 @@ https://lscsoft.docs.ligo.org/bilby/installation.html.
 
 
 from __future__ import absolute_import
+
 import sys
 
 from . import core, gw, hyper
-
-from .core import utils, likelihood, prior, result, sampler
-from .core.sampler import run_sampler
+from .core import likelihood, prior, result, sampler, utils
 from .core.likelihood import Likelihood
+from .core.sampler import run_sampler
 
 __version__ = utils.get_version_information()
 

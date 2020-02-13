@@ -1,16 +1,21 @@
 from __future__ import division
-import os
+
 import json
+import os
 from math import fmod
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
-import matplotlib.pyplot as plt
 
-from ..core.utils import (ra_dec_to_theta_phi,
-                          speed_of_light, logger, run_commandline,
-                          check_directory_exists_and_if_not_mkdir,
-                          SamplesSummary)
+from ..core.utils import (
+    SamplesSummary,
+    check_directory_exists_and_if_not_mkdir,
+    logger,
+    ra_dec_to_theta_phi,
+    run_commandline,
+    speed_of_light,
+)
 
 try:
     from gwpy.timeseries import TimeSeries
@@ -348,7 +353,7 @@ def get_open_strain_data(
     cache: bool
         If true, cache the data
     buffer_time: float
-        Time to add to the begining and end of the segment.
+        Time to add to the beginning and end of the segment.
     **kwargs:
         Passed to `gwpy.timeseries.TimeSeries.fetch_open_data`
 
@@ -356,7 +361,7 @@ def get_open_strain_data(
     -------
     strain: gwpy.timeseries.TimeSeries
         The object containing the strain data. If the connection to the open-data server
-        fails, this function retruns `None`.
+        fails, this function returns `None`.
 
     """
     filename = '{}/{}_{}_{}.txt'.format(outdir, name, start_time, end_time)
@@ -600,7 +605,7 @@ def blockwise_dot_product(matrix_a, matrix_b, max_elements=int(2 ** 27),
     Parameters
     ----------
     matrix_a, matrix_b: array-like
-        Matrices to be dot producted, matrix_b is complex conjugated.
+        Matrices to dot product, matrix_b is complex conjugated.
     max_elements: int
         Maximum number of elements to consider simultaneously, should be memory
         limited.
@@ -610,7 +615,7 @@ def blockwise_dot_product(matrix_a, matrix_b, max_elements=int(2 ** 27),
     Return
     ------
     out: array-like
-        Dot producted array
+        Dot product array
     """
     def block_slices(dim_size, block_size):
         """Generator that yields slice objects for indexing into
@@ -877,7 +882,7 @@ def spline_angle_xform(delta_psi):
 
     Parameters
     ----------
-    delta_psi: calibration phase uncertainity
+    delta_psi: calibration phase uncertainty
 
     Returns
     -------

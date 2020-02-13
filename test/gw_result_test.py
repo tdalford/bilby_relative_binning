@@ -1,8 +1,9 @@
 from __future__ import absolute_import, division
 
-import bilby
-import unittest
 import shutil
+import unittest
+
+import bilby
 
 
 class TestCBCResult(unittest.TestCase):

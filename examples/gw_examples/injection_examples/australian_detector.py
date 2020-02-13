@@ -7,10 +7,9 @@ interferometers at Hanford and Livingston
 """
 from __future__ import division, print_function
 
-import numpy as np
-
 import bilby
 import gwinc
+import numpy as np
 
 # Set the duration and sampling frequency of the data segment that we're going
 # to inject the signal into

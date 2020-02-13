@@ -4,8 +4,7 @@ import os
 
 import numpy as np
 
-from ..utils import check_directory_exists_and_if_not_mkdir
-from ..utils import logger
+from ..utils import check_directory_exists_and_if_not_mkdir, logger
 from .base_sampler import NestedSampler
 
 

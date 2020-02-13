@@ -1,20 +1,20 @@
-from __future__ import division, absolute_import
-from collections import OrderedDict
-import unittest
-import os
-import sys
-import pickle
+from __future__ import absolute_import, division
 
-import numpy as np
-from astropy import cosmology
-from scipy.stats import ks_2samp
-import matplotlib.pyplot as plt
-import pandas as pd
+import os
+import pickle
+import sys
+import unittest
+from collections import OrderedDict
 
 import bilby
-from bilby.core.prior import Uniform, Constraint
-from bilby.gw.prior import BBHPriorDict
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from astropy import cosmology
+from bilby.core.prior import Constraint, Uniform
 from bilby.gw import conversion
+from bilby.gw.prior import BBHPriorDict
+from scipy.stats import ks_2samp
 
 
 class TestBBHPriorDict(unittest.TestCase):
@@ -67,7 +67,7 @@ class TestBBHPriorDict(unittest.TestCase):
 
     def test_correct_not_redundant_priors_masses(self):
         del self.bbh_prior_dict['mass_2']
-        for prior in ['mass_2', 'chirp_mass', 'total_mass',  'symmetric_mass_ratio']:
+        for prior in ['mass_2', 'chirp_mass', 'total_mass', 'symmetric_mass_ratio']:
             self.assertFalse(self.bbh_prior_dict.test_redundancy(prior))
 
     def test_correct_not_redundant_priors_spin_magnitudes(self):
@@ -266,7 +266,7 @@ class TestBNSPriorDict(unittest.TestCase):
 
     def test_correct_not_redundant_priors_masses(self):
         del self.bns_prior_dict['mass_2']
-        for prior in ['mass_2', 'chirp_mass', 'total_mass',  'symmetric_mass_ratio']:
+        for prior in ['mass_2', 'chirp_mass', 'total_mass', 'symmetric_mass_ratio']:
             self.assertFalse(self.bns_prior_dict.test_redundancy(prior))
 
     def test_correct_not_redundant_priors_spin_magnitudes(self):

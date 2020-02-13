@@ -5,12 +5,14 @@ import numpy as np
 from ..core import utils
 from ..core.utils import logger
 from .conversion import bilby_to_lalsimulation_spins
-from .utils import (lalsim_GetApproximantFromString,
-                    lalsim_SimInspiralFD,
-                    lalsim_SimInspiralChooseFDWaveform,
-                    lalsim_SimInspiralWaveformParamsInsertTidalLambda1,
-                    lalsim_SimInspiralWaveformParamsInsertTidalLambda2,
-                    lalsim_SimInspiralChooseFDWaveformSequence)
+from .utils import (
+    lalsim_GetApproximantFromString,
+    lalsim_SimInspiralChooseFDWaveform,
+    lalsim_SimInspiralChooseFDWaveformSequence,
+    lalsim_SimInspiralFD,
+    lalsim_SimInspiralWaveformParamsInsertTidalLambda1,
+    lalsim_SimInspiralWaveformParamsInsertTidalLambda2,
+)
 
 try:
     import lal

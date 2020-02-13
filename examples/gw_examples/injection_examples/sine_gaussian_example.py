@@ -4,6 +4,7 @@ Tutorial to demonstrate running parameter estimation on a sine gaussian
 injected signal.
 """
 from __future__ import division, print_function
+
 import bilby
 import numpy as np
 

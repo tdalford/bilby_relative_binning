@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+import os
 import subprocess
 import sys
-import os
+
+from setuptools import setup
 
 # check that python version is 3.5 or above
 python_version = sys.version_info

@@ -1,13 +1,13 @@
 from __future__ import absolute_import, division, print_function
 
 import os
-from shutil import copyfile
 import signal
 import sys
+from shutil import copyfile
 
 import numpy as np
 
-from ..utils import logger, get_progress_bar
+from ..utils import get_progress_bar, logger
 from . import Emcee
 from .base_sampler import SamplerError
 
