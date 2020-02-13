@@ -239,5 +239,5 @@ class WaveformGenerator(object):
         return set(utils.infer_parameters_from_function(model))
 
 
-def _default_parameter_conversion(parmeters):
-    return parmeters, list()
+def _default_parameter_conversion(parameters):
+    return parameters, list()

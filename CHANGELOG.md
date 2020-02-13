@@ -36,13 +36,13 @@ parameters.
 
 ## [0.6.0] 2019-12-02
 ### Added
-- A bilby-implemenatation of the dynesty rwalk proposal method (!640)
+- A bilby-implementation of the dynesty rwalk proposal method (!640)
 - An ACT estimate to the rwalk option (!643)
 - HTML waveform plots and general improvements to the waveform plot (!641, !659)
 - Add a function to resample bilby generated with a uniform in mass ratio and
   chirp_mass prior to uniform in component mass (!642)
 - Adds checking to the ROQ usage: warning messages generated when out of bounds (!549)
-- A safety check to the time reconstrucion (!633)
+- A safety check to the time reconstruction (!633)
 - Added the kombine sampler (!637)
 - Added in-plane spins (!646)
 ## Changes
@@ -60,7 +60,7 @@ parameters.
 
 ## Changes
 - Speed up the prior evaluations by implementing directly with checks to scipy !627
-- Soft initalisation option for the Sampler class !620
+- Soft initialization option for the Sampler class !620
 - Improvements to JSON reading and writing for functions !621
 - Fixed bug in prior reading !618 !617
 - Fixes to the examples !619 !614 !626 !616
@@ -121,7 +121,7 @@ parameters.
 - Removed the sqrt(2) normalisation from the scalar longitudinal mode
 - Improve PSD filename reading (no longer required "/" to read local files)
 - Fix bug in emcee chains
-- Added a try/except cluase for building the lookup table
+- Added a try/except clause for building the lookup table
 
 ## [0.5.4] 2019-07-30
 
