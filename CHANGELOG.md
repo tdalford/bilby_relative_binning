@@ -162,7 +162,7 @@ shown (!564) to provide better convergence for the long-duration high-spin tests
 
 ### Changed
 - Updated and fixed bugs in examples
-- Resolve sampling time persistence for runs which are interupted
+- Resolve sampling time persistence for runs which are interrupted
 - Improvements to the PP plot
 - Speed up of the distance calculation
 - Fixed a bug in the inteference of bilby command line arguments with user specified command lines
@@ -458,7 +458,7 @@ re-instantiate the Prior in most cases
 - Changed to using `setuptools` for installation.
 - Clean up of real data handling: all data is now windowed with a 0.4s roll off (unless set otherwise) and low-pass filtered.
 - Add explicit method to create a power spectral density from time-domain data
-- Clean up of `PowerSpectralDensity()` - addds `set_from` methods to handle various ways to define the PSD.
+- Clean up of `PowerSpectralDensity()` - adds `set_from` methods to handle various ways to define the PSD.
 - Clean up of `detectors.py`: adds an `InterferometerStrainData` to handle strain data and `InterferometerSet` to handle multiple interferometers. All data setting should primarily be done through the `Interferometer.set_strain_data..` methods.
 - Fix the comments and units of `nfft` and `infft` and general improvement to documentation of data.
 - Fixed a bug in create_time_series

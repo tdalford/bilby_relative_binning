@@ -8,7 +8,8 @@ repos:
     rev: v1.16.0
     hooks:
     -   id: codespell # Spellchecker
-        args: [-L, nd, --skip, "*ipynb,*.html", --ignore-words=.dictionary.txt]
+        args: [-L, nd, --skip, "*.ipynb,*.html", --ignore-words=.dictionary.txt]
+        exclude: ^examples/tutorials/
 -   repo: https://github.com/asottile/seed-isort-config
     rev: v1.3.0
     hooks:
