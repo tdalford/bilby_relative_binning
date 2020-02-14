@@ -569,9 +569,9 @@ def sample_rwalk_bilby(args):
     reject = 0
     nfail = 0
     act = np.inf
-    u_list = [u]
-    v_list = [prior_transform(u)]
-    logl_list = [loglikelihood(v_list[-1])]
+    u_list = []
+    v_list = []
+    logl_list = []
     max_walk_warning = True
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
@@ -650,11 +650,16 @@ def sample_rwalk_bilby(args):
         u = u_list[idx]
         v = v_list[idx]
         logl = logl_list[idx]
-    elif len(u_list) == 1:
+    elif len(u_list) <= 2 and len(u_list) == 1:
         logger.warning("Returning the only point in the chain")
         u = u_list[-1]
         v = v_list[-1]
         logl = logl_list[-1]
+    elif len(u_list) == 0:
+        logger.warning("No accepted points: returning a random point")
+        u = np.random.uniform(size=n)
+        v = prior_transform(u)
+        logl = loglikelihood(v)
     else:
         idx = np.random.randint(int(len(u_list) / 2), len(u_list))
         logger.warning("Returning random point in second half of the chain")
