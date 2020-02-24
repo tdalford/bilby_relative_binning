@@ -994,14 +994,15 @@ class Result(object):
         idxs = np.arange(nsteps)
         fig, axes = plt.subplots(nrows=ndim, figsize=(6, 3 * ndim))
         walkers = self.walkers[:, :, :]
+        scatter_kwargs = dict(lw=0, marker='o', markersize=1, alpha=0.05)
         for i, ax in enumerate(axes):
             ax.plot(idxs[:self.nburn + 1], walkers[:, :self.nburn + 1, i].T,
-                    lw=0.1, color='r')
+                    color='r', **scatter_kwargs)
             ax.set_ylabel(self.parameter_labels[i])
 
         for i, ax in enumerate(axes):
-            ax.plot(idxs[self.nburn:], walkers[:, self.nburn:, i].T, lw=0.1,
-                    color='k')
+            ax.plot(idxs[self.nburn:], walkers[:, self.nburn:, i].T,
+                    color='k', **scatter_kwargs)
             ax.set_ylabel(self.parameter_labels[i])
 
         fig.tight_layout()
