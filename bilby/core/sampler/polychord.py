@@ -1,8 +1,10 @@
 from __future__ import absolute_import
 
 import numpy as np
+import sys
 
 from .base_sampler import NestedSampler
+from ..utils import logger
 
 
 class PyPolyChord(NestedSampler):
@@ -46,8 +48,12 @@ class PyPolyChord(NestedSampler):
             pc_kwargs.pop('use_polychord_defaults')
             settings = PolyChordSettings(nDims=self.ndim, nDerived=self.ndim, **pc_kwargs)
         self._verify_kwargs_against_default_kwargs()
-        out = pypolychord.run_polychord(loglikelihood=self.log_likelihood, nDims=self.ndim,
-                                        nDerived=self.ndim, settings=settings, prior=self.prior_transform)
+        try:
+            out = pypolychord.run_polychord(loglikelihood=self.log_likelihood, nDims=self.ndim,
+                                            nDerived=self.ndim, settings=settings, prior=self.prior_transform)
+        except SystemExit as e:
+            logger.warn("Job was exited with code {}. Exiting with 130 instead".format(e))
+            sys.exit(130)
         self.result.log_evidence = out.logZ
         self.result.log_evidence_err = out.logZerr
         log_likelihoods, physical_parameters = self._read_sample_file()
