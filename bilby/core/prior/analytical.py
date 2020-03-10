@@ -1423,3 +1423,85 @@ class FermiDirac(Prior):
             idx = val >= self.minimum
             lnp[idx] = norm - np.logaddexp((val[idx] / self.sigma) - self.r, 0.)
             return lnp
+
+
+class SpikeAndSlab(Prior):
+    def __init__(self, spike=0, slab=None, mix=0.5, name=None, latex_label=None, unit=None):
+        """Dirac delta function prior, this always returns peak.
+
+        Parameters
+        ----------
+        peak: float
+            Peak value of the delta function
+        name: str
+            See superclass
+        latex_label: str
+            See superclass
+        unit: str
+            See superclass
+
+        """
+        #if isinstance(slab, Uniform) is False:
+            #raise NotImplementedError()
+        minimum = np.min([spike, slab.minimum])
+        maximum = np.max([spike, slab.maximum])
+        super(SpikeAndSlab, self).__init__(
+            name=name, latex_label=latex_label, unit=unit, minimum=minimum,
+            maximum=maximum)
+        self.mix = mix
+        self.spike = spike
+        self.slab = slab
+
+    def rescale(self, val):
+        """
+        'Rescale' a sample from the unit line element to the appropriate SpikeAndSlab prior.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        This maps to the inverse CDF. This has been analytically solved for this case,
+
+        """
+        self.test_valid_for_rescaling(val)
+
+        CDF_at_spike = self.slab.cdf(self.spike) * (1 - self.mix)
+        if isinstance(val, (float, int)):
+            if val <= CDF_at_spike:
+                return self.slab.rescale(val) / (1 - self.mix)
+            elif (CDF_at_spike < val) * (val <= CDF_at_spike + self.mix):
+                return self.spike
+            elif val > CDF_at_spike + self.mix:
+                return (self.slab.rescale(val - self.mix)) / (1 - self.mix)
+
+        else:
+            rescales = np.ones_like(val)
+            low_idxs = val <= CDF_at_spike
+            mid_idxs = (CDF_at_spike < val) * (val <= CDF_at_spike + self.mix)
+            up_idxs = val > CDF_at_spike + self.mix
+            rescales[low_idxs] = self.slab.rescale(val[low_idxs]) / (1 - self.mix)
+            rescales[mid_idxs] = self.spike
+            rescales[up_idxs] = (self.slab.rescale(val[up_idxs] - self.mix)) / (1 - self.mix)
+            return rescales
+
+    def prob(self, val):
+        """Return the prior probability of val.
+
+        Parameters
+        ----------
+        val: Union[float, int, array_like]
+
+        Returns
+        -------
+        float: Prior probability of val
+        """
+
+        if isinstance(val, (float, int)):
+            if val == self.spike:
+                return self.mix
+            else:
+                return (1 - self.mix) * self.slab.prob(val)
+        else:
+            probs = self.slab.prob(val) * (1 - self.mix)
+            probs[val == self.spike] = self.mix
+            return probs
