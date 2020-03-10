@@ -1505,3 +1505,54 @@ class SpikeAndSlab(Prior):
             probs = self.slab.prob(val) * (1 - self.mix)
             probs[val == self.spike] = self.mix
             return probs
+
+
+class LogisticUnitUniform(Prior):
+    def __init__(self, uniform_minimum=0, uniform_maximum=1, name=None,
+                 latex_label=None, unit=None):
+        if uniform_minimum == 0:
+            minimum = -np.inf
+        else:
+            minimum = np.log(uniform_minimum / (1 - uniform_minimum))
+        if uniform_maximum == 1:
+            maximum = np.inf
+        else:
+            maximum = np.log(uniform_maximum / (1 - uniform_maximum))
+
+        super(LogisticUnitUniform, self).__init__(
+            name=name, latex_label=latex_label, unit=unit, minimum=minimum,
+            maximum=maximum)
+        self.uniform_minimum = uniform_minimum
+        self.uniform_maximum = uniform_maximum
+
+    @property
+    def normalization(self):
+        return 1 / (self.uniform_maximum - self.uniform_minimum)
+
+    def prob(self, val):
+        if isinstance(val, (float, int)):
+            if (val > self.minimum) and (val < self.maximum):
+                return self.normalization * np.exp(-val) / (1 + np.exp(-val)) ** 2
+            else:
+                return 0
+        else:
+            idxs = (val > self.minimum) * (val < self.maximum)
+            probs = np.zeros_like(val)
+            probs[idxs] = self.normalization * np.exp(-val[idxs]) / (1 + np.exp(-val[idxs])) ** 2
+            return probs
+
+    def ln_prob(self, val):
+        if isinstance(val, (float, int)):
+            if (val > self.minimum) and (val < self.maximum):
+                return np.log(self.normalization) - val - 2 * np.log(1 + np.exp(-val))
+            else:
+                return 0
+        else:
+            idxs = (val > self.minimum) * (val < self.maximum)
+            probs = np.ones_like(val) * -np.inf
+            probs[idxs] = np.log(self.normalization) - val[idxs] - 2 * np.log(1 + np.exp(-val[idxs]))
+            return probs
+
+    def rescale(self, val):
+        alpha = self.uniform_minimum + val * (self.uniform_maximum - self.uniform_minimum)
+        return np.log(alpha / (1 - alpha))

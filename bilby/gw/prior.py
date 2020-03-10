@@ -1123,37 +1123,3 @@ class HealPixPrior(JointPrior):
             raise JointPriorDistError("dist object must be instance of HealPixMapPriorDist")
         super(HealPixPrior, self).__init__(dist=dist, name=name, latex_label=latex_label, unit=unit)
 
-
-class LogisticMassRatio(Prior):
-    def __init__(self, mass_ratio_minimum=0.125, name=None, latex_label=None, unit=None):
-        minimum = np.log(mass_ratio_minimum / (1 - mass_ratio_minimum))
-        super(LogisticMassRatio, self).__init__(
-            name=name, latex_label=latex_label, unit=unit, minimum=minimum, maximum=np.inf)
-        self.mass_ratio_minimum = mass_ratio_minimum
-
-    def prob(self, val):
-        if isinstance(val, (float, int)):
-            if val > self.minimum:
-                return (1 + np.exp(self.minimum)) * np.exp(-val) / (1 + np.exp(-val)) ** 2
-            else:
-                return 0
-        else:
-            idxs = val > self.minimum
-            probs = np.zeros_like(val)
-            probs[idxs] = (1 + np.exp(self.minimum)) * np.exp(-val[idxs]) / (1 + np.exp(-val[idxs])) ** 2
-            return probs
-
-    def ln_prob(self, val):
-        if isinstance(val, (float, int)):
-            if val > self.minimum:
-                return np.log(1 + np.exp(self.minimum)) - val - 2 * np.log(1 + np.exp(-val))
-            else:
-                return 0
-        else:
-            idxs = val > self.minimum
-            probs = np.ones_like(val) * -np.inf
-            probs[idxs] = np.log(1 + np.exp(self.minimum)) - val[idxs] - 2 * np.log(1 + np.exp(-val[idxs]))
-            return probs
-
-    def rescale(self, val):
-        return np.log((1 + np.exp(self.minimum)) / (1 - val) - 1)
