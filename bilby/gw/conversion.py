@@ -168,6 +168,10 @@ def convert_to_lal_binary_black_hole_parameters(parameters):
             converted_parameters[key[:-7]] = converted_parameters[key] * (
                 1 + converted_parameters['redshift'])
 
+    if "logit_mass_ratio" in converted_parameters.keys():
+        converted_parameters["mass_ratio"] = logit_mass_ratio_to_mass_ratio(
+            converted_parameters["logit_mass_ratio"])
+
     if 'chirp_mass' in converted_parameters.keys():
         if "mass_1" in converted_parameters.keys():
             converted_parameters["mass_ratio"] = chirp_mass_and_primary_mass_to_mass_ratio(
@@ -316,6 +320,10 @@ def convert_to_lal_binary_neutron_star_parameters(parameters):
                   if key not in original_keys]
 
     return converted_parameters, added_keys
+
+
+def logit_mass_ratio_to_mass_ratio(logit_mass_ratio):
+    return 1 / (1 + np.exp(-logit_mass_ratio))
 
 
 def total_mass_and_mass_ratio_to_component_masses(mass_ratio, total_mass):

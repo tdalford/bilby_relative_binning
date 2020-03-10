@@ -1441,8 +1441,8 @@ class SpikeAndSlab(Prior):
             See superclass
 
         """
-        #if isinstance(slab, Uniform) is False:
-            #raise NotImplementedError()
+        if isinstance(slab, Uniform) is False:
+            raise NotImplementedError()
         minimum = np.min([spike, slab.minimum])
         maximum = np.max([spike, slab.maximum])
         super(SpikeAndSlab, self).__init__(
