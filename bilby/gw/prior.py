@@ -1122,4 +1122,3 @@ class HealPixPrior(JointPrior):
         if not isinstance(dist, HealPixMapPriorDist):
             raise JointPriorDistError("dist object must be instance of HealPixMapPriorDist")
         super(HealPixPrior, self).__init__(dist=dist, name=name, latex_label=latex_label, unit=unit)
-
