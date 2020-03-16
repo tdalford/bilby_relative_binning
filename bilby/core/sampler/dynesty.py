@@ -396,11 +396,6 @@ class Dynesty(NestedSampler):
         The check of whether the sampler is picklable is to catch an error
         when using pytest. Hopefully, this message won't be triggered during
         normal running.
-
-        Parameters
-        ----------
-        plot: bool
-            Whether to make plots showing the current state of the run
         """
         check_directory_exists_and_if_not_mkdir(self.outdir)
         end_time = datetime.datetime.now()
