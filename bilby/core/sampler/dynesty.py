@@ -377,8 +377,8 @@ class Dynesty(NestedSampler):
                 self.start_time = self.sampler.kwargs.pop("start_time")
                 self.sampling_time = self.sampler.kwargs.pop("sampling_time")
         else:
-            logger.warning(
-                "Failed to read resume file {}".format(self.resume_file))
+            logger.debug(
+                "Resume file {} does not exist.".format(self.resume_file))
             return False
 
     def write_current_state_and_exit(self, signum=None, frame=None):
