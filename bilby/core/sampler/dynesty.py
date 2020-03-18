@@ -320,9 +320,9 @@ class Dynesty(NestedSampler):
     def _run_external_sampler_with_checkpointing(self):
         logger.debug("Running sampler with checkpointing")
         if self.resume:
-            resume = self.read_saved_state(continuing=True)
-            if resume:
-                logger.info('Resuming from previous run.')
+            resume_file_loaded = self.read_saved_state(continuing=True)
+            if resume_file_loaded:
+                logger.info('Resume file successfully loaded.')
 
         old_ncall = self.sampler.ncall
         sampler_kwargs = self.sampler_function_kwargs.copy()
@@ -366,8 +366,8 @@ class Dynesty(NestedSampler):
             Whether the run is continuing or terminating, if True, the loaded
             state is mostly written back to disk.
         """
-        logger.info("Reading resume file {}".format(self.resume_file))
         if os.path.isfile(self.resume_file):
+            logger.info("Reading resume file {}".format(self.resume_file))
             with open(self.resume_file, 'rb') as file:
                 self.sampler = dill.load(file)
                 if self.sampler.added_live and continuing:
@@ -376,6 +376,7 @@ class Dynesty(NestedSampler):
                 self.sampler.rstate = np.random
                 self.start_time = self.sampler.kwargs.pop("start_time")
                 self.sampling_time = self.sampler.kwargs.pop("sampling_time")
+            return True
         else:
             logger.debug(
                 "Resume file {} does not exist.".format(self.resume_file))
