@@ -6,6 +6,7 @@ import os
 import sys
 import pickle
 import signal
+import time
 
 import tqdm
 import matplotlib.pyplot as plt
@@ -71,12 +72,10 @@ class Dynesty(NestedSampler):
     check_point_plot: bool,
         If true, generate a trace plot along with the check-point
     check_point_delta_t: float (600)
-        The approximate checkpoint period (in seconds). Should the run be
-        interrupted, it can be resumed from the last checkpoint. Set to
-        `None` to turn-off check pointing
+        The minimum checkpoint period (in seconds). Should the run be
+        interrupted, it can be resumed from the last checkpoint.
     n_check_point: int, optional (None)
-        The number of steps to take before check pointing (override
-        check_point_delta_t).
+        The number of steps to take before checking whether to check_point.
     resume: bool
         If true, resume run from checkpoint (if available)
     """
@@ -111,16 +110,12 @@ class Dynesty(NestedSampler):
         self._periodic = list()
         self._reflective = list()
         self._apply_dynesty_boundaries()
-        if self.n_check_point is None:
-            # If the log_likelihood_eval_time is not calculable then
-            # check_point is set to False.
-            if np.isnan(self._log_likelihood_eval_time):
-                self.check_point = False
-            n_check_point_raw = (check_point_delta_t / self._log_likelihood_eval_time)
-            n_check_point_rnd = int(float("{:1.0g}".format(n_check_point_raw)))
-            self.n_check_point = n_check_point_rnd
 
-        logger.info("Checkpoint every n_check_point = {}".format(self.n_check_point))
+        if self.n_check_point is None:
+            self.n_check_point = 1000
+        self.check_point_delta_t = check_point_delta_t
+        logger.info("Checkpoint every check_point_delta_t = {}s"
+                    .format(check_point_delta_t))
 
         self.resume_file = '{}/{}_resume.pickle'.format(self.outdir, self.label)
         self.sampling_time = datetime.timedelta()
@@ -336,8 +331,13 @@ class Dynesty(NestedSampler):
                 break
             old_ncall = self.sampler.ncall
 
-            self.write_current_state()
-            self.plot_current_state()
+            if os.path.isfile(self.resume_file):
+                last_checkpoint_s = time.time() - os.path.getmtime(self.resume_file)
+            else:
+                last_checkpoint_s = np.inf
+            if last_checkpoint_s > self.check_point_delta_t:
+                self.write_current_state()
+                self.plot_current_state()
             if self.sampler.added_live:
                 self.sampler._remove_live_points()
 
@@ -379,7 +379,7 @@ class Dynesty(NestedSampler):
                 self.sampling_time = self.sampler.kwargs.pop("sampling_time")
             return True
         else:
-            logger.debug(
+            logger.info(
                 "Resume file {} does not exist.".format(self.resume_file))
             return False
 
@@ -399,6 +399,7 @@ class Dynesty(NestedSampler):
         when using pytest. Hopefully, this message won't be triggered during
         normal running.
         """
+
         check_directory_exists_and_if_not_mkdir(self.outdir)
         end_time = datetime.datetime.now()
         if hasattr(self, 'start_time'):
@@ -409,6 +410,7 @@ class Dynesty(NestedSampler):
         if dill.pickles(self.sampler):
             with open(self.resume_file, 'wb') as file:
                 dill.dump(self.sampler, file)
+            logger.info("Written checkpoint file {}".format(self.resume_file))
         else:
             logger.warning(
                 "Cannot write pickle resume file! "
