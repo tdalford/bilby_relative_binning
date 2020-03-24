@@ -4,8 +4,12 @@ An example of how to use bilby to perform paramater estimation for
 non-gravitational wave data. In this case, fitting a linear function to
 data with background Gaussian noise
 
+Extra requirements
+==================
+- pymc3: a hamiltonian MCMC sampling package, available through pypi
+
+Typical run time: ~ 20 seconds
 """
-from __future__ import division
 import bilby
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,8 +17,8 @@ import matplotlib.pyplot as plt
 from bilby.core.likelihood import GaussianLikelihood
 
 # A few simple setup steps
-label = 'linear_regression_pymc3'
-outdir = 'outdir'
+label = "linear_regression_pymc3"
+outdir = "outdir"
 bilby.utils.check_directory_exists_and_if_not_mkdir(outdir)
 
 
@@ -39,12 +43,12 @@ data = model(time, **injection_parameters) + np.random.normal(0, sigma, N)
 
 # We quickly plot the data to check it looks sensible
 fig, ax = plt.subplots()
-ax.plot(time, data, 'o', label='data')
-ax.plot(time, model(time, **injection_parameters), '--r', label='signal')
-ax.set_xlabel('time')
-ax.set_ylabel('y')
+ax.plot(time, data, "o", label="data")
+ax.plot(time, model(time, **injection_parameters), "--r", label="signal")
+ax.set_xlabel("time")
+ax.set_ylabel("y")
 ax.legend()
-fig.savefig('{}/{}_data.png'.format(outdir, label))
+fig.savefig("{}/{}_data.png".format(outdir, label))
 
 # Now lets instantiate a version of our GaussianLikelihood, giving it
 # the time, data and signal model
@@ -53,12 +57,17 @@ likelihood = GaussianLikelihood(time, data, model, sigma=sigma)
 # From hereon, the syntax is exactly equivalent to other bilby examples
 # We make a prior
 priors = dict()
-priors['m'] = bilby.core.prior.Uniform(0, 5, 'm')
-priors['c'] = bilby.core.prior.Uniform(-2, 2, 'c')
+priors["m"] = bilby.core.prior.Uniform(0, 5, "m")
+priors["c"] = bilby.core.prior.Uniform(-2, 2, "c")
 
 # And run sampler
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='pymc3',
-    injection_parameters=injection_parameters, outdir=outdir,
-    draws=2000, label=label)
+    likelihood=likelihood,
+    priors=priors,
+    sampler="pymc3",
+    injection_parameters=injection_parameters,
+    outdir=outdir,
+    draws=2000,
+    label=label,
+)
 result.plot_corner()

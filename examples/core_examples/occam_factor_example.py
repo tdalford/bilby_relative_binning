@@ -29,15 +29,19 @@ the increasing (negative) Occam factor.
 Note - the code uses a course 100-point estimation for speed, results can be
 improved by increasing this to say 500 or 1000.
 
+Extra requirements
+==================
+- None!
+
+Typical run time: ~ 2 hours
 """
-from __future__ import division
 import bilby
 import numpy as np
 import matplotlib.pyplot as plt
 
 # A few simple setup steps
-label = 'occam_factor'
-outdir = 'outdir'
+label = "occam_factor"
+outdir = "outdir"
 bilby.utils.check_directory_exists_and_if_not_mkdir(outdir)
 
 sigma = 1
@@ -48,12 +52,12 @@ coeffs = [1, 2, 3]
 data = np.polyval(coeffs, time) + np.random.normal(0, sigma, N)
 
 fig, ax = plt.subplots()
-ax.plot(time, data, 'o', label='data', color='C0')
-ax.plot(time, np.polyval(coeffs, time), label='true signal', color='C1')
-ax.set_xlabel('time')
-ax.set_ylabel('y')
+ax.plot(time, data, "o", label="data", color="C0")
+ax.plot(time, np.polyval(coeffs, time), label="true signal", color="C1")
+ax.set_xlabel("time")
+ax.set_ylabel("y")
 ax.legend()
-fig.savefig('{}/{}_data.png'.format(outdir, label))
+fig.savefig("{}/{}_data.png".format(outdir, label))
 
 
 class Polynomial(bilby.Likelihood):
@@ -70,13 +74,13 @@ class Polynomial(bilby.Likelihood):
         n: int
             The degree of the polynomial to fit.
         """
+        super(Polynomial, self).__init__(parameters=dict())
         self.x = x
         self.y = y
         self.sigma = sigma
         self.N = len(x)
         self.n = n
-        self.keys = ['c{}'.format(k) for k in range(n)]
-        self.parameters = {k: None for k in self.keys}
+        self.keys = ["c{}".format(k) for k in range(n)]
 
     def polynomial(self, x, parameters):
         coeffs = [parameters[k] for k in self.keys]
@@ -84,22 +88,27 @@ class Polynomial(bilby.Likelihood):
 
     def log_likelihood(self):
         res = self.y - self.polynomial(self.x, self.parameters)
-        return -0.5 * (np.sum((res / self.sigma)**2) +
-                       self.N * np.log(2 * np.pi * self.sigma**2))
+        return -0.5 * (
+            np.sum((res / self.sigma) ** 2)
+            + self.N * np.log(2 * np.pi * self.sigma ** 2)
+        )
 
 
 def fit(n):
     likelihood = Polynomial(time, data, sigma, n)
     priors = {}
     for i in range(n):
-        k = 'c{}'.format(i)
+        k = "c{}".format(i)
         priors[k] = bilby.core.prior.Uniform(0, 10, k)
 
     result = bilby.run_sampler(
-        likelihood=likelihood, priors=priors, npoints=100, outdir=outdir,
-        label=label)
-    return (result.log_evidence, result.log_evidence_err,
-            np.log(result.occam_factor(priors)))
+        likelihood=likelihood, priors=priors, npoints=100, outdir=outdir, label=label
+    )
+    return (
+        result.log_evidence,
+        result.log_evidence_err,
+        np.log(result.occam_factor(priors)),
+    )
 
 
 fig, ax1 = plt.subplots()
@@ -115,15 +124,13 @@ for l in ns:
     log_evidences_err.append(e_err)
     log_occam_factors.append(o)
 
-ax1.errorbar(ns, log_evidences, yerr=log_evidences_err,
-             fmt='-o', color='C0')
-ax1.set_ylabel("Unnormalized log evidence", color='C0')
-ax1.tick_params('y', colors='C0')
+ax1.errorbar(ns, log_evidences, yerr=log_evidences_err, fmt="-o", color="C0")
+ax1.set_ylabel("Unnormalized log evidence", color="C0")
+ax1.tick_params("y", colors="C0")
 
-ax2.plot(ns, log_occam_factors,
-         '-o', color='C1', alpha=0.5)
-ax2.tick_params('y', colors='C1')
-ax2.set_ylabel('Occam factor', color='C1')
-ax1.set_xlabel('Degree of polynomial')
+ax2.plot(ns, log_occam_factors, "-o", color="C1", alpha=0.5)
+ax2.tick_params("y", colors="C1")
+ax2.set_ylabel("Occam factor", color="C1")
+ax1.set_xlabel("Degree of polynomial")
 
-fig.savefig('{}/{}_test'.format(outdir, label))
+fig.savefig("{}/{}_test".format(outdir, label))

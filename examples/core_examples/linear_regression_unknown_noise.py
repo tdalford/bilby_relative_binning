@@ -4,15 +4,19 @@ An example of how to use bilby to perform parameter estimation for
 non-gravitational wave data. In this case, fitting a linear function to
 data with background Gaussian noise with unknown variance.
 
+Extra requirements
+==================
+- None!
+
+Typical run time: ~ 10 seconds
 """
-from __future__ import division
 import bilby
 import numpy as np
 import matplotlib.pyplot as plt
 
 # A few simple setup steps
-label = 'linear_regression_unknown_noise'
-outdir = 'outdir'
+label = "linear_regression_unknown_noise"
+outdir = "outdir"
 bilby.utils.check_directory_exists_and_if_not_mkdir(outdir)
 
 
@@ -37,12 +41,12 @@ data = model(time, **injection_parameters) + np.random.normal(0, sigma, N)
 
 # We quickly plot the data to check it looks sensible
 fig, ax = plt.subplots()
-ax.plot(time, data, 'o', label='data')
-ax.plot(time, model(time, **injection_parameters), '--r', label='signal')
-ax.set_xlabel('time')
-ax.set_ylabel('y')
+ax.plot(time, data, "o", label="data")
+ax.plot(time, model(time, **injection_parameters), "--r", label="signal")
+ax.set_xlabel("time")
+ax.set_ylabel("y")
 ax.legend()
-fig.savefig('{}/{}_data.png'.format(outdir, label))
+fig.savefig("{}/{}_data.png".format(outdir, label))
 
 injection_parameters.update(dict(sigma=1))
 
@@ -52,13 +56,19 @@ injection_parameters.update(dict(sigma=1))
 likelihood = bilby.core.likelihood.GaussianLikelihood(time, data, model)
 
 priors = dict()
-priors['m'] = bilby.core.prior.Uniform(0, 5, 'm')
-priors['c'] = bilby.core.prior.Uniform(-2, 2, 'c')
-priors['sigma'] = bilby.core.prior.Uniform(0, 10, 'sigma')
+priors["m"] = bilby.core.prior.Uniform(0, 5, "m")
+priors["c"] = bilby.core.prior.Uniform(-2, 2, "c")
+priors["sigma"] = bilby.core.prior.Uniform(0, 10, "sigma")
 
 # And run sampler
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='dynesty', npoints=500,
-    sample='unif', injection_parameters=injection_parameters, outdir=outdir,
-    label=label)
+    likelihood=likelihood,
+    priors=priors,
+    sampler="dynesty",
+    npoints=500,
+    sample="unif",
+    injection_parameters=injection_parameters,
+    outdir=outdir,
+    label=label,
+)
 result.plot_corner()

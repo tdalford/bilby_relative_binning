@@ -2,8 +2,13 @@
 """
 Testing the recovery of a multi-dimensional
 Gaussian with zero mean and unit variance
+
+Extra requirements
+==================
+- None!
+
+Typical run time: ~ 1 hour
 """
-from __future__ import division
 import bilby
 import numpy as np
 
@@ -33,31 +38,24 @@ class MultidimGaussianLikelihood(bilby.Likelihood):
         """
 
     def __init__(self, data, dim):
+        super(MultidimGaussianLikelihood, self).__init__(parameters=dict())
         self.dim = dim
         self.data = np.array(data)
         self.N = len(data)
-        self.parameters = {}
 
     def log_likelihood(self):
-        mu = np.array(
-            [self.parameters["mu_{0}".format(i)] for i in range(self.dim)]
-        )
+        mu = np.array([self.parameters["mu_{0}".format(i)] for i in range(self.dim)])
         sigma = np.array(
             [self.parameters["sigma_{0}".format(i)] for i in range(self.dim)]
         )
         p = np.array([(self.data[n, :] - mu) / sigma for n in range(self.N)])
-        return np.sum(
-            -0.5 * (np.sum(p ** 2) + self.N * np.log(2 * np.pi * sigma ** 2))
-        )
+        return np.sum(-0.5 * (np.sum(p ** 2) + self.N * np.log(2 * np.pi * sigma ** 2)))
 
 
 likelihood = MultidimGaussianLikelihood(data, dim)
 priors = bilby.core.prior.PriorDict()
 priors.update(
-    {
-        "mu_{0}".format(i): bilby.core.prior.Uniform(-5, 5, "mu")
-        for i in range(dim)
-    }
+    {"mu_{0}".format(i): bilby.core.prior.Uniform(-5, 5, "mu") for i in range(dim)}
 )
 priors.update(
     {

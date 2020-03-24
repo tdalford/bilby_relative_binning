@@ -3,15 +3,20 @@
 An example of using emcee, but starting the walkers off close to the peak (or
 any other arbitrary point). This is based off the
 linear_regression_with_unknown_noise.py example.
+
+Extra requirements
+==================
+- None!
+
+Typical run time: ~ 1 minute
 """
-from __future__ import division
 import bilby
 import numpy as np
 import pandas as pd
 
 # A few simple setup steps
-label = 'starting_mcmc_chains_near_to_the_peak'
-outdir = 'outdir'
+label = "starting_mcmc_chains_near_to_the_peak"
+outdir = "outdir"
 
 
 # First, we define our "signal model", in this case a simple linear function
@@ -39,27 +44,33 @@ likelihood = bilby.core.likelihood.GaussianLikelihood(time, data, model)
 
 # Here we define the prior distribution used while sampling
 priors = bilby.core.prior.PriorDict()
-priors['m'] = bilby.core.prior.Uniform(0, 5, 'm')
-priors['c'] = bilby.core.prior.Uniform(-2, 2, 'c')
-priors['sigma'] = bilby.core.prior.Uniform(0, 10, 'sigma')
+priors["m"] = bilby.core.prior.Uniform(0, 5, "m")
+priors["c"] = bilby.core.prior.Uniform(-2, 2, "c")
+priors["sigma"] = bilby.core.prior.Uniform(0, 10, "sigma")
 
 # Set values to determine how to sample with emcee
 nwalkers = 100
 nsteps = 1000
-sampler = 'emcee'
+sampler = "emcee"
 
 # Run the sampler from the default pos0 (which is samples drawn from the prior)
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler=sampler, nsteps=nsteps,
-    nwalkers=nwalkers, outdir=outdir, label=label + 'default_pos0')
+    likelihood=likelihood,
+    priors=priors,
+    sampler=sampler,
+    nsteps=nsteps,
+    nwalkers=nwalkers,
+    outdir=outdir,
+    label=label + "default_pos0",
+)
 result.plot_walkers()
 
 
 # Here we define a distribution from which to start the walkers off from.
 start_pos = bilby.core.prior.PriorDict()
-start_pos['m'] = bilby.core.prior.Normal(injection_parameters['m'], 0.1)
-start_pos['c'] = bilby.core.prior.Normal(injection_parameters['c'], 0.1)
-start_pos['sigma'] = bilby.core.prior.Normal(sigma, 0.1)
+start_pos["m"] = bilby.core.prior.Normal(injection_parameters["m"], 0.1)
+start_pos["c"] = bilby.core.prior.Normal(injection_parameters["c"], 0.1)
+start_pos["sigma"] = bilby.core.prior.Normal(sigma, 0.1)
 
 # This line generated the initial starting position data frame by sampling
 # nwalkers-times from the start_pos distribution. Note, you can
@@ -69,8 +80,15 @@ pos0 = pd.DataFrame(start_pos.sample(nwalkers))
 
 # Run the sampler with our created pos0
 result = bilby.run_sampler(
-    likelihood=likelihood, priors=priors, sampler=sampler, nsteps=nsteps,
-    nwalkers=nwalkers, outdir=outdir, label=label + 'user_pos0', pos0=pos0)
+    likelihood=likelihood,
+    priors=priors,
+    sampler=sampler,
+    nsteps=nsteps,
+    nwalkers=nwalkers,
+    outdir=outdir,
+    label=label + "user_pos0",
+    pos0=pos0,
+)
 result.plot_walkers()
 
 
