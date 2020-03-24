@@ -165,6 +165,7 @@ result = bilby.run_sampler(
     draws=1000,
     tune=1000,
     discard_tuned_samples=True,
+    soft_init=True,
     injection_parameters=injection_parameters,
     outdir=outdir,
     label=label,

@@ -65,6 +65,7 @@ result = bilby.run_sampler(
     likelihood=likelihood,
     priors=priors,
     sampler="pymc3",
+    soft_init=True,
     injection_parameters=injection_parameters,
     outdir=outdir,
     draws=2000,
