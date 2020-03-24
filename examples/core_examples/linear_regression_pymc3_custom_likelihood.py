@@ -79,13 +79,6 @@ class GaussianLikelihoodPyMC3(bilby.Likelihood):
         self.N = len(x)
         self.function = function
 
-        # These lines of code infer the parameters from the provided function
-        import inspect
-
-        parameters = inspect.getargspec(function).args
-        parameters.pop(0)
-        self.parameters = dict.fromkeys(parameters)
-
     def log_likelihood(self, sampler=None):
         """
         Parameters
