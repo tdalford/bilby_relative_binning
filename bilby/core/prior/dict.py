@@ -2,14 +2,12 @@ from copy import deepcopy
 from importlib import import_module
 from io import open as ioopen
 import json
-import numpy as np
 import os
 
 from future.utils import iteritems
 from matplotlib.cbook import flatten
+import numpy as np
 
-# keep 'import *' to make eval() statement further down work consistently
-from bilby.core.prior.analytical import *  # noqa
 from bilby.core.prior.analytical import DeltaFunction
 from bilby.core.prior.base import Prior, Constraint
 from bilby.core.prior.joint import JointPrior
@@ -42,6 +40,7 @@ class PriorDict(dict):
             self.from_file(filename)
         elif dictionary is not None:
             raise ValueError("PriorDict input dictionary not understood")
+        self._cached_normalizations = {}
 
         self.convert_floats_to_delta_functions()
 
@@ -144,7 +143,6 @@ class PriorDict(dict):
 
         comments = ['#', '\n']
         prior = dict()
-        mvgdict = dict(inf=np.inf)  # evaluate inf as np.inf
         with ioopen(filename, 'r', encoding='unicode_escape') as f:
             for line in f:
                 if line[0] in comments:
@@ -153,39 +151,8 @@ class PriorDict(dict):
                 elements = line.split('=')
                 key = elements[0].replace(' ', '')
                 val = '='.join(elements[1:]).strip()
-                cls = val.split('(')[0]
-                args = '('.join(val.split('(')[1:])[:-1]
-                try:
-                    prior[key] = DeltaFunction(peak=float(cls))
-                    logger.debug("{} converted to DeltaFunction prior".format(
-                        key))
-                    continue
-                except ValueError:
-                    pass
-                if "." in cls:
-                    module = '.'.join(cls.split('.')[:-1])
-                    cls = cls.split('.')[-1]
-                else:
-                    module = __name__.replace('.' + os.path.basename(__file__).replace('.py', ''), '')
-                cls = getattr(import_module(module), cls, cls)
-                if key.lower() in ["conversion_function", "condition_func"]:
-                    setattr(self, key, cls)
-                elif (cls.__name__ in ['MultivariateGaussianDist',
-                                       'MultivariateNormalDist']):
-                    if key not in mvgdict:
-                        mvgdict[key] = eval(val, None, mvgdict)
-                elif (cls.__name__ in ['MultivariateGaussian',
-                                       'MultivariateNormal']):
-                    prior[key] = eval(val, None, mvgdict)
-                else:
-                    try:
-                        prior[key] = cls.from_repr(args)
-                    except TypeError as e:
-                        raise TypeError(
-                            "Unable to parse dictionary file {}, bad line: {} "
-                            "= {}. Error message {}".format(
-                                filename, key, val, e))
-        self.update(prior)
+                prior[key] = val
+        self.from_dictionary(prior)
 
     @classmethod
     def _get_from_json_dict(cls, prior_dict):
@@ -220,22 +187,61 @@ class PriorDict(dict):
         return obj
 
     def from_dictionary(self, dictionary):
+        eval_dict = dict(inf=np.inf)
         for key, val in iteritems(dictionary):
-            if isinstance(val, str):
+            if isinstance(val, Prior):
+                continue
+            elif isinstance(val, (int, float)):
+                dictionary[key] = DeltaFunction(peak=val)
+            elif isinstance(val, str):
+                cls = val.split('(')[0]
+                args = '('.join(val.split('(')[1:])[:-1]
                 try:
-                    prior = eval(val)
-                    if isinstance(prior, (Prior, float, int, str)):
-                        val = prior
-                except (NameError, SyntaxError, TypeError):
-                    logger.debug(
-                        "Failed to load dictionary value {} correctly"
-                        .format(key))
+                    dictionary[key] = DeltaFunction(peak=float(cls))
+                    logger.debug("{} converted to DeltaFunction prior".format(key))
+                    continue
+                except ValueError:
                     pass
+                if "." in cls:
+                    module = '.'.join(cls.split('.')[:-1])
+                    cls = cls.split('.')[-1]
+                else:
+                    module = __name__.replace(
+                        '.' + os.path.basename(__file__).replace('.py', ''), ''
+                    )
+                cls = getattr(import_module(module), cls, cls)
+                if key.lower() in ["conversion_function", "condition_func"]:
+                    setattr(self, key, cls)
+                elif isinstance(cls, str):
+                    if "(" in val:
+                        raise TypeError("Unable to parse prior class {}".format(cls))
+                    else:
+                        continue
+                elif (cls.__name__ in ['MultivariateGaussianDist',
+                                       'MultivariateNormalDist']):
+                    if key not in eval_dict:
+                        eval_dict[key] = eval(val, None, eval_dict)
+                elif (cls.__name__ in ['MultivariateGaussian',
+                                       'MultivariateNormal']):
+                    dictionary[key] = eval(val, None, eval_dict)
+                else:
+                    try:
+                        dictionary[key] = cls.from_repr(args)
+                    except TypeError as e:
+                        raise TypeError(
+                            "Unable to parse prior, bad entry: {} "
+                            "= {}. Error message {}".format(key, val, e)
+                        )
             elif isinstance(val, dict):
                 logger.warning(
                     'Cannot convert {} into a prior object. '
                     'Leaving as dictionary.'.format(key))
-            self[key] = val
+            else:
+                raise TypeError(
+                    "Unable to parse prior, bad entry: {} "
+                    "= {} of type {}".format(key, val, type(val))
+                )
+        self.update(dictionary)
 
     def convert_floats_to_delta_functions(self):
         """ Convert all float parameters to delta functions """
@@ -309,6 +315,26 @@ class PriorDict(dict):
         """
         return self.sample_subset_constrained(keys=list(self.keys()), size=size)
 
+    def sample_subset_constrained_as_array(self, keys=iter([]), size=None):
+        """ Return an array of samples
+
+        Parameters
+        ----------
+        keys: list
+            A list of keys to sample in
+        size: int
+            The number of samples to draw
+
+        Returns
+        -------
+        array: array_like
+            An array of shape (len(key), size) of the samples (ordered by keys)
+        """
+        samples_dict = self.sample_subset_constrained(keys=keys, size=size)
+        samples_dict = {key: np.atleast_1d(val) for key, val in samples_dict.items()}
+        samples_list = [samples_dict[key] for key in keys]
+        return np.array(samples_list)
+
     def sample_subset(self, keys=iter([]), size=None):
         """Draw samples from the prior set for parameters which are not a DeltaFunction
 
@@ -363,6 +389,27 @@ class PriorDict(dict):
                            if not isinstance(self[key], Constraint)}
             return all_samples
 
+    def normalize_constraint_factor(self, keys):
+        if keys in self._cached_normalizations.keys():
+            return self._cached_normalizations[keys]
+        else:
+            min_accept = 1000
+            sampling_chunk = 5000
+            samples = self.sample_subset(keys=keys, size=sampling_chunk)
+            keep = np.atleast_1d(self.evaluate_constraints(samples))
+            if len(keep) == 1:
+                return 1
+            all_samples = {key: np.array([]) for key in keys}
+            while np.count_nonzero(keep) < min_accept:
+                samples = self.sample_subset(keys=keys, size=sampling_chunk)
+                for key in samples:
+                    all_samples[key] = np.hstack(
+                        [all_samples[key], samples[key].flatten()])
+                keep = np.array(self.evaluate_constraints(all_samples), dtype=bool)
+            factor = len(keep) / np.count_nonzero(keep)
+            self._cached_normalizations[keys] = factor
+            return factor
+
     def prob(self, sample, **kwargs):
         """
 
@@ -381,6 +428,7 @@ class PriorDict(dict):
         prob = np.product([self[key].prob(sample[key])
                            for key in sample], **kwargs)
 
+        ratio = self.normalize_constraint_factor(tuple(sample.keys()))
         if np.all(prob == 0.):
             return prob
         else:
@@ -392,7 +440,7 @@ class PriorDict(dict):
             else:
                 constrained_prob = np.zeros_like(prob)
                 keep = np.array(self.evaluate_constraints(sample), dtype=bool)
-                constrained_prob[keep] = prob[keep]
+                constrained_prob[keep] = prob[keep] * ratio
                 return constrained_prob
 
     def ln_prob(self, sample, axis=None):
@@ -414,6 +462,7 @@ class PriorDict(dict):
         ln_prob = np.sum([self[key].ln_prob(sample[key])
                           for key in sample], axis=axis)
 
+        ratio = self.normalize_constraint_factor(tuple(sample.keys()))
         if np.all(np.isinf(ln_prob)):
             return ln_prob
         else:
@@ -425,7 +474,7 @@ class PriorDict(dict):
             else:
                 constrained_ln_prob = -np.inf * np.ones_like(ln_prob)
                 keep = np.array(self.evaluate_constraints(sample), dtype=bool)
-                constrained_ln_prob[keep] = ln_prob[keep]
+                constrained_ln_prob[keep] = ln_prob[keep] + np.log(ratio)
                 return constrained_ln_prob
 
     @property

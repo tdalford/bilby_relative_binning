@@ -16,8 +16,8 @@ try:
     import lal
     import lalsimulation as lalsim
 except ImportError:
-    logger.warning("You do not have lalsuite installed currently. You will"
-                   " not be able to use some of the prebuilt functions.")
+    logger.debug("You do not have lalsuite installed currently. You will"
+                 " not be able to use some of the prebuilt functions.")
 
 
 def lal_binary_black_hole(
@@ -301,6 +301,9 @@ def _base_lal_cbc_fd_waveform(
     pn_tidal_order = waveform_kwargs['pn_tidal_order']
     pn_phase_order = waveform_kwargs['pn_phase_order']
     pn_amplitude_order = waveform_kwargs['pn_amplitude_order']
+    waveform_dictionary = waveform_kwargs.get(
+        'lal_waveform_dictionary', lal.CreateDict()
+    )
 
     approximant = lalsim_GetApproximantFromString(waveform_approximant)
 
@@ -327,7 +330,6 @@ def _base_lal_cbc_fd_waveform(
     longitude_ascending_nodes = 0.0
     mean_per_ano = 0.0
 
-    waveform_dictionary = lal.CreateDict()
     lalsim.SimInspiralWaveformParamsInsertPNSpinOrder(
         waveform_dictionary, int(pn_spin_order))
     lalsim.SimInspiralWaveformParamsInsertPNTidalOrder(
@@ -383,13 +385,25 @@ def _base_lal_cbc_fd_waveform(
     h_cross = np.zeros_like(frequency_array, dtype=np.complex)
 
     if len(hplus.data.data) > len(frequency_array):
-        raise ValueError("Waveform longer than frequency array")
-
-    h_plus[:len(hplus.data.data)] = hplus.data.data
-    h_cross[:len(hcross.data.data)] = hcross.data.data
+        logger.debug("LALsim waveform longer than bilby's `frequency_array`" +
+                     "({} vs {}), ".format(len(hplus.data.data), len(frequency_array)) +
+                     "probably because padded with zeros up to the next power of two length." +
+                     " Truncating lalsim array.")
+        h_plus = hplus.data.data[:len(h_plus)]
+        h_cross = hcross.data.data[:len(h_cross)]
+    else:
+        h_plus[:len(hplus.data.data)] = hplus.data.data
+        h_cross[:len(hcross.data.data)] = hcross.data.data
 
     h_plus *= frequency_bounds
     h_cross *= frequency_bounds
+
+    if wf_func == lalsim_SimInspiralFD:
+        dt = 1. / delta_frequency + (hplus.epoch.gpsSeconds + hplus.epoch.gpsNanoSeconds * 1e-9)
+        h_plus *= np.exp(
+            -1j * 2 * np.pi * dt * frequency_array)
+        h_cross *= np.exp(
+            -1j * 2 * np.pi * dt * frequency_array)
 
     return dict(plus=h_plus, cross=h_cross)
 

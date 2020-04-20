@@ -1,11 +1,13 @@
 from __future__ import division
 
+from distutils.spawn import find_executable
 import logging
 import os
 from math import fmod
 import argparse
 import traceback
 import inspect
+import functools
 import types
 import subprocess
 import multiprocessing
@@ -974,9 +976,10 @@ class BilbyJsonEncoder(json.JSONEncoder):
 
     def default(self, obj):
         from .prior import MultivariateGaussianDist, Prior, PriorDict
+        from ..gw.prior import HealPixMapPriorDist
         if isinstance(obj, PriorDict):
             return {'__prior_dict__': True, 'content': obj._get_json_dict()}
-        if isinstance(obj, (MultivariateGaussianDist, Prior)):
+        if isinstance(obj, (MultivariateGaussianDist, HealPixMapPriorDist, Prior)):
             return {'__prior__': True, '__module__': obj.__module__,
                     '__name__': obj.__class__.__name__,
                     'kwargs': dict(obj.get_instantiation_dict())}
@@ -989,7 +992,7 @@ class BilbyJsonEncoder(json.JSONEncoder):
             if isinstance(obj, units.PrefixUnit):
                 return str(obj)
         except ImportError:
-            logger.info("Cannot import astropy, cannot write cosmological priors")
+            logger.debug("Cannot import astropy, cannot write cosmological priors")
         if isinstance(obj, np.ndarray):
             return {'__array__': True, 'content': obj.tolist()}
         if isinstance(obj, complex):
@@ -1051,8 +1054,8 @@ def decode_astropy_cosmology(dct):
         del dct['__cosmology__'], dct['__name__']
         return cosmo_cls(**dct)
     except ImportError:
-        logger.info("Cannot import astropy, cosmological priors may not be "
-                    "properly loaded.")
+        logger.debug("Cannot import astropy, cosmological priors may not be "
+                     "properly loaded.")
         return dct
 
 
@@ -1065,8 +1068,8 @@ def decode_astropy_quantity(dct):
             del dct['__astropy_quantity__']
             return units.Quantity(**dct)
     except ImportError:
-        logger.info("Cannot import astropy, cosmological priors may not be "
-                    "properly loaded.")
+        logger.debug("Cannot import astropy, cosmological priors may not be "
+                     "properly loaded.")
         return dct
 
 
@@ -1096,6 +1099,62 @@ def reflect(u):
     u[idxs_even] = np.mod(u[idxs_even], 1)
     u[~idxs_even] = 1 - np.mod(u[~idxs_even], 1)
     return u
+
+
+def safe_file_dump(data, filename, module):
+    """ Safely dump data to a .pickle file
+
+    Parameters
+    ----------
+    data:
+        data to dump
+    filename: str
+        The file to dump to
+    module: pickle, dill
+        The python module to use
+    """
+
+    temp_filename = filename + ".temp"
+    with open(temp_filename, "wb") as file:
+        module.dump(data, file)
+    os.rename(temp_filename, filename)
+
+
+def latex_plot_format(func):
+    """
+    Wrap a plotting function to set rcParams so that text renders nicely with
+    latex and Computer Modern Roman font.
+    """
+    @functools.wraps(func)
+    def wrapper_decorator(*args, **kwargs):
+        from matplotlib import rcParams
+        _old_tex = rcParams["text.usetex"]
+        _old_serif = rcParams["font.serif"]
+        _old_family = rcParams["font.family"]
+        if find_executable("latex"):
+            rcParams["text.usetex"] = True
+        else:
+            rcParams["text.usetex"] = False
+        rcParams["font.serif"] = "Computer Modern Roman"
+        rcParams["font.family"] = "serif"
+        value = func(*args, **kwargs)
+        rcParams["text.usetex"] = _old_tex
+        rcParams["font.serif"] = _old_serif
+        rcParams["font.family"] = _old_family
+        return value
+    return wrapper_decorator
+
+
+def safe_save_figure(fig, filename, **kwargs):
+    from matplotlib import rcParams
+    try:
+        fig.savefig(fname=filename, **kwargs)
+    except RuntimeError:
+        logger.debug(
+            "Failed to save plot with tex labels turning off tex."
+        )
+        rcParams["text.usetex"] = False
+        fig.savefig(fname=filename, **kwargs)
 
 
 class IllegalDurationAndSamplingFrequencyException(Exception):

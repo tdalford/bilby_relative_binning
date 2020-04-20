@@ -15,14 +15,14 @@ except ImportError:
     from scipy.misc import logsumexp
 from scipy.special import i0e
 
-from ..core.likelihood import Likelihood, MarginalizedLikelihoodReconstructionError
+from ..core.likelihood import Likelihood
 from ..core.utils import BilbyJsonEncoder, decode_bilby_json
 from ..core.utils import (
     logger, UnsortedInterp2d, create_frequency_series, create_time_series,
     speed_of_light, radius_of_earth)
 from ..core.prior import Interped, Prior, Uniform
 from .detector import InterferometerList
-from .prior import BBHPriorDict, CBCPriorDict
+from .prior import BBHPriorDict, CBCPriorDict, Cosmological
 from .source import lal_binary_black_hole
 from .utils import noise_weighted_inner_product, build_roq_weights, blockwise_dot_product
 from .waveform_generator import WaveformGenerator
@@ -143,6 +143,9 @@ class GravitationalWaveTransient(Likelihood):
                  for distance in self._distance_array])
             self._setup_distance_marginalization(
                 distance_marginalization_lookup_table)
+            for key in ['redshift', 'comoving_distance']:
+                if key in priors:
+                    del priors[key]
             priors['luminosity_distance'] = float(self._ref_dist)
             self._marginalized_parameters.append('luminosity_distance')
 
@@ -214,6 +217,18 @@ class GravitationalWaveTransient(Likelihood):
                 self.priors[key] = Uniform(
                     self.interferometers.start_time,
                     self.interferometers.start_time + self.interferometers.duration)
+            elif key == 'luminosity_distance':
+                for key in ['redshift', 'comoving_distance']:
+                    if key in self.priors:
+                        if not isinstance(self.priors[key], Cosmological):
+                            raise TypeError(
+                                "To marginalize over {}, the prior must be specified as a "
+                                "subclass of bilby.gw.prior.Cosmological.".format(key)
+                            )
+                        self.priors['luminosity_distance'] = self.priors[key].get_corresponding_prior(
+                            'luminosity_distance'
+                        )
+                        del self.priors[key]
             else:
                 self.priors[key] = BBHPriorDict()[key]
 
@@ -392,17 +407,13 @@ class GravitationalWaveTransient(Likelihood):
             np.exp(time_log_like - max(time_log_like)) * time_prior_array)
 
         keep = (time_post > max(time_post) / 1000)
+        if sum(keep) < 3:
+            keep[1:-1] = keep[1:-1] | keep[2:] | keep[:-2]
         time_post = time_post[keep]
         times = times[keep]
 
-        if len(times) > 1:
-            new_time = Interped(times, time_post).sample()
-            return new_time
-        else:
-            raise MarginalizedLikelihoodReconstructionError(
-                "Time posterior reconstruction failed, at least two samples "
-                "are required."
-            )
+        new_time = Interped(times, time_post).sample()
+        return new_time
 
     def generate_distance_sample_from_marginalized_likelihood(
             self, signal_polarizations=None):
@@ -563,8 +574,11 @@ class GravitationalWaveTransient(Likelihood):
         if self.phase_marginalization:
             return np.logspace(-5, 10, self._dist_margd_loglikelihood_array.shape[1])
         else:
-            return np.hstack((-np.logspace(3, -3, self._dist_margd_loglikelihood_array.shape[1] / 2),
-                              np.logspace(-3, 10, self._dist_margd_loglikelihood_array.shape[1] / 2)))
+            n_negative = self._dist_margd_loglikelihood_array.shape[1] // 2
+            n_positive = self._dist_margd_loglikelihood_array.shape[1] - n_negative
+            return np.hstack((
+                -np.logspace(3, -3, n_negative), np.logspace(-3, 10, n_positive)
+            ))
 
     def _setup_distance_marginalization(self, lookup_table=None):
         if isinstance(lookup_table, str) or lookup_table is None:

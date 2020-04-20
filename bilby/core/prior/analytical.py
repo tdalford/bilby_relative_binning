@@ -1150,10 +1150,15 @@ class Beta(Prior):
             - betaln(self.alpha, self.beta) - xlogy(self.alpha + self.beta - 1, self.maximum - self.minimum)
 
         # deal with the fact that if alpha or beta are < 1 you get infinities at 0 and 1
-        ln_prob_sub = -np.inf * np.ones(len(val))
-        idx = np.isfinite(ln_prob) & (val >= self.minimum) & (val <= self.maximum)
-        ln_prob_sub[idx] = ln_prob[idx]
-        return ln_prob_sub
+        if isinstance(val, (float, int)):
+            if np.isfinite(_ln_prob) and self.minimum <= val <= self.maximum:
+                return _ln_prob
+            return -np.inf
+        else:
+            _ln_prob_sub = -np.inf * np.ones(len(val))
+            idx = np.isfinite(_ln_prob) & (val >= self.minimum) & (val <= self.maximum)
+            _ln_prob_sub[idx] = _ln_prob[idx]
+            return _ln_prob_sub
 
     @consistent_type_use
     def cdf(self, val):

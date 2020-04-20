@@ -98,7 +98,9 @@ class TestCPNest(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict()
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.sampler = bilby.core.sampler.Cpnest(self.likelihood, self.priors,
                                                  outdir='outdir', label='label',
                                                  use_ratio=False, plot=False,
@@ -110,14 +112,14 @@ class TestCPNest(unittest.TestCase):
         del self.sampler
 
     def test_default_kwargs(self):
-        expected = dict(verbose=1, nthreads=1, nlive=500, maxmcmc=1000,
+        expected = dict(verbose=3, nthreads=1, nlive=500, maxmcmc=1000,
                         seed=None, poolsize=100, nhamiltonian=0, resume=True,
                         output='outdir/cpnest_label/', proposals=None,
                         n_periodic_checkpoint=8000)
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
-        expected = dict(verbose=1, nthreads=1, nlive=250, maxmcmc=1000,
+        expected = dict(verbose=3, nthreads=1, nlive=250, maxmcmc=1000,
                         seed=None, poolsize=100, nhamiltonian=0, resume=True,
                         output='outdir/cpnest_label/', proposals=None,
                         n_periodic_checkpoint=8000)
@@ -133,9 +135,9 @@ class TestDynesty(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = bilby.core.prior.PriorDict()
-        self.priors['a'] = bilby.core.prior.Prior()
-        self.priors['b'] = bilby.core.prior.Prior()
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.sampler = bilby.core.sampler.Dynesty(self.likelihood, self.priors,
                                                   outdir='outdir', label='label',
                                                   use_ratio=False, plot=False,
@@ -149,7 +151,7 @@ class TestDynesty(unittest.TestCase):
     def test_default_kwargs(self):
         expected = dict(bound='multi', sample='rwalk', periodic=None, reflective=None, verbose=True,
                         check_point_delta_t=600, nlive=1000, first_update=None,
-                        npdim=None, rstate=None, queue_size=None, pool=None,
+                        npdim=None, rstate=None, queue_size=1, pool=None,
                         use_pool=None, live_points=None, logl_args=None, logl_kwargs=None,
                         ptform_args=None, ptform_kwargs=None,
                         enlarge=1.5, bootstrap=None, vol_dec=0.5, vol_check=8.0,
@@ -171,7 +173,7 @@ class TestDynesty(unittest.TestCase):
     def test_translate_kwargs(self):
         expected = dict(bound='multi', sample='rwalk', periodic=[], reflective=[], verbose=True,
                         check_point_delta_t=600, nlive=1000, first_update=None,
-                        npdim=None, rstate=None, queue_size=None, pool=None,
+                        npdim=None, rstate=None, queue_size=1, pool=None,
                         use_pool=None, live_points=None, logl_args=None, logl_kwargs=None,
                         ptform_args=None, ptform_kwargs=None,
                         enlarge=1.5, bootstrap=None, vol_dec=0.5, vol_check=8.0,
@@ -208,7 +210,9 @@ class TestEmcee(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict()
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.sampler = bilby.core.sampler.Emcee(self.likelihood, self.priors,
                                                 outdir='outdir', label='label',
                                                 use_ratio=False, plot=False,
@@ -244,11 +248,13 @@ class TestKombine(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict()
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.sampler = bilby.core.sampler.Kombine(self.likelihood, self.priors,
-                                                outdir='outdir', label='label',
-                                                use_ratio=False, plot=False,
-                                                skip_import_verification=True)
+                                                  outdir='outdir', label='label',
+                                                  use_ratio=False, plot=False,
+                                                  skip_import_verification=True)
 
     def tearDown(self):
         del self.likelihood
@@ -279,7 +285,9 @@ class TestNestle(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict()
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.sampler = bilby.core.sampler.Nestle(self.likelihood, self.priors,
                                                  outdir='outdir', label='label',
                                                  use_ratio=False, plot=False,
@@ -316,7 +324,9 @@ class TestPolyChord(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict(a=bilby.prior.Uniform(0, 1))
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.sampler = bilby.core.sampler.PyPolyChord(self.likelihood, self.priors,
                                                       outdir='outdir', label='polychord',
                                                       use_ratio=False, plot=False,
@@ -363,7 +373,9 @@ class TestPTEmcee(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict()
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.sampler = bilby.core.sampler.Ptemcee(self.likelihood, self.priors,
                                                   outdir='outdir', label='label',
                                                   use_ratio=False, plot=False,
@@ -375,33 +387,19 @@ class TestPTEmcee(unittest.TestCase):
         del self.sampler
 
     def test_default_kwargs(self):
-        expected = dict(ntemps=2, nwalkers=500,
-                        Tmax=None, betas=None,
-                        threads=1, pool=None, a=2.0,
-                        loglargs=[], logpargs=[],
-                        loglkwargs={}, logpkwargs={},
-                        adaptation_lag=10000, adaptation_time=100,
-                        random=None, iterations=100, thin=1,
-                        storechain=True, adapt=True,
-                        swap_ratios=False,
-                        )
+        expected = dict(ntemps=20, nwalkers=200, Tmax=None, betas=None, a=2.0,
+                        adaptation_lag=10000, adaptation_time=100, random=None,
+                        adapt=True, swap_ratios=False,)
         self.assertDictEqual(expected, self.sampler.kwargs)
 
     def test_translate_kwargs(self):
-        expected = dict(ntemps=2, nwalkers=150,
-                        Tmax=None, betas=None,
-                        threads=1, pool=None, a=2.0,
-                        loglargs=[], logpargs=[],
-                        loglkwargs={}, logpkwargs={},
-                        adaptation_lag=10000, adaptation_time=100,
-                        random=None, iterations=100, thin=1,
-                        storechain=True, adapt=True,
-                        swap_ratios=False,
-                        )
+        expected = dict(ntemps=20, nwalkers=200, Tmax=None, betas=None, a=2.0,
+                        adaptation_lag=10000, adaptation_time=100, random=None,
+                        adapt=True, swap_ratios=False,)
         for equiv in bilby.core.sampler.base_sampler.MCMCSampler.nwalkers_equiv_kwargs:
             new_kwargs = self.sampler.kwargs.copy()
             del new_kwargs['nwalkers']
-            new_kwargs[equiv] = 150
+            new_kwargs[equiv] = 200
             self.sampler.kwargs = new_kwargs
             self.assertDictEqual(expected, self.sampler.kwargs)
 
@@ -410,7 +408,9 @@ class TestPyMC3(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = dict()
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.sampler = bilby.core.sampler.Pymc3(self.likelihood, self.priors,
                                                 outdir='outdir', label='label',
                                                 use_ratio=False, plot=False,
@@ -448,7 +448,9 @@ class TestPymultinest(unittest.TestCase):
 
     def setUp(self):
         self.likelihood = MagicMock()
-        self.priors = bilby.core.prior.PriorDict()
+        self.priors = bilby.core.prior.PriorDict(
+            dict(a=bilby.core.prior.Uniform(0, 1),
+                 b=bilby.core.prior.Uniform(0, 1)))
         self.priors['a'] = bilby.core.prior.Prior(boundary='periodic')
         self.priors['b'] = bilby.core.prior.Prior(boundary='reflective')
         self.sampler = bilby.core.sampler.Pymultinest(self.likelihood, self.priors,
@@ -465,7 +467,7 @@ class TestPymultinest(unittest.TestCase):
         expected = dict(importance_nested_sampling=False, resume=True,
                         verbose=True, sampling_efficiency='parameter',
                         outputfiles_basename='outdir/pm_label/',
-                        n_live_points=500, n_params=None,
+                        n_live_points=500, n_params=2,
                         n_clustering_params=None, wrapped_params=None,
                         multimodal=True, const_efficiency_mode=False,
                         evidence_tolerance=0.5,
@@ -481,7 +483,7 @@ class TestPymultinest(unittest.TestCase):
         expected = dict(importance_nested_sampling=False, resume=True,
                         verbose=True, sampling_efficiency='parameter',
                         outputfiles_basename='outdir/pm_label/',
-                        n_live_points=123, n_params=None,
+                        n_live_points=123, n_params=2,
                         n_clustering_params=None, wrapped_params=None,
                         multimodal=True, const_efficiency_mode=False,
                         evidence_tolerance=0.5,
@@ -536,7 +538,8 @@ class TestRunningSamplers(unittest.TestCase):
     def test_run_dynamic_dynesty(self):
         _ = bilby.run_sampler(
             likelihood=self.likelihood, priors=self.priors, sampler='dynamic_dynesty',
-            nlive=100, save=False)
+            nlive_init=100, nlive_batch=100, dlogz_init=1.0, maxbatch=0,
+            maxcall=100, bound="single", save=False)
 
     def test_run_emcee(self):
         _ = bilby.run_sampler(
@@ -546,7 +549,7 @@ class TestRunningSamplers(unittest.TestCase):
     def test_run_kombine(self):
         _ = bilby.run_sampler(
             likelihood=self.likelihood, priors=self.priors, sampler='kombine',
-            iterations=2500, nwalkers=100, save=False)
+            iterations=1000, nwalkers=100, save=False, autoburnin=True)
 
     def test_run_nestle(self):
         _ = bilby.run_sampler(
@@ -561,7 +564,8 @@ class TestRunningSamplers(unittest.TestCase):
     def test_run_ptemcee(self):
         _ = bilby.run_sampler(
             likelihood=self.likelihood, priors=self.priors, sampler='ptemcee',
-            nsteps=1000, nwalkers=10, ntemps=10, save=False)
+            nsamples=100, nwalkers=50, burn_in_act=1, ntemps=1,
+            frac_threshold=0.5, save=False)
 
     def test_run_pymc3(self):
         _ = bilby.run_sampler(
