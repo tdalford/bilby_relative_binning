@@ -5,6 +5,7 @@ from collections import OrderedDict, namedtuple
 from copy import copy
 from distutils.version import LooseVersion
 from itertools import product
+import pickle
 
 import corner
 import json
@@ -1371,7 +1372,9 @@ class ResultList(list):
         self.check_consistent_priors()
 
         # check which kind of sampler was used: MCMC or Nested Sampling
-        if result._nested_samples is not None:
+        if self._merge_using_sampler(result):
+            return self._merge_using_sample_results
+        elif result._nested_samples is not None:
             posteriors, result = self._combine_nested_sampled_runs(result)
         else:
             posteriors = [res.posterior for res in self]
@@ -1379,6 +1382,29 @@ class ResultList(list):
         combined_posteriors = pd.concat(posteriors, ignore_index=True)
         result.posterior = combined_posteriors.sample(len(combined_posteriors))  # shuffle
         return result
+
+    def _merge_using_sampler(self, result):
+        if self[0].sampler == "dynesty":
+            return self._merge_using_dynesty(result)
+        else:
+            return False
+
+    def _merge_using_dynesty(self, result):
+        logger.info("Merging using dynesty")
+        dynesty_result_list = []
+        for result in self:
+            if os.path.isfile(result.meta_data.get("dynesty_result", "naf")):
+                with open(result.meta_data["dynesty_result"], 'rb') as file:
+                    dynesty_result_list.append(pickle.load(file))
+        if len(dynesty_result_list) != len(self):
+            return False
+        from dynesty import utils as dyfunc
+        from .sampler import dynesty
+        dynesty_combined_result = dyfunc.merge_runs(dynesty_result_list)
+        dynesty.Dynesty._generate_result(
+            result, dynesty_combined_result, self[0].search_parameter_keys)
+        self._merge_using_sample_results = result
+        return True
 
     def _combine_nested_sampled_runs(self, result):
         """

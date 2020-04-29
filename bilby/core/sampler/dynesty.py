@@ -360,10 +360,11 @@ class Dynesty(NestedSampler):
 
         check_directory_exists_and_if_not_mkdir(self.outdir)
         dynesty_result = "{}/{}_dynesty.pickle".format(self.outdir, self.label)
+        self.result.meta_data["dynesty_result"] = dynesty_result
         with open(dynesty_result, 'wb') as file:
             pickle.dump(out, file)
 
-        self._generate_result(out)
+        self._generate_result(self.result, out, self.search_parameter_keys)
         self.calc_likelihood_count()
         self.result.sampling_time = self.sampling_time
 
@@ -372,20 +373,21 @@ class Dynesty(NestedSampler):
 
         return self.result
 
-    def _generate_result(self, out):
+    @staticmethod
+    def _generate_result(result, dynesty_result, search_parameter_keys):
         import dynesty
-        weights = np.exp(out['logwt'] - out['logz'][-1])
+        weights = np.exp(dynesty_result['logwt'] - dynesty_result['logz'][-1])
         nested_samples = DataFrame(
-            out.samples, columns=self.search_parameter_keys)
+            dynesty_result.samples, columns=search_parameter_keys)
         nested_samples['weights'] = weights
-        nested_samples['log_likelihood'] = out.logl
-        self.result.samples = dynesty.utils.resample_equal(out.samples, weights)
-        self.result.nested_samples = nested_samples
-        self.result.log_likelihood_evaluations = self.reorder_loglikelihoods(
-            unsorted_loglikelihoods=out.logl, unsorted_samples=out.samples,
-            sorted_samples=self.result.samples)
-        self.result.log_evidence = out.logz[-1]
-        self.result.log_evidence_err = out.logzerr[-1]
+        nested_samples['log_likelihood'] = dynesty_result.logl
+        result.samples = dynesty.utils.resample_equal(dynesty_result.samples, weights)
+        result.nested_samples = nested_samples
+        result.log_likelihood_evaluations = NestedSampler.reorder_loglikelihoods(
+            unsorted_loglikelihoods=dynesty_result.logl, unsorted_samples=dynesty_result.samples,
+            sorted_samples=result.samples)
+        result.log_evidence = dynesty_result.logz[-1]
+        result.log_evidence_err = dynesty_result.logzerr[-1]
 
     def _run_nested_wrapper(self, kwargs):
         """ Wrapper function to run_nested
