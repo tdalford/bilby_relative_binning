@@ -138,7 +138,7 @@ class DynamicDynesty(Dynesty):
             print("")
 
         # self.result.sampler_output = out
-        self._generate_result(out)
+        self._generate_result(self.result, out, self.search_parameter_keys)
         if self.plot:
             self.generate_trace_plots(out)
 

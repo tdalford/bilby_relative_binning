@@ -1351,10 +1351,21 @@ class ResultList(list):
         else:
             raise TypeError("Could not append a non-Result type")
 
-    def combine(self):
+    def combine(self, use_sampler_combine=True):
         """
         Return the combined results in a :class:bilby.core.result.Result`
         object.
+
+        Parameters
+        ----------
+        use_sampler_combine: bool
+            If true, use the sampler module itself to do the combination. Currently
+            implemented for: dynesty.
+
+        Returns
+        -------
+        result: bilby.core.Result
+            A combined result object
         """
         if len(self) == 0:
             return Result()
@@ -1372,7 +1383,7 @@ class ResultList(list):
         self.check_consistent_priors()
 
         # check which kind of sampler was used: MCMC or Nested Sampling
-        if self._merge_using_sampler(result):
+        if use_sampler_combine and self._merge_using_sampler(result):
             return self._merge_using_sample_results
         elif result._nested_samples is not None:
             posteriors, result = self._combine_nested_sampled_runs(result)
