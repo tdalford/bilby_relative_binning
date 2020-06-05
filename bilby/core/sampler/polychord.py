@@ -127,7 +127,7 @@ class PyPolyChord(NestedSampler):
     def _sample_file_directory(self):
         return self.outdir + '/chains'
 
-    def write_current_state_and_exit(self, signum=None):
+    def write_current_state_and_exit(self, signum=None, frame=None):
         if signum == 14:
             logger.info(
                 "Run interrupted by alarm signal {}: checkpoint and exit on {}"
