@@ -19,6 +19,8 @@ https://lscsoft.docs.ligo.org/bilby/installation.html.
 from __future__ import absolute_import
 import sys
 
+from matplotlib import rcParams
+
 from . import core, gw, hyper
 
 from .core import utils, likelihood, prior, result, sampler
@@ -26,7 +28,7 @@ from .core.sampler import run_sampler
 from .core.likelihood import Likelihood
 
 __version__ = utils.get_version_information()
-
+rcParams['text.latex.preamble'] = r'\newcommand{\mathdefault}[1][]{}'
 
 if sys.version_info < (3,):
     raise ImportError(
