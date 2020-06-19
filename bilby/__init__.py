@@ -19,9 +19,6 @@ https://lscsoft.docs.ligo.org/bilby/installation.html.
 from __future__ import absolute_import
 import sys
 
-from matplotlib import rcParams
-_orig_rcparams = rcParams.copy()  # noqa Keep this line before the module imports
-
 from . import core, gw, hyper
 
 from .core import utils, likelihood, prior, result, sampler
@@ -29,11 +26,6 @@ from .core.sampler import run_sampler
 from .core.likelihood import Likelihood
 
 __version__ = utils.get_version_information()
-
-# reset rcParams to avoid changes from module imports
-for key in rcParams:
-    if rcParams[key] != _orig_rcparams[key]:
-        rcParams[key] = _orig_rcparams[key]
 
 
 if sys.version_info < (3,):
