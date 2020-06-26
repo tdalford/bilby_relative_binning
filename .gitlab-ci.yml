@@ -49,6 +49,7 @@ python-3.7:
 
     # Run pyflakes
     - flake8 .
+    - pylint bilby/
 
     # Run tests and collect coverage data
     - pytest --cov=bilby --durations 10

@@ -232,6 +232,62 @@ def reweight(result, label=None, new_likelihood=None, new_prior=None,
 
 
 class Result(object):
+    """ A class to store the results of the sampling run
+
+    Parameters
+    ----------
+    label, outdir, sampler: str
+        The label, output directory, and sampler used
+    search_parameter_keys, fixed_parameter_keys, constraint_parameter_keys: list
+        Lists of the search, constraint, and fixed parameter keys.
+        Elements of the list should be of type `str` and match the keys
+        of the `prior`
+    priors: dict, bilby.core.prior.PriorDict
+        A dictionary of the priors used in the run
+    sampler_kwargs: dict
+        Key word arguments passed to the sampler
+    injection_parameters: dict
+        A dictionary of the injection parameters
+    meta_data: dict
+        A dictionary of meta data to store about the run
+    posterior: pandas.DataFrame
+        A pandas data frame of the posterior
+    samples, nested_samples: array_like
+        An array of the output posterior samples and the unweighted samples
+    log_evidence, log_evidence_err, log_noise_evidence, log_bayes_factor: float
+        Natural log evidences
+    log_likelihood_evaluations: array_like
+        The evaluations of the likelihood for each sample point
+    num_likelihood_evaluations: int
+        The number of times the likelihood function is called
+    log_prior_evaluations: array_like
+        The evaluations of the prior for each sample point
+    sampling_time: float
+        The time taken to complete the sampling
+    nburn: int
+        The number of burn-in steps discarded for MCMC samplers
+    walkers: array_like
+        The samplers taken by a ensemble MCMC samplers
+    max_autocorrelation_time: float
+        The estimated maximum autocorrelation time for MCMC samplers
+    use_ratio: bool
+        A boolean stating whether the likelihood ratio, as opposed to the
+        likelihood was used during sampling
+    parameter_labels, parameter_labels_with_unit: list
+        Lists of the latex-formatted parameter labels
+    gzip: bool
+        Set to True to gzip the results file (if using json format)
+    version: str,
+        Version information for software used to generate the result. Note,
+        this information is generated when the result object is initialized
+
+    Note
+    ---------
+    All sampling output parameters, e.g. the samples themselves are
+    typically not given at initialisation, but set at a later stage.
+
+    """
+
     def __init__(self, label='no_label', outdir='.', sampler=None,
                  search_parameter_keys=None, fixed_parameter_keys=None,
                  constraint_parameter_keys=None, priors=None,
@@ -245,62 +301,6 @@ class Result(object):
                  max_autocorrelation_time=None, use_ratio=None,
                  parameter_labels=None, parameter_labels_with_unit=None,
                  gzip=False, version=None):
-        """ A class to store the results of the sampling run
-
-        Parameters
-        ----------
-        label, outdir, sampler: str
-            The label, output directory, and sampler used
-        search_parameter_keys, fixed_parameter_keys, constraint_parameter_keys: list
-            Lists of the search, constraint, and fixed parameter keys.
-            Elements of the list should be of type `str` and match the keys
-            of the `prior`
-        priors: dict, bilby.core.prior.PriorDict
-            A dictionary of the priors used in the run
-        sampler_kwargs: dict
-            Key word arguments passed to the sampler
-        injection_parameters: dict
-            A dictionary of the injection parameters
-        meta_data: dict
-            A dictionary of meta data to store about the run
-        posterior: pandas.DataFrame
-            A pandas data frame of the posterior
-        samples, nested_samples: array_like
-            An array of the output posterior samples and the unweighted samples
-        log_evidence, log_evidence_err, log_noise_evidence, log_bayes_factor: float
-            Natural log evidences
-        log_likelihood_evaluations: array_like
-            The evaluations of the likelihood for each sample point
-        num_likelihood_evaluations: int
-            The number of times the likelihood function is called
-        log_prior_evaluations: array_like
-            The evaluations of the prior for each sample point
-        sampling_time: float
-            The time taken to complete the sampling
-        nburn: int
-            The number of burn-in steps discarded for MCMC samplers
-        walkers: array_like
-            The samplers taken by a ensemble MCMC samplers
-        max_autocorrelation_time: float
-            The estimated maximum autocorrelation time for MCMC samplers
-        use_ratio: bool
-            A boolean stating whether the likelihood ratio, as opposed to the
-            likelihood was used during sampling
-        parameter_labels, parameter_labels_with_unit: list
-            Lists of the latex-formatted parameter labels
-        gzip: bool
-            Set to True to gzip the results file (if using json format)
-        version: str,
-            Version information for software used to generate the result. Note,
-            this information is generated when the result object is initialized
-
-        Note
-        ---------
-        All sampling output parameters, e.g. the samples themselves are
-        typically not given at initialisation, but set at a later stage.
-
-        """
-
         self.label = label
         self.outdir = os.path.abspath(outdir)
         self.sampler = sampler
@@ -1555,17 +1555,17 @@ class Result(object):
 
 
 class ResultList(list):
+    """ A class to store a list of :class:`bilby.core.result.Result` objects
+    from equivalent runs on the same data. This provides methods for
+    outputing combined results.
+
+    Parameters
+    ----------
+    results: list
+        A list of `:class:`bilby.core.result.Result`.
+    """
 
     def __init__(self, results=None):
-        """ A class to store a list of :class:`bilby.core.result.Result` objects
-        from equivalent runs on the same data. This provides methods for
-        outputing combined results.
-
-        Parameters
-        ----------
-        results: list
-            A list of `:class:`bilby.core.result.Result`.
-        """
         super(ResultList, self).__init__()
         for result in results:
             self.append(result)
