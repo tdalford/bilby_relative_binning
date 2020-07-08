@@ -11,6 +11,7 @@
 
 stages:
   - test
+  - coverage
   - deploy
 
 .test-python: &test-python
@@ -40,6 +41,20 @@ basic-3.7:
   <<: *test-python
   image: python:3.7
 
+precommits-py3.7:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python37
+  script:
+    - source activate python37
+    - mkdir -p .pip37
+    - pip install --upgrade pip
+    - pip --cache-dir=.pip37 install --upgrade bilby
+    - pip --cache-dir=.pip37 install .
+    - pip --cache-dir=.pip37 install pre-commit
+
+    # Run precommits (flake8, spellcheck, isort, no merge conflicts, etc)
+    - pre-commit run --all-files --verbose --show-diff-on-failure
+
 # test example on python 3.7
 python-3.7:
   stage: test
@@ -52,8 +67,7 @@ python-3.7:
 
     # Run tests and collect coverage data
     - pytest --cov=bilby --durations 10
-    - coverage html
-    - coverage-badge -o coverage_badge.svg -f
+    - mv .coverage .coverage.main
 
     # Make the documentation
     - cd docs
@@ -62,8 +76,7 @@ python-3.7:
 
   artifacts:
     paths:
-      - htmlcov/
-      - coverage_badge.svg
+      - .coverage.main
       - docs/_build/html/
 
 # test example on python 3.8
@@ -91,8 +104,15 @@ python-3.7-samplers:
   script:
     - python -m pip install .
 
-    - pytest test/sampler_test.py --durations 10
-    - pytest test/sample_from_the_prior_test.py
+    - pytest test/sampler_test.py --durations 10 --cov=bilby
+    - mv .coverage .coverage.sampler
+    - pytest test/sample_from_the_prior_test.py --cov=bilby
+    - mv .coverage .coverage.prior_sample
+
+  artifacts:
+    paths:
+      - .coverage.sampler
+      - .coverage.prior_sample
 
 # test samplers on python 3.6
 python-3.6-samplers:
@@ -113,9 +133,16 @@ scheduled-python-3.7:
     - python -m pip install .
 
     # Run tests which are only done on schedule
-    - pytest test/example_test.py
-    - pytest test/gw_example_test.py
+    - pytest test/example_test.py --cov=bilby
+    - mv .coverage .coverage.example
+    - pytest test/gw_example_test.py --cov=bilby
+    - mv .coverage .coverage.gw_example
     - pytest test/sample_from_the_prior_test.py
+
+  artifacts:
+    paths:
+      - .coverage.example
+      - .coverage.gw_example
 
 plotting:
   stage: test
@@ -126,7 +153,25 @@ plotting:
     - python -m pip install .
     - python -m pip install ligo.skymap
 
-    - pytest test/gw_plot_test.py
+    - pytest test/gw_plot_test.py --cov=bilby
+    - mv .coverage .coverage.plot
+
+  artifacts:
+    paths:
+      - .coverage.plot
+
+coverage:
+  stage: coverage
+  image: bilbydev/v2-dockerfile-test-suite-python37
+  script:
+    - coverage combine
+    - coverage html
+    - coverage-badge -o coverage_badge.svg -f
+
+  artifacts:
+    paths:
+      - htmlcov/
+      - coverage_badge.svg
 
 pages:
   stage: deploy
@@ -158,17 +203,3 @@ deploy_release:
   only:
   - tags
 
-
-precommits-py3.7:
-  stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python37
-  script:
-    - source activate python37
-    - mkdir -p .pip37
-    - pip install --upgrade pip
-    - pip --cache-dir=.pip37 install --upgrade bilby
-    - pip --cache-dir=.pip37 install .
-    - pip --cache-dir=.pip37 install pre-commit
-
-    # Run precommits (flake8, spellcheck, isort, no merge conflicts, etc)
-    - pre-commit run --all-files --verbose --show-diff-on-failure
