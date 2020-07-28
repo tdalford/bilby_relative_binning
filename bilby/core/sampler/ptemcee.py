@@ -437,12 +437,16 @@ class Ptemcee(MCMCSampler):
             self.pos0 = pos0
             self.chain_array[:, self.iteration, :] = pos0[0, :, :]
             self.log_likelihood_array[:, :, self.iteration] = log_likelihood
+            self.mean_log_likelihood = np.mean(
+                self.log_likelihood_array[:, :, :self. iteration], axis=1)
 
             # Calculate time per iteration
             self.time_per_check.append((datetime.datetime.now() - t0).total_seconds())
             t0 = datetime.datetime.now()
 
             self.iteration += 1
+
+            min_check_iteration = get_min_iteration_to_check(self.mean_log_likelihood)
 
             (
                 stop,
@@ -451,7 +455,7 @@ class Ptemcee(MCMCSampler):
                 self.tau_int,
                 self.nsamples_effective,
             ) = check_iteration(
-                self.chain_array[:, :self.iteration + 1, :],
+                self.chain_array[:, min_check_iteration:self.iteration + 1, :],
                 sampler,
                 self.convergence_inputs,
                 self.search_parameter_keys,
@@ -558,6 +562,25 @@ class Ptemcee(MCMCSampler):
                 self.convergence_inputs.autocorr_tau,
             )
 
+            plot_mean_log_likelihood(
+                self.mean_log_likelihood,
+                self.outdir,
+                self.label
+            )
+
+
+def get_min_iteration_to_check(mean_log_likelihood, nstd=1):
+    nsteps = mean_log_likelihood.shape[1]
+    if nsteps > 10:
+        zero_chain_mean_log_likelihood = mean_log_likelihood[0, :]
+        median = np.median(zero_chain_mean_log_likelihood)
+        std = np.std(zero_chain_mean_log_likelihood)
+        idxs = np.abs(zero_chain_mean_log_likelihood - median) > nstd * std
+        if np.sum(idxs) > 0:
+            min_it = np.max(np.arange(len(idxs))[idxs])
+            return min_it
+    return 0
+
 
 def check_iteration(
     samples,
@@ -648,10 +671,15 @@ def check_iteration(
         max_frac = np.max(frac)
         tau_usable = np.all(frac < ci.frac_threshold)
     else:
+        logger.debug("ACT is nan")
         max_frac = np.nan
         tau_usable = False
 
-    if iteration < tau_int * ci.autocorr_tol or tau_int < ci.min_tau:
+    if iteration < tau_int * ci.autocorr_tol:
+        logger.debug("ACT less than autocorr_tol")
+        tau_usable = False
+    elif tau_int < ci.min_tau:
+        logger.debug("ACT less than min_tau")
         tau_usable = False
 
     # Print an update on the progress
@@ -819,7 +847,7 @@ def plot_walkers(walkers, nburn, thin, parameter_labels, outdir, label):
 
 
 def plot_tau(
-    tau_list_n, tau_list, search_parameter_keys, outdir, label, tau, autocorr_tau
+    tau_list_n, tau_list, search_parameter_keys, outdir, label, tau, autocorr_tau,
 ):
     fig, ax = plt.subplots()
     for i, key in enumerate(search_parameter_keys):
@@ -828,7 +856,22 @@ def plot_tau(
     ax.set_xlabel("Iteration")
     ax.set_ylabel(r"$\langle \tau \rangle$")
     ax.legend()
+
     fig.savefig("{}/{}_checkpoint_tau.png".format(outdir, label))
+    plt.close(fig)
+
+
+def plot_mean_log_likelihood(mean_log_likelihood, outdir, label):
+
+    ntemps, nsteps = mean_log_likelihood.shape
+
+    min_check_iteration = get_min_iteration_to_check(mean_log_likelihood)
+
+    fig, ax = plt.subplots()
+    idxs = np.arange(nsteps)
+    ax.plot(idxs, mean_log_likelihood.T)
+    ax.axvline(min_check_iteration)
+    fig.savefig("{}/{}_checkpoint_meanloglike.png".format(outdir, label))
     plt.close(fig)
 
 
