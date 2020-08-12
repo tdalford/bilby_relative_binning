@@ -628,7 +628,7 @@ class TestPTEmcee(unittest.TestCase):
 
     def test_default_kwargs(self):
         expected = dict(
-            ntemps=20,
+            ntemps=10,
             nwalkers=200,
             Tmax=None,
             betas=None,
@@ -643,7 +643,7 @@ class TestPTEmcee(unittest.TestCase):
 
     def test_translate_kwargs(self):
         expected = dict(
-            ntemps=20,
+            ntemps=10,
             nwalkers=200,
             Tmax=None,
             betas=None,
