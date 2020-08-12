@@ -90,6 +90,12 @@ class Ptemcee(MCMCSampler):
         The walkers are then initialized from the range of values obtained.
         If a list, for the keys in the list the optimization step is applied,
         otherwise the initial points are drawn from the prior.
+    niterations_per_check: int (5)
+        The number of iteration steps to take before checking ACT. This
+        effectively pre-thins the chains. Larger values reduce the per-eval
+        timing due to improved efficiency. But, if it is made too large the
+        pre-thinning may be overly agressive effectively wasting compute-time.
+        If you see tau=1, then niterations_per_check is likely too large.
 
 
     Other Parameters
@@ -98,7 +104,7 @@ class Ptemcee(MCMCSampler):
         The number of walkers
     nsteps: int, (100)
         The number of steps to take
-    ntemps: int (2)
+    ntemps: int (10)
         The number of temperatures used by ptemcee
     Tmax: float
         The maximum temperature
@@ -107,7 +113,7 @@ class Ptemcee(MCMCSampler):
 
     # Arguments used by ptemcee
     default_kwargs = dict(
-        ntemps=20,
+        ntemps=10,
         nwalkers=200,
         Tmax=None,
         betas=None,
@@ -130,8 +136,8 @@ class Ptemcee(MCMCSampler):
         skip_import_verification=False,
         resume=True,
         nsamples=5000,
-        burn_in_nact=10,
-        thin_by_nact=0.5,
+        burn_in_nact=50,
+        thin_by_nact=1,
         autocorr_tol=50,
         autocorr_c=5,
         safety=1,
@@ -145,7 +151,7 @@ class Ptemcee(MCMCSampler):
         store_walkers=False,
         ignore_keys_for_tau=None,
         pos0="prior",
-        niterations_per_check=10,
+        niterations_per_check=5,
         **kwargs
     ):
         super(Ptemcee, self).__init__(
