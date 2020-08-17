@@ -141,7 +141,7 @@ class Ptemcee(MCMCSampler):
         autocorr_tol=50,
         autocorr_c=5,
         safety=1,
-        autocorr_tau=5,
+        autocorr_tau=50,
         frac_threshold=0.01,
         min_tau=1,
         check_point_deltaT=600,
@@ -198,6 +198,7 @@ class Ptemcee(MCMCSampler):
             niterations_per_check=niterations_per_check,
         )
         self.convergence_inputs = ConvergenceInputs(**convergence_inputs_dict)
+        logger.info("Using convergence inputs: {}".format(self.convergence_inputs))
 
         # Check if threads was given as an equivalent arg
         if threads == 1:
@@ -461,6 +462,7 @@ class Ptemcee(MCMCSampler):
                 self.tau_int,
                 self.nsamples_effective,
             ) = check_iteration(
+                self.iteration,
                 self.chain_array[:, min_check_iteration:self.iteration + 1, :],
                 sampler,
                 self.convergence_inputs,
@@ -575,20 +577,21 @@ class Ptemcee(MCMCSampler):
             )
 
 
-def get_min_iteration_to_check(mean_log_likelihood, nstd=1):
+def get_min_iteration_to_check(mean_log_likelihood, frac=0.1):
     nsteps = mean_log_likelihood.shape[1]
     if nsteps > 10:
         zero_chain_mean_log_likelihood = mean_log_likelihood[0, :]
-        median = np.median(zero_chain_mean_log_likelihood)
-        std = np.std(zero_chain_mean_log_likelihood)
-        idxs = np.abs(zero_chain_mean_log_likelihood - median) > nstd * std
+        maxl = np.max(zero_chain_mean_log_likelihood)
+        fracdiff = (maxl - zero_chain_mean_log_likelihood) / maxl
+        idxs = fracdiff < frac
         if np.sum(idxs) > 0:
-            min_it = np.max(np.arange(len(idxs))[idxs])
+            min_it = np.min(np.arange(len(idxs))[idxs])
             return min_it
     return 0
 
 
 def check_iteration(
+    iteration,
     samples,
     sampler,
     convergence_inputs,
@@ -625,7 +628,7 @@ def check_iteration(
     import emcee
 
     ci = convergence_inputs
-    nwalkers, iteration, ndim = samples.shape
+    nwalkers, nsteps, ndim = samples.shape
 
     # Compute ACT tau for 0-temperature chains
     tau_array = np.zeros((nwalkers, ndim))
@@ -639,7 +642,7 @@ def check_iteration(
             except emcee.autocorr.AutocorrError:
                 tau_array[ii, jj] = np.inf
 
-    # Maximum over paramters, mean over walkers
+    # Maximum over parameters, mean over walkers
     tau = np.max(np.mean(tau_array, axis=0))
 
     # Apply multiplicitive safety factor
@@ -669,19 +672,17 @@ def check_iteration(
     # Calculate convergence boolean
     converged = ci.nsamples < nsamples_effective
 
-    # Calculate fractional change in tau from previous iteration
+    # Calculate change in tau from previous iterations
     check_taus = np.array(tau_list[-tau_int * ci.autocorr_tau :])
-    taus_per_parameter = check_taus[-1, :]
-    if not np.any(np.isnan(check_taus)):
-        frac = (taus_per_parameter - check_taus) / taus_per_parameter
-        max_frac = np.max(frac)
-        tau_usable = np.all(frac < ci.frac_threshold)
+    if not np.any(np.isnan(check_taus)) and check_taus.shape[0] > 2:
+        grad = np.max(np.gradient(check_taus, axis=0))
+        tau_usable = grad < ci.frac_threshold
     else:
         logger.debug("ACT is nan")
-        max_frac = np.nan
+        grad = np.nan
         tau_usable = False
 
-    if iteration < tau_int * ci.autocorr_tol:
+    if nsteps < tau_int * ci.autocorr_tol:
         logger.debug("ACT less than autocorr_tol")
         tau_usable = False
     elif tau_int < ci.min_tau:
@@ -696,7 +697,7 @@ def check_iteration(
         nsamples_effective,
         samples_per_check,
         tau_int,
-        max_frac,
+        grad,
         tau_usable,
         convergence_inputs,
     )
@@ -711,17 +712,17 @@ def print_progress(
     nsamples_effective,
     samples_per_check,
     tau_int,
-    max_frac,
+    grad,
     tau_usable,
     convergence_inputs,
 ):
     # Setup acceptance string
     acceptance = sampler.acceptance_fraction[0, :]
-    acceptance_str = "{:1.2f}->{:1.2f}".format(np.min(acceptance), np.max(acceptance))
+    acceptance_str = "{:1.2f}-{:1.2f}".format(np.min(acceptance), np.max(acceptance))
 
     # Setup tswap acceptance string
     tswap_acceptance_fraction = sampler.tswap_acceptance_fraction
-    tswap_acceptance_str = "{:1.2f}->{:1.2f}".format(
+    tswap_acceptance_str = "{:1.2f}-{:1.2f}".format(
         np.min(tswap_acceptance_fraction), np.max(tswap_acceptance_fraction)
     )
 
@@ -734,10 +735,10 @@ def print_progress(
 
     sampling_time = datetime.timedelta(seconds=np.sum(time_per_check))
 
-    if max_frac >= 0:
-        tau_str = "{}(+{:0.2f})".format(tau_int, max_frac)
+    if grad >= 0:
+        tau_str = "{}(+{:0.2f})".format(tau_int, grad)
     else:
-        tau_str = "{}({:0.2f})".format(tau_int, max_frac)
+        tau_str = "{}({:0.2f})".format(tau_int, grad)
     if tau_usable:
         tau_str = "={}".format(tau_str)
     else:
