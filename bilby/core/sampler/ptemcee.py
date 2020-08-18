@@ -686,7 +686,7 @@ def check_iteration(
     converged = Q < ci.Q_tol and ci.nsamples < nsamples_effective
 
     # Calculate change in tau from previous iterations
-    lower_tau_index = np.max([0, -tau_int * ci.autocorr_tau])
+    lower_tau_index = np.max([0, len(tau_list) - tau_int * ci.autocorr_tau])
     check_taus = np.array(tau_list[lower_tau_index :])
     GRAD_WINDOW_LENGTH = 11
     if not np.any(np.isnan(check_taus)) and check_taus.shape[0] > GRAD_WINDOW_LENGTH:
