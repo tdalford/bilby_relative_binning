@@ -64,7 +64,7 @@ class Ptemcee(MCMCSampler):
         A multiplicitive factor for the estimated autocorrelation. Useful for
         cases where non-convergence can be observed by eye but the automated
         tools are failing.
-    autocorr_tau:
+    autocorr_tau: int, (1)
         The number of autocorrelation times to use in assessing if the
         autocorrelation time is stable.
     gradient_tau: float, (0.05)
@@ -144,7 +144,7 @@ class Ptemcee(MCMCSampler):
         autocorr_tol=50,
         autocorr_c=5,
         safety=1,
-        autocorr_tau=50,
+        autocorr_tau=1,
         gradient_tau=0.1,
         Q_tol=1.02,
         min_tau=1,
@@ -686,9 +686,10 @@ def check_iteration(
     converged = Q < ci.Q_tol and ci.nsamples < nsamples_effective
 
     # Calculate change in tau from previous iterations
-    lower_tau_index = np.max([0, len(tau_list) - tau_int * ci.autocorr_tau])
-    check_taus = np.array(tau_list[lower_tau_index :])
     GRAD_WINDOW_LENGTH = 11
+    nsteps_to_check = ci.autocorr_tau * np.max([2 * GRAD_WINDOW_LENGTH, tau_int])
+    lower_tau_index = np.max([0, len(tau_list) - nsteps_to_check])
+    check_taus = np.array(tau_list[lower_tau_index :])
     if not np.any(np.isnan(check_taus)) and check_taus.shape[0] > GRAD_WINDOW_LENGTH:
         # Estimate the maximum gradient
         grad = np.max(scipy.signal.savgol_filter(
