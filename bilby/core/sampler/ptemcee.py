@@ -12,6 +12,7 @@ from collections import namedtuple
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy.signal
 
 from ..utils import logger
 from .base_sampler import SamplerError, MCMCSampler
@@ -23,10 +24,10 @@ ConvergenceInputs = namedtuple(
         "autocorr_c",
         "autocorr_tol",
         "autocorr_tau",
+        "gradient_tau",
         "safety",
         "burn_in_nact",
         "thin_by_nact",
-        "frac_threshold",
         "nsamples",
         "ignore_keys_for_tau",
         "min_tau",
@@ -65,11 +66,9 @@ class Ptemcee(MCMCSampler):
     autocorr_tau:
         The number of autocorrelation times to use in assessing if the
         autocorrelation time is stable.
-    frac_threshold: float, (0.01)
-        The maximum fractional change in the autocorrelation for the last
-        autocorr_tau steps. If the fractional change exceeds this value,
-        sampling will continue until the estimate of the autocorrelation time
-        can be trusted.
+    gradient_tau: float, (0.05)
+        The maximum (smoothed) local gradient of the ACT estimate to allow.
+        This ensures the ACT estimate is stable before finishing sampling.
     min_tau: int, (1)
         A minimum tau (autocorrelation time) to accept.
     check_point_deltaT: float, (600)
@@ -121,7 +120,7 @@ class Ptemcee(MCMCSampler):
         adaptation_lag=10000,
         adaptation_time=100,
         random=None,
-        adapt=True,
+        adapt=False,
         swap_ratios=False,
     )
 
@@ -142,7 +141,7 @@ class Ptemcee(MCMCSampler):
         autocorr_c=5,
         safety=1,
         autocorr_tau=50,
-        frac_threshold=0.01,
+        gradient_tau=0.05,
         min_tau=1,
         check_point_deltaT=600,
         threads=1,
@@ -191,7 +190,7 @@ class Ptemcee(MCMCSampler):
             safety=safety,
             burn_in_nact=burn_in_nact,
             thin_by_nact=thin_by_nact,
-            frac_threshold=frac_threshold,
+            gradient_tau=gradient_tau,
             nsamples=nsamples,
             ignore_keys_for_tau=ignore_keys_for_tau,
             min_tau=min_tau,
@@ -674,9 +673,18 @@ def check_iteration(
 
     # Calculate change in tau from previous iterations
     check_taus = np.array(tau_list[-tau_int * ci.autocorr_tau :])
-    if not np.any(np.isnan(check_taus)) and check_taus.shape[0] > 2:
-        grad = np.max(np.gradient(check_taus, axis=0))
-        tau_usable = grad < ci.frac_threshold
+    GRAD_WINDOW_LENGTH = 11
+    if not np.any(np.isnan(check_taus)) and check_taus.shape[0] > GRAD_WINDOW_LENGTH:
+        # Estimate the maximum gradient
+        grad = np.max(scipy.signal.savgol_filter(
+            check_taus, axis=0, window_length=GRAD_WINDOW_LENGTH, polyorder=2, deriv=1))
+
+        if grad < ci.gradient_tau:
+            logger.debug("tau usable as grad < gradient_tau={}".format(ci.gradient_tau))
+            tau_usable = True
+        else:
+            logger.debug("tau not usable as grad > gradient_tau={}".format(ci.gradient_tau))
+            tau_usable = False
     else:
         logger.debug("ACT is nan")
         grad = np.nan
@@ -739,6 +747,7 @@ def print_progress(
         tau_str = "{}(+{:0.2f})".format(tau_int, grad)
     else:
         tau_str = "{}({:0.2f})".format(tau_int, grad)
+
     if tau_usable:
         tau_str = "={}".format(tau_str)
     else:
