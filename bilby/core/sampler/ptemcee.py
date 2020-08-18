@@ -25,6 +25,7 @@ ConvergenceInputs = namedtuple(
         "autocorr_tol",
         "autocorr_tau",
         "gradient_tau",
+        "Q_tol",
         "safety",
         "burn_in_nact",
         "thin_by_nact",
@@ -69,6 +70,9 @@ class Ptemcee(MCMCSampler):
     gradient_tau: float, (0.05)
         The maximum (smoothed) local gradient of the ACT estimate to allow.
         This ensures the ACT estimate is stable before finishing sampling.
+    Q_tol: float (1.01)
+        The maximum between-chain to within-chain tolerance allowed (akin to
+        the Gelman-Rubin statistic).
     min_tau: int, (1)
         A minimum tau (autocorrelation time) to accept.
     check_point_deltaT: float, (600)
@@ -113,7 +117,7 @@ class Ptemcee(MCMCSampler):
     # Arguments used by ptemcee
     default_kwargs = dict(
         ntemps=10,
-        nwalkers=200,
+        nwalkers=100,
         Tmax=None,
         betas=None,
         a=2.0,
@@ -136,12 +140,13 @@ class Ptemcee(MCMCSampler):
         resume=True,
         nsamples=5000,
         burn_in_nact=50,
-        thin_by_nact=1,
+        thin_by_nact=0.5,
         autocorr_tol=50,
         autocorr_c=5,
         safety=1,
         autocorr_tau=50,
-        gradient_tau=0.05,
+        gradient_tau=0.1,
+        Q_tol=1.02,
         min_tau=1,
         check_point_deltaT=600,
         threads=1,
@@ -191,6 +196,7 @@ class Ptemcee(MCMCSampler):
             burn_in_nact=burn_in_nact,
             thin_by_nact=thin_by_nact,
             gradient_tau=gradient_tau,
+            Q_tol=Q_tol,
             nsamples=nsamples,
             ignore_keys_for_tau=ignore_keys_for_tau,
             min_tau=min_tau,
@@ -346,6 +352,7 @@ class Ptemcee(MCMCSampler):
             self.sampler._betas = np.array(self.beta_list[-1])
             self.tau_list = data["tau_list"]
             self.tau_list_n = data["tau_list_n"]
+            self.Q_list = data["Q_list"]
             self.time_per_check = data["time_per_check"]
 
             # Initialize the pool
@@ -386,6 +393,7 @@ class Ptemcee(MCMCSampler):
             self.beta_list = []
             self.tau_list = []
             self.tau_list_n = []
+            self.Q_list = []
             self.time_per_check = []
             self.pos0 = self.get_pos0()
 
@@ -470,6 +478,7 @@ class Ptemcee(MCMCSampler):
                 self.beta_list,
                 self.tau_list,
                 self.tau_list_n,
+                self.Q_list,
             )
 
             if stop:
@@ -544,6 +553,7 @@ class Ptemcee(MCMCSampler):
             self.beta_list,
             self.tau_list,
             self.tau_list_n,
+            self.Q_list,
             self.time_per_check,
         )
 
@@ -599,6 +609,7 @@ def check_iteration(
     beta_list,
     tau_list,
     tau_list_n,
+    Q_list,
 ):
     """ Per-iteration logic to calculate the convergence check
 
@@ -652,6 +663,9 @@ def check_iteration(
     tau_list.append(list(np.mean(tau_array, axis=0)))
     tau_list_n.append(iteration)
 
+    Q = get_Q_convergence(samples)
+    Q_list.append(Q)
+
     # Convert to an integer
     tau_int = int(np.ceil(tau)) if not np.isnan(tau) else tau
 
@@ -669,10 +683,11 @@ def check_iteration(
     nsamples_effective = int(nwalkers * (iteration - nburn) / thin)
 
     # Calculate convergence boolean
-    converged = ci.nsamples < nsamples_effective
+    converged = Q < ci.Q_tol and ci.nsamples < nsamples_effective
 
     # Calculate change in tau from previous iterations
-    check_taus = np.array(tau_list[-tau_int * ci.autocorr_tau :])
+    lower_tau_index = np.max([0, -tau_int * ci.autocorr_tau])
+    check_taus = np.array(tau_list[lower_tau_index :])
     GRAD_WINDOW_LENGTH = 11
     if not np.any(np.isnan(check_taus)) and check_taus.shape[0] > GRAD_WINDOW_LENGTH:
         # Estimate the maximum gradient
@@ -708,9 +723,21 @@ def check_iteration(
         grad,
         tau_usable,
         convergence_inputs,
+        Q
     )
     stop = converged and tau_usable
     return stop, nburn, thin, tau_int, nsamples_effective
+
+
+def get_Q_convergence(samples):
+    nwalkers, nsteps, ndim = samples.shape
+    W = np.mean(np.var(samples, axis=1), axis=0)
+    per_walker_mean = np.mean(samples, axis=1)
+    mean = np.mean(per_walker_mean, axis=0)
+    B = nsteps / (nwalkers - 1.) * np.sum((per_walker_mean - mean)**2, axis=0)
+    Vhat = (nsteps - 1) / nsteps * W + (nwalkers + 1) / (nwalkers * nsteps) * B
+    Q_per_dim = np.sqrt(Vhat / W)
+    return np.max(Q_per_dim)
 
 
 def print_progress(
@@ -723,6 +750,7 @@ def print_progress(
     grad,
     tau_usable,
     convergence_inputs,
+    Q,
 ):
     # Setup acceptance string
     acceptance = sampler.acceptance_fraction[0, :]
@@ -753,6 +781,8 @@ def print_progress(
     else:
         tau_str = "!{}".format(tau_str)
 
+    Q_str = "{:0.2f}".format(Q)
+
     evals_per_check = sampler.nwalkers * sampler.ntemps * convergence_inputs.niterations_per_check
 
     ncalls = "{:1.1e}".format(
@@ -761,7 +791,7 @@ def print_progress(
     samp_timing = "{:1.1f}ms/sm".format(1e3 * ave_time_per_check / samples_per_check)
 
     print(
-        "{}| {}| nc:{}| a0:{}| swp:{}| n:{}<{}| tau{}| {}| {}".format(
+        "{}|{}|nc:{}|a0:{}|swp:{}|n:{}<{}|t{}|q:{}|{}|{}".format(
             iteration,
             str(sampling_time).split(".")[0],
             ncalls,
@@ -770,6 +800,7 @@ def print_progress(
             nsamples_effective,
             convergence_inputs.nsamples,
             tau_str,
+            Q_str,
             eval_timing,
             samp_timing,
         ),
@@ -793,6 +824,7 @@ def checkpoint(
     beta_list,
     tau_list,
     tau_list_n,
+    Q_list,
     time_per_check,
 ):
     logger.info("Writing checkpoint and diagnostics")
@@ -817,6 +849,7 @@ def checkpoint(
         beta_list=beta_list,
         tau_list=tau_list,
         tau_list_n=tau_list_n,
+        Q_list=Q_list,
         time_per_check=time_per_check,
         log_likelihood_array=log_likelihood_array,
         chain_array=chain_array,
@@ -868,7 +901,6 @@ def plot_tau(
     fig, ax = plt.subplots()
     for i, key in enumerate(search_parameter_keys):
         ax.plot(tau_list_n, np.array(tau_list)[:, i], label=key)
-    ax.axvline(tau_list_n[-1] - tau * autocorr_tau)
     ax.set_xlabel("Iteration")
     ax.set_ylabel(r"$\langle \tau \rangle$")
     ax.legend()
