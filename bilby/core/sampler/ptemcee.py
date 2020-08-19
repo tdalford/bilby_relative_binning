@@ -14,7 +14,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.signal
 
-from ..utils import logger
+from ..utils import logger, check_directory_exists_and_if_not_mkdir
 from .base_sampler import SamplerError, MCMCSampler
 
 
@@ -537,6 +537,7 @@ class Ptemcee(MCMCSampler):
         sys.exit(self.exit_code)
 
     def write_current_state(self, plot=True):
+        check_directory_exists_and_if_not_mkdir(self.outdir)
         checkpoint(
             self.iteration,
             self.outdir,
