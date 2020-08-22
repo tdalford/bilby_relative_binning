@@ -42,16 +42,15 @@ def slab_spike_prior_factory(prior_class):
 
         def _find_inverse_cdf_fraction_before_spike(self):
             # binary search
-            p = 0.5
-            step = 0.5
+            p = self.slab_fraction / 2
             for n in range(2, 100):
+                print(p)
+                step = self.slab_fraction * 0.5 ** n
                 contracted_rescale = self._contracted_rescale(p)
                 if contracted_rescale < self.spike_loc:
-                    p += step ** n
-                elif contracted_rescale > self.spike_loc:
-                    p -= step ** n
+                    p += step
                 else:
-                    return p
+                    p -= step
             return p
 
         def rescale(self, val):
