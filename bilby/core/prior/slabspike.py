@@ -1,11 +1,11 @@
 import numpy as np
 
-from bilby.core.utils import infer_args_from_method, infer_parameters_from_function
 from bilby.core.prior.base import Prior
 from bilby.core.prior.interpolated import Interped
-from bilby.core.prior.analytical import DeltaFunction, PowerLaw, Uniform, LogUniform, \
+from bilby.core.prior.analytical import PowerLaw, Uniform, LogUniform, \
     SymmetricLogUniform, Cosine, Sine, Gaussian, TruncatedGaussian, HalfGaussian, \
     LogNormal, Exponential, StudentT, Beta, Logistic, Cauchy, Gamma, ChiSquared, FermiDirac
+from bilby.core.utils import infer_args_from_method
 
 
 def slab_spike_prior_factory(prior_class):
@@ -70,6 +70,11 @@ def slab_spike_prior_factory(prior_class):
         def ln_prob(self, val):
             res = super(SlabSpikePrior, self).ln_prob(val) + np.log(self.slab_fraction)
             res[np.where(val == self.spike_loc)] = np.inf
+            return res
+
+        def cdf(self, val):
+            res = super(SlabSpikePrior, self).cdf(val) / self.slab_fraction
+            res[np.where(val) > self.spike_loc] += self.spike_height
             return res
 
     return SlabSpikePrior
