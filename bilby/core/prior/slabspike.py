@@ -41,27 +41,18 @@ def slab_spike_prior_factory(prior_class):
             return 1 - self.spike_height
 
         def _find_inverse_cdf_fraction_before_spike(self):
-            # binary search
-            p = self.slab_fraction / 2
-            for n in range(2, 100):
-                print(p)
-                step = self.slab_fraction * 0.5 ** n
-                contracted_rescale = self._contracted_rescale(p)
-                if contracted_rescale < self.spike_loc:
-                    p += step
-                else:
-                    p -= step
-            return p
+            return super(SlabSpikePrior, self).cdf(self.spike_loc) * self.slab_fraction
 
         def rescale(self, val):
             val = np.atleast_1d(val)
             res = np.zeros(len(val))
 
             spike_start = self.inverse_cdf_below_spike
+            spike_end = spike_start + self.spike_height
 
             lower_indices = np.where(val < spike_start)
-            intermediate_indices = np.where(np.logical_and(val >= spike_start, val <= spike_start + self.spike_height))
-            higher_indices = np.where(val > spike_start + self.spike_height)
+            intermediate_indices = np.where(np.logical_and(spike_start <= val, val <= spike_end))
+            higher_indices = np.where(spike_end > val)
 
             res[lower_indices] = self._contracted_rescale(val[lower_indices])
             res[intermediate_indices] = self.spike_loc
@@ -82,6 +73,7 @@ def slab_spike_prior_factory(prior_class):
             return res
 
     return SlabSpikePrior
+
 
 SlabSpikeBasePrior = slab_spike_prior_factory(Prior)  # Only for testing purposes
 SlabSpikeUniform = slab_spike_prior_factory(Uniform)
