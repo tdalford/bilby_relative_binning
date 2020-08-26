@@ -52,7 +52,7 @@ def slab_spike_prior_factory(prior_class):
 
             lower_indices = np.where(val < spike_start)
             intermediate_indices = np.where(np.logical_and(spike_start <= val, val <= spike_end))
-            higher_indices = np.where(spike_end > val)
+            higher_indices = np.where(val > spike_end)
 
             res[lower_indices] = self._contracted_rescale(val[lower_indices])
             res[intermediate_indices] = self.spike_loc
