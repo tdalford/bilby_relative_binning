@@ -222,7 +222,7 @@ def teobresums_eccentric_binary_aligned_spins(
     dict: A dictionary with the plus and cross polarisation strain modes (time domain)
     """
     waveform_kwargs = {'modes': [[2, 2]], 'reference_frequency': 10.0, 
-                       'minimum_frequency': 10.0, 'sampling_frequency': 4096.0}
+                       'minimum_frequency': 10.0, 'sampling_frequency': 1024.0}
     waveform_kwargs.update(kwargs)
 
     k = [int(x[0]*(x[0]-1)/2 + x[1]-2) for x in waveform_kwargs['modes']]
@@ -312,7 +312,7 @@ def teobresums_eccentric_binary_aligned_spins_frequency_domain(
     dict: A dictionary with the plus and cross polarisation strain modes (frequency domain)
     """
     waveform_kwargs = {'modes': [[2, 2]], 'reference_frequency': 10.0,
-                       'minimum_frequency': 10.0, 'sampling_frequency': 4096.0}
+                       'minimum_frequency': 10.0, 'sampling_frequency': 1024.0}
     waveform_kwargs.update(kwargs)
 
     k = [int(x[0]*(x[0]-1)/2 + x[1]-2) for x in waveform_kwargs['modes']]
@@ -343,7 +343,7 @@ def teobresums_eccentric_binary_aligned_spins_frequency_domain(
     # Make sure the signal is the right length
     df = frequency_array[1] - frequency_array[0]
     duration = 1 / df
-    time_length = int(duration * kwargs['sampling_frequency'])
+    time_length = int(duration * waveform_kwargs['sampling_frequency'])
     length_difference = len(waveform_time_domain['plus']) - time_length
     if length_difference < 0:
         # Waveform is too short; needs zero-padding
@@ -365,7 +365,7 @@ def teobresums_eccentric_binary_aligned_spins_frequency_domain(
     # Fourier transform
     waveform = {}
     for key in waveform_time_domain:
-        waveform[key], _ = utils.nfft(waveform_time_domain[key], kwargs['sampling_frequency'])
+        waveform[key], _ = utils.nfft(waveform_time_domain[key], waveform_kwargs['sampling_frequency'])
 
     # Return waveform 
     return waveform
