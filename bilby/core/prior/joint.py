@@ -3,7 +3,7 @@ import scipy.stats
 from scipy.special import erfinv
 
 from .base import Prior, PriorException
-from bilby.core.utils import logger, infer_args_from_method
+from bilby.core.utils import logger, infer_args_from_method, get_dict_with_properties
 
 
 class BaseJointPriorDist(object):
@@ -105,11 +105,7 @@ class BaseJointPriorDist(object):
 
     def get_instantiation_dict(self):
         subclass_args = infer_args_from_method(self.__init__)
-        property_names = [p for p in dir(self.__class__)
-                          if isinstance(getattr(self.__class__, p), property)]
-        dict_with_properties = self.__dict__.copy()
-        for key in property_names:
-            dict_with_properties[key] = getattr(self, key)
+        dict_with_properties = get_dict_with_properties(self)
         instantiation_dict = dict()
         for key in subclass_args:
             if isinstance(dict_with_properties[key], list):
@@ -574,7 +570,15 @@ class MultivariateGaussianDist(BaseJointPriorDist):
             if self.nmodes == 1:
                 mode = 0
             else:
-                mode = np.argwhere(self.cumweights - np.random.rand() > 0)[0][0]
+                if size == 1:
+                    mode = np.argwhere(self.cumweights - np.random.rand() > 0)[0][0]
+                else:
+                    # pick modes
+                    mode = [
+                        np.argwhere(self.cumweights - r > 0)[0][0]
+                        for r in np.random.rand(size)
+                    ]
+
         samps = np.zeros((size, len(self)))
         for i in range(size):
             inbound = False
@@ -582,7 +586,10 @@ class MultivariateGaussianDist(BaseJointPriorDist):
                 # sample the multivariate Gaussian keys
                 vals = np.random.uniform(0, 1, len(self))
 
-                samp = np.atleast_1d(self.rescale(vals, mode=mode))
+                if isinstance(mode, list):
+                    samp = np.atleast_1d(self.rescale(vals, mode=mode[i]))
+                else:
+                    samp = np.atleast_1d(self.rescale(vals, mode=mode))
                 samps[i, :] = samp
 
                 # check sample is in bounds (otherwise perform another draw)
@@ -663,7 +670,7 @@ class JointPrior(Prior):
             raise TypeError("Must supply a JointPriorDist object instance to be shared by all joint params")
 
         if name not in dist.names:
-            raise ValueError("'{}' is not a parameter in the JointPriorDist")
+            raise ValueError("'{}' is not a parameter in the JointPriorDist".format(name))
 
         self.dist = dist
         super(JointPrior, self).__init__(name=name, latex_label=latex_label, unit=unit, minimum=dist.bounds[name][0],

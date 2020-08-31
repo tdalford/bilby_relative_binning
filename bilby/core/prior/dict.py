@@ -16,7 +16,7 @@ from bilby.core.utils import logger, check_directory_exists_and_if_not_mkdir, Bi
 class PriorDict(dict):
     def __init__(self, dictionary=None, filename=None,
                  conversion_function=None):
-        """ A set of priors
+        """ A dictionary of priors
 
         Parameters
         ----------
@@ -39,6 +39,7 @@ class PriorDict(dict):
             self.from_file(filename)
         elif dictionary is not None:
             raise ValueError("PriorDict input dictionary not understood")
+        self._cached_normalizations = {}
 
         self.convert_floats_to_delta_functions()
 
@@ -383,6 +384,27 @@ class PriorDict(dict):
                            if not isinstance(self[key], Constraint)}
             return all_samples
 
+    def normalize_constraint_factor(self, keys):
+        if keys in self._cached_normalizations.keys():
+            return self._cached_normalizations[keys]
+        else:
+            min_accept = 1000
+            sampling_chunk = 5000
+            samples = self.sample_subset(keys=keys, size=sampling_chunk)
+            keep = np.atleast_1d(self.evaluate_constraints(samples))
+            if len(keep) == 1:
+                return 1
+            all_samples = {key: np.array([]) for key in keys}
+            while np.count_nonzero(keep) < min_accept:
+                samples = self.sample_subset(keys=keys, size=sampling_chunk)
+                for key in samples:
+                    all_samples[key] = np.hstack(
+                        [all_samples[key], samples[key].flatten()])
+                keep = np.array(self.evaluate_constraints(all_samples), dtype=bool)
+            factor = len(keep) / np.count_nonzero(keep)
+            self._cached_normalizations[keys] = factor
+            return factor
+
     def prob(self, sample, **kwargs):
         """
 
@@ -401,6 +423,7 @@ class PriorDict(dict):
         prob = np.product([self[key].prob(sample[key])
                            for key in sample], **kwargs)
 
+        ratio = self.normalize_constraint_factor(tuple(sample.keys()))
         if np.all(prob == 0.):
             return prob
         else:
@@ -412,7 +435,7 @@ class PriorDict(dict):
             else:
                 constrained_prob = np.zeros_like(prob)
                 keep = np.array(self.evaluate_constraints(sample), dtype=bool)
-                constrained_prob[keep] = prob[keep]
+                constrained_prob[keep] = prob[keep] * ratio
                 return constrained_prob
 
     def ln_prob(self, sample, axis=None):
@@ -434,6 +457,7 @@ class PriorDict(dict):
         ln_prob = np.sum([self[key].ln_prob(sample[key])
                           for key in sample], axis=axis)
 
+        ratio = self.normalize_constraint_factor(tuple(sample.keys()))
         if np.all(np.isinf(ln_prob)):
             return ln_prob
         else:
@@ -445,7 +469,7 @@ class PriorDict(dict):
             else:
                 constrained_ln_prob = -np.inf * np.ones_like(ln_prob)
                 keep = np.array(self.evaluate_constraints(sample), dtype=bool)
-                constrained_ln_prob[keep] = ln_prob[keep]
+                constrained_ln_prob[keep] = ln_prob[keep] + np.log(ratio)
                 return constrained_ln_prob
 
     def rescale(self, keys, theta):
@@ -699,6 +723,49 @@ class ConditionalPriorDict(PriorDict):
     def __delitem__(self, key):
         super(ConditionalPriorDict, self).__delitem__(key)
         self._resolve_conditions()
+
+
+class DirichletPriorDict(ConditionalPriorDict):
+
+    def __init__(self, n_dim=None, label="dirichlet_"):
+        from .conditional import DirichletElement
+        self.n_dim = n_dim
+        self.label = label
+        super(DirichletPriorDict, self).__init__(dictionary=dict())
+        for ii in range(n_dim - 1):
+            self[label + "{}".format(ii)] = DirichletElement(
+                order=ii, n_dimensions=n_dim, label=label
+            )
+
+    def copy(self, **kwargs):
+        return self.__class__(n_dim=self.n_dim, label=self.label)
+
+    def _get_json_dict(self):
+        total_dict = dict()
+        total_dict["__prior_dict__"] = True
+        total_dict["__module__"] = self.__module__
+        total_dict["__name__"] = self.__class__.__name__
+        total_dict["n_dim"] = self.n_dim
+        total_dict["label"] = self.label
+        return total_dict
+
+    @classmethod
+    def _get_from_json_dict(cls, prior_dict):
+        try:
+            cls == getattr(
+                import_module(prior_dict["__module__"]),
+                prior_dict["__name__"])
+        except ImportError:
+            logger.debug("Cannot import prior module {}.{}".format(
+                prior_dict["__module__"], prior_dict["__name__"]
+            ))
+        except KeyError:
+            logger.debug("Cannot find module name to load")
+        for key in ["__module__", "__name__", "__prior_dict__"]:
+            if key in prior_dict:
+                del prior_dict[key]
+        obj = cls(**prior_dict)
+        return obj
 
 
 class ConditionalPriorDictException(PriorDictException):

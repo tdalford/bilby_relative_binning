@@ -25,6 +25,9 @@ except ImportError:
                  " not be able to use some of the prebuilt functions.")
 
 
+DEFAULT_PRIOR_DIR = os.path.join(os.path.dirname(__file__), 'prior_files')
+
+
 class BilbyPriorConversionError(Exception):
     pass
 
@@ -136,7 +139,10 @@ class Cosmological(Interped):
 
     @minimum.setter
     def minimum(self, minimum):
-        self._set_limit(value=minimum, limit_dict=self._minimum)
+        if (self.name in self._minimum) and (minimum < self.minimum):
+            self._set_limit(value=minimum, limit_dict=self._minimum, recalculate_array=True)
+        else:
+            self._set_limit(value=minimum, limit_dict=self._minimum)
 
     @property
     def maximum(self):
@@ -144,11 +150,14 @@ class Cosmological(Interped):
 
     @maximum.setter
     def maximum(self, maximum):
-        self._set_limit(value=maximum, limit_dict=self._maximum)
+        if (self.name in self._maximum) and (maximum > self.maximum):
+            self._set_limit(value=maximum, limit_dict=self._maximum, recalculate_array=True)
+        else:
+            self._set_limit(value=maximum, limit_dict=self._maximum)
 
-    def _set_limit(self, value, limit_dict):
+    def _set_limit(self, value, limit_dict, recalculate_array=False):
         """
-        Set either the limits for redshift luminosity and comoving distances
+        Set either of the limits for redshift, luminosity, and comoving distances
 
         Parameters
         ----------
@@ -156,6 +165,8 @@ class Cosmological(Interped):
             Limit value in current class' parameter
         limit_dict: dict
             The limit dictionary to modify in place
+        recalculate_array: boolean
+            Determines if the distance arrays are recalculated
         """
         cosmology = get_cosmology(self.cosmology)
         limit_dict[self.name] = value
@@ -182,6 +193,13 @@ class Cosmological(Interped):
             limit_dict['luminosity_distance'] = (
                 cosmology.luminosity_distance(limit_dict['redshift']).value
             )
+        if recalculate_array:
+            if self.name == 'redshift':
+                self.xx, self.yy = self._get_redshift_arrays()
+            elif self.name == 'comoving_distance':
+                self.xx, self.yy = self._get_comoving_distance_arrays()
+            elif self.name == 'luminosity_distance':
+                self.xx, self.yy = self._get_luminosity_distance_arrays()
         try:
             self._update_instance()
         except (AttributeError, KeyError):
@@ -270,7 +288,8 @@ class UniformSourceFrame(Cosmological):
 class AlignedSpin(Interped):
 
     def __init__(self, a_prior=Uniform(0, 1), z_prior=Uniform(-1, 1),
-                 name=None, latex_label=None, unit=None, boundary=None):
+                 name=None, latex_label=None, unit=None, boundary=None,
+                 minimum=np.nan, maximum=np.nan):
         """
         Prior distribution for the aligned (z) component of the spin.
 
@@ -305,7 +324,34 @@ class AlignedSpin(Interped):
                                      z_prior.prob(x / aas)), aas) for x in xx]
         super(AlignedSpin, self).__init__(xx=xx, yy=yy, name=name,
                                           latex_label=latex_label, unit=unit,
-                                          boundary=boundary)
+                                          boundary=boundary, minimum=minimum,
+                                          maximum=maximum)
+
+
+class EOSCheck(Constraint):
+    def __init__(self, minimum=-np.inf, maximum=np.inf):
+        """
+        Constraint used for EoS sampling. Converts the result of various
+        checks on the EoS and its parameters into a prior that can reject
+        unphysical samples. Necessary for EoS sampling.
+        """
+
+        super().__init__(minimum=minimum, maximum=maximum, name=None, latex_label=None, unit=None)
+
+    def prob(self, val):
+        """
+        Returns the result of the equation of state check in the conversion function.
+        """
+        return val
+
+    def ln_prob(self, val):
+
+        if val:
+            result = 0.0
+        elif not val:
+            result = -np.inf
+
+        return result
 
 
 class CBCPriorDict(PriorDict):
@@ -378,17 +424,17 @@ class BBHPriorDict(CBCPriorDict):
             By default this generates many additional parameters, see
             BBHPriorDict.default_conversion_function
         """
-        basedir = os.path.join(os.path.dirname(__file__), 'prior_files')
         if dictionary is None and filename is None:
-            fname = 'binary_black_holes.prior'
             if aligned_spin:
-                fname = 'aligned_spin_' + fname
+                fname = 'aligned_spins_bbh.prior'
                 logger.info('Using aligned spin prior')
-            filename = os.path.join(basedir, fname)
+            else:
+                fname = 'precessing_spins_bbh.prior'
+            filename = os.path.join(DEFAULT_PRIOR_DIR, fname)
             logger.info('No prior given, using default BBH priors in {}.'.format(filename))
         elif filename is not None:
             if not os.path.isfile(filename):
-                filename = os.path.join(os.path.dirname(__file__), 'prior_files', filename)
+                filename = os.path.join(DEFAULT_PRIOR_DIR, filename)
         super(BBHPriorDict, self).__init__(dictionary=dictionary, filename=filename,
                                            conversion_function=conversion_function)
 
@@ -486,15 +532,15 @@ class BNSPriorDict(CBCPriorDict):
             BNSPriorDict.default_conversion_function
         """
         if aligned_spin:
-            default_file = 'binary_neutron_stars.prior'
+            default_file = 'aligned_spins_bns_tides_on.prior'
         else:
-            default_file = 'precessing_binary_neutron_stars.prior'
+            default_file = 'precessing_spins_bns_tides_on.prior'
         if dictionary is None and filename is None:
-            filename = os.path.join(os.path.dirname(__file__), 'prior_files', default_file)
+            filename = os.path.join(DEFAULT_PRIOR_DIR, default_file)
             logger.info('No prior given, using default BNS priors in {}.'.format(filename))
         elif filename is not None:
             if not os.path.isfile(filename):
-                filename = os.path.join(os.path.dirname(__file__), 'prior_files', filename)
+                filename = os.path.join(DEFAULT_PRIOR_DIR, filename)
         super(BNSPriorDict, self).__init__(dictionary=dictionary, filename=filename,
                                            conversion_function=conversion_function)
 
@@ -584,7 +630,9 @@ Prior._default_latex_labels = {
     'lambda_1': '$\\Lambda_1$',
     'lambda_2': '$\\Lambda_2$',
     'lambda_tilde': '$\\tilde{\\Lambda}$',
-    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$'}
+    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$',
+    'chi_1': '$\\chi_1$',
+    'chi_2': '$\\chi_2$'}
 
 
 class CalibrationPriorDict(PriorDict):
@@ -600,8 +648,7 @@ class CalibrationPriorDict(PriorDict):
             See superclass
         """
         if dictionary is None and filename is not None:
-            filename = os.path.join(os.path.dirname(__file__),
-                                    'prior_files', filename)
+            filename = os.path.join(DEFAULT_PRIOR_DIR, filename)
         super(CalibrationPriorDict, self).__init__(dictionary=dictionary, filename=filename)
         self.source = None
 

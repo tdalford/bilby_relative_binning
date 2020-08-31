@@ -1,5 +1,6 @@
 from __future__ import division
 
+import inspect
 import os
 from collections import OrderedDict, namedtuple
 from copy import copy
@@ -17,9 +18,14 @@ import scipy.stats
 from scipy.special import logsumexp
 
 from . import utils
-from .utils import (logger, infer_parameters_from_function,
-                    check_directory_exists_and_if_not_mkdir,)
-from .utils import BilbyJsonEncoder, decode_bilby_json
+from .utils import (
+    logger, infer_parameters_from_function,
+    check_directory_exists_and_if_not_mkdir,
+    latex_plot_format, safe_save_figure,
+    BilbyJsonEncoder, load_json,
+    move_old_file, get_version_information,
+    decode_bilby_json,
+)
 from .prior import Prior, PriorDict, DeltaFunction
 
 
@@ -88,6 +94,140 @@ def read_in_result(filename=None, outdir=None, label=None, extension='json', gzi
         raise ValueError("No filetype extension provided")
     else:
         raise ValueError("Filetype {} not understood".format(extension))
+    return result
+
+
+def get_weights_for_reweighting(
+        result, new_likelihood=None, new_prior=None, old_likelihood=None,
+        old_prior=None):
+    """ Calculate the weights for reweight()
+
+    See bilby.core.result.reweight() for help with the inputs
+
+    Returns
+    -------
+    ln_weights: array
+        An array of the natural-log weights
+    new_log_likelihood_array: array
+        An array of the natural-log likelihoods
+    new_log_prior_array: array
+        An array of the natural-log priors
+
+    """
+    nposterior = len(result.posterior)
+    old_log_likelihood_array = np.zeros(nposterior)
+    old_log_prior_array = np.zeros(nposterior)
+    new_log_likelihood_array = np.zeros(nposterior)
+    new_log_prior_array = np.zeros(nposterior)
+
+    for ii, sample in result.posterior.iterrows():
+        # Convert sample to dictionary
+        par_sample = {key: sample[key] for key in result.search_parameter_keys}
+
+        if old_likelihood is not None:
+            old_likelihood.parameters.update(par_sample)
+            old_log_likelihood_array[ii] = old_likelihood.log_likelihood()
+        else:
+            old_log_likelihood_array[ii] = sample["log_likelihood"]
+
+        if new_likelihood is not None:
+            new_likelihood.parameters.update(par_sample)
+            new_log_likelihood_array[ii] = new_likelihood.log_likelihood()
+        else:
+            # Don't perform likelihood reweighting (i.e. likelihood isn't updated)
+            new_log_likelihood_array[ii] = old_log_likelihood_array[ii]
+
+        if old_prior is not None:
+            old_log_prior_array[ii] = old_prior.ln_prob(par_sample)
+        else:
+            old_log_prior_array[ii] = sample["log_prior"]
+
+        if new_prior is not None:
+            new_log_prior_array[ii] = new_prior.ln_prob(par_sample)
+        else:
+            # Don't perform prior reweighting (i.e. prior isn't updated)
+            new_log_prior_array[ii] = old_log_prior_array[ii]
+
+    ln_weights = (
+        new_log_likelihood_array + new_log_prior_array - old_log_likelihood_array - old_log_prior_array)
+
+    return ln_weights, new_log_likelihood_array, new_log_prior_array
+
+
+def rejection_sample(posterior, weights):
+    """ Perform rejection sampling on a posterior using weights
+
+    Parameters
+    ----------
+    posterior: pd.DataFrame or np.ndarray of shape (nsamples, nparameters)
+        The dataframe or array containing posterior samples
+    weights: np.ndarray
+        An array of weights
+
+    Returns
+    -------
+    reweighted_posterior: pd.DataFrame
+        The posterior resampled using rejection sampling
+
+    """
+    keep = weights > np.random.uniform(0, max(weights), weights.shape)
+    return posterior[keep]
+
+
+def reweight(result, label=None, new_likelihood=None, new_prior=None,
+             old_likelihood=None, old_prior=None):
+    """ Reweight a result to a new likelihood/prior using rejection sampling
+
+    Parameters
+    ----------
+    label: str, optional
+        An updated label to apply to the result object
+    new_likelihood: bilby.core.likelood.Likelihood, (optional)
+        If given, the new likelihood to reweight too. If not given, likelihood
+        reweighting is not applied
+    new_prior: bilby.core.prior.PriorDict, (optional)
+        If given, the new prior to reweight too. If not given, prior
+        reweighting is not applied
+    old_likelihood: bilby.core.likelihood.Likelihood, (optional)
+        If given, calculate the old likelihoods from this object. If not given,
+        the values stored in the posterior are used.
+    old_prior: bilby.core.prior.PriorDict, (optional)
+        If given, calculate the old prior from this object. If not given,
+        the values stored in the posterior are used.
+
+    Returns
+    -------
+    result: bilby.core.result.Result
+        A copy of the result object with a reweighted posterior
+
+    """
+
+    result = copy(result)
+    nposterior = len(result.posterior)
+    logger.info("Reweighting posterior with {} samples".format(nposterior))
+
+    ln_weights, new_log_likelihood_array, new_log_prior_array = get_weights_for_reweighting(
+        result, new_likelihood=new_likelihood, new_prior=new_prior,
+        old_likelihood=old_likelihood, old_prior=old_prior)
+
+    # Overwrite the likelihood and prior evaluations
+    result.posterior["log_likelihood"] = new_log_likelihood_array
+    result.posterior["log_prior"] = new_log_prior_array
+
+    weights = np.exp(ln_weights)
+
+    result.posterior = rejection_sample(result.posterior, weights=weights)
+    logger.info("Rejection sampling resulted in {} samples".format(len(result.posterior)))
+    result.meta_data["reweighted_using_rejection_sampling"] = True
+
+    result.log_evidence += logsumexp(ln_weights) - np.log(nposterior)
+    result.priors = new_prior
+
+    if label:
+        result.label = label
+    else:
+        result.label += "_reweighted"
+
     return result
 
 
@@ -219,10 +359,27 @@ class Result(object):
 
         if os.path.isfile(filename):
             dictionary = deepdish.io.load(filename)
-            # Some versions of deepdish/pytables return the dictionanary as
+            # Some versions of deepdish/pytables return the dictionary as
             # a dictionary with a key 'data'
             if len(dictionary) == 1 and 'data' in dictionary:
                 dictionary = dictionary['data']
+
+            if "priors" in dictionary:
+                # parse priors from JSON string (allowing for backwards
+                # compatibility)
+                if not isinstance(dictionary["priors"], PriorDict):
+                    try:
+                        priordict = PriorDict()
+                        for key, value in dictionary["priors"].items():
+                            if key not in ["__module__", "__name__", "__prior_dict__"]:
+                                priordict[key] = decode_bilby_json(value)
+                        dictionary["priors"] = priordict
+                    except Exception as e:
+                        raise IOError(
+                            "Unable to parse priors from '{}':\n{}".format(
+                                filename, e,
+                            )
+                        )
             try:
                 if isinstance(dictionary.get('posterior', None), dict):
                     dictionary['posterior'] = pd.DataFrame(dictionary['posterior'])
@@ -256,14 +413,7 @@ class Result(object):
         filename = _determine_file_name(filename, outdir, label, 'json', gzip)
 
         if os.path.isfile(filename):
-            if gzip or os.path.splitext(filename)[1].lstrip('.') == 'gz':
-                import gzip
-                with gzip.GzipFile(filename, 'r') as file:
-                    json_str = file.read().decode('utf-8')
-                dictionary = json.loads(json_str, object_hook=decode_bilby_json)
-            else:
-                with open(filename, 'r') as file:
-                    dictionary = json.load(file, object_hook=decode_bilby_json)
+            dictionary = load_json(filename, gzip)
             try:
                 return cls(**dictionary)
             except TypeError as e:
@@ -424,9 +574,10 @@ class Result(object):
             'injection_parameters', 'meta_data', 'search_parameter_keys',
             'fixed_parameter_keys', 'constraint_parameter_keys',
             'sampling_time', 'sampler_kwargs', 'use_ratio',
-            'log_likelihood_evaluations', 'log_prior_evaluations', 'samples',
-            'nested_samples', 'walkers', 'nburn', 'parameter_labels',
-            'parameter_labels_with_unit', 'version']
+            'log_likelihood_evaluations', 'log_prior_evaluations',
+            'num_likelihood_evaluations', 'samples', 'nested_samples',
+            'walkers', 'nburn', 'parameter_labels', 'parameter_labels_with_unit',
+            'version']
         dictionary = OrderedDict()
         for attr in save_attrs:
             try:
@@ -465,17 +616,7 @@ class Result(object):
         if filename is None:
             filename = result_file_name(outdir, self.label, extension, gzip)
 
-        if os.path.isfile(filename):
-            if overwrite:
-                logger.debug('Removing existing file {}'.format(filename))
-                os.remove(filename)
-            else:
-                logger.debug(
-                    'Renaming existing file {} to {}.old'.format(filename,
-                                                                 filename))
-                os.rename(filename, filename + '.old')
-
-        logger.debug("Saving result to {}".format(filename))
+        move_old_file(filename, overwrite)
 
         # Convert the prior to a string representation for saving on disk
         dictionary = self._get_save_data_dictionary()
@@ -487,8 +628,9 @@ class Result(object):
                     dictionary['sampler_kwargs'][key] = str(dictionary['sampler_kwargs'])
 
         try:
+            # convert priors to JSON dictionary for both JSON and hdf5 files
+            dictionary["priors"] = dictionary["priors"]._get_json_dict()
             if extension == 'json':
-                dictionary["priors"] = dictionary["priors"]._get_json_dict()
                 if gzip:
                     import gzip
                     # encode to a string
@@ -655,6 +797,7 @@ class Result(object):
             fmt(summary.median), fmt(summary.minus), fmt(summary.plus))
         return summary
 
+    @latex_plot_format
     def plot_single_density(self, key, prior=None, cumulative=False,
                             title=None, truth=None, save=True,
                             file_base_name=None, bins=50, label_fontsize=16,
@@ -734,7 +877,7 @@ class Result(object):
                 file_name = file_base_name + key + '_cdf'
             else:
                 file_name = file_base_name + key + '_pdf'
-            fig.savefig(file_name, dpi=dpi)
+            safe_save_figure(fig=fig, filename=file_name, dpi=dpi)
             plt.close(fig)
         else:
             return fig
@@ -819,6 +962,7 @@ class Result(object):
                     bins=bins, label_fontsize=label_fontsize, dpi=dpi,
                     title_fontsize=title_fontsize, quantiles=quantiles)
 
+    @latex_plot_format
     def plot_corner(self, parameters=None, priors=None, titles=True, save=True,
                     filename=None, dpi=300, **kwargs):
         """ Plot a corner-plot
@@ -918,8 +1062,10 @@ class Result(object):
         cond2 = parameters is None
         cond3 = bool(kwargs.get("truths", True))
         if cond1 and cond2 and cond3:
-            parameters = {key: self.injection_parameters[key] for key in
-                          self.search_parameter_keys}
+            parameters = {
+                key: self.injection_parameters.get(key, np.nan)
+                for key in self.search_parameter_keys
+            }
 
         # If parameters is a dictionary, use the keys to determine which
         # parameters to plot and the values as truths.
@@ -936,6 +1082,8 @@ class Result(object):
             'labels', self.get_latex_labels_from_parameter_keys(
                 plot_parameter_keys))
 
+        kwargs["labels"] = sanity_check_labels(kwargs["labels"])
+
         # Unless already set, set the range to include all samples
         # This prevents ValueErrors being raised for parameters with no range
         kwargs['range'] = kwargs.get('range', [1] * len(plot_parameter_keys))
@@ -946,7 +1094,15 @@ class Result(object):
 
         # Create the data array to plot and pass everything to corner
         xs = self.posterior[plot_parameter_keys].values
-        fig = corner.corner(xs, **kwargs)
+        if len(plot_parameter_keys) > 1:
+            fig = corner.corner(xs, **kwargs)
+        else:
+            ax = kwargs.get("ax", plt.subplot())
+            ax.hist(xs, bins=kwargs["bins"], color=kwargs["color"],
+                    histtype="step", **kwargs["hist_kwargs"])
+            ax.set_xlabel(kwargs["labels"][0])
+            fig = plt.gcf()
+
         axes = fig.get_axes()
 
         #  Add the titles
@@ -976,11 +1132,12 @@ class Result(object):
                 outdir = self._safe_outdir_creation(kwargs.get('outdir'), self.plot_corner)
                 filename = '{}/{}_corner.png'.format(outdir, self.label)
             logger.debug('Saving corner plot to {}'.format(filename))
-            fig.savefig(filename, dpi=dpi)
+            safe_save_figure(fig=fig, filename=filename, dpi=dpi)
             plt.close(fig)
 
         return fig
 
+    @latex_plot_format
     def plot_walkers(self, **kwargs):
         """ Method to plot the trace of the walkers in an ensemble MCMC plot """
         if hasattr(self, 'walkers') is False:
@@ -994,23 +1151,25 @@ class Result(object):
         idxs = np.arange(nsteps)
         fig, axes = plt.subplots(nrows=ndim, figsize=(6, 3 * ndim))
         walkers = self.walkers[:, :, :]
+        parameter_labels = sanity_check_labels(self.parameter_labels)
         for i, ax in enumerate(axes):
             ax.plot(idxs[:self.nburn + 1], walkers[:, :self.nburn + 1, i].T,
                     lw=0.1, color='r')
-            ax.set_ylabel(self.parameter_labels[i])
+            ax.set_ylabel(parameter_labels[i])
 
         for i, ax in enumerate(axes):
             ax.plot(idxs[self.nburn:], walkers[:, self.nburn:, i].T, lw=0.1,
                     color='k')
-            ax.set_ylabel(self.parameter_labels[i])
+            ax.set_ylabel(parameter_labels[i])
 
         fig.tight_layout()
         outdir = self._safe_outdir_creation(kwargs.get('outdir'), self.plot_walkers)
         filename = '{}/{}_walkers.png'.format(outdir, self.label)
         logger.debug('Saving walkers plot to {}'.format('filename'))
-        fig.savefig(filename)
+        safe_save_figure(fig=fig, filename=filename)
         plt.close(fig)
 
+    @latex_plot_format
     def plot_with_data(self, model, x, y, ndraws=1000, npoints=1000,
                        xlabel=None, ylabel=None, data_label='data',
                        data_fmt='o', draws_label=None, filename=None,
@@ -1082,7 +1241,7 @@ class Result(object):
         if filename is None:
             outdir = self._safe_outdir_creation(outdir, self.plot_with_data)
             filename = '{}/{}_plot_with_data'.format(outdir, self.label)
-        fig.savefig(filename, dpi=dpi)
+        safe_save_figure(fig=fig, filename=filename, dpi=dpi)
         plt.close(fig)
 
     @staticmethod
@@ -1097,7 +1256,7 @@ class Result(object):
         return posterior
 
     def samples_to_posterior(self, likelihood=None, priors=None,
-                             conversion_function=None):
+                             conversion_function=None, npool=1):
         """
         Convert array of samples to posterior (a Pandas data frame)
 
@@ -1128,7 +1287,10 @@ class Result(object):
             else:
                 data_frame['log_prior'] = self.log_prior_evaluations
         if conversion_function is not None:
-            data_frame = conversion_function(data_frame, likelihood, priors)
+            if "npool" in inspect.getargspec(conversion_function).args:
+                data_frame = conversion_function(data_frame, likelihood, priors, npool=npool)
+            else:
+                data_frame = conversion_function(data_frame, likelihood, priors)
         self.posterior = data_frame
 
     def calculate_prior_values(self, priors):
@@ -1245,7 +1407,7 @@ class Result(object):
             return self._kde
 
     def posterior_probability(self, sample):
-        """ Calculate the posterior probabily for a new sample
+        """ Calculate the posterior probability for a new sample
 
         This queries a Kernel Density Estimate of the posterior to calculate
         the posterior probability density for the new sample.
@@ -1322,6 +1484,75 @@ class Result(object):
             weights.append(weight)
 
         return weights
+
+    def to_arviz(self, prior=None):
+        """ Convert the Result object to an ArviZ InferenceData object.
+
+            Parameters
+            ----------
+            prior: int
+                If a positive integer is given then that number of prior
+                samples will be drawn and stored in the ArviZ InferenceData
+                object.
+
+            Returns
+            -------
+            azdata: InferenceData
+                The ArviZ InferenceData object.
+        """
+
+        try:
+            import arviz as az
+        except ImportError:
+            logger.debug(
+                "ArviZ is not installed, so cannot convert to InferenceData"
+            )
+
+        posdict = {}
+        for key in self.posterior:
+            posdict[key] = self.posterior[key].values
+
+        if "log_likelihood" in posdict:
+            loglikedict = {
+                "log_likelihood": posdict.pop("log_likelihood")
+            }
+        else:
+            if self.log_likelihood_evaluations is not None:
+                loglikedict = {
+                    "log_likelihood": self.log_likelihood_evaluations
+                }
+            else:
+                loglikedict = None
+
+        priorsamples = None
+        if prior is not None:
+            if self.priors is None:
+                logger.warning(
+                    "No priors are in the Result object, so prior samples "
+                    "will not be included in the output."
+                )
+            else:
+                priorsamples = self.priors.sample(size=prior)
+
+        azdata = az.from_dict(
+            posterior=posdict,
+            log_likelihood=loglikedict,
+            prior=priorsamples,
+        )
+
+        # add attributes
+        version = {
+            "inference_library": "bilby: {}".format(self.sampler),
+            "inference_library_version": get_version_information()
+        }
+
+        azdata.posterior.attrs.update(version)
+        if "log_likelihood" in azdata._groups:
+            azdata.log_likelihood.attrs.update(version)
+        if "prior" in azdata._groups:
+            azdata.prior.attrs.update(version)
+
+        return azdata
 
 
 class ResultList(list):
@@ -1420,7 +1651,7 @@ class ResultList(list):
             result_weights = np.exp(log_evidences - np.max(log_evidences))
         log_errs = [res.log_evidence_err for res in self if np.isfinite(res.log_evidence_err)]
         if len(log_errs) > 0:
-            result.log_evidence_err = logsumexp(2 * np.array(log_errs), b=1. / len(self))
+            result.log_evidence_err = 0.5 * logsumexp(2 * np.array(log_errs), b=1. / len(self))
         else:
             result.log_evidence_err = np.nan
         posteriors = list()
@@ -1459,8 +1690,9 @@ class ResultList(list):
             raise ResultListError("Inconsistent samplers between results")
 
 
+@latex_plot_format
 def plot_multiple(results, filename=None, labels=None, colours=None,
-                  save=True, evidences=False, **kwargs):
+                  save=True, evidences=False, corner_labels=None, **kwargs):
     """ Generate a corner plot overlaying two sets of results
 
     Parameters
@@ -1480,12 +1712,16 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
     save: bool
         If true, save the figure
     kwargs: dict
-        All other keyword arguments are passed to `result.plot_corner`.
+        All other keyword arguments are passed to `result.plot_corner` (except
+        for the keyword `labels` for which you should use the dedicated
+        `corner_labels` input).
         However, `show_titles` and `truths` are ignored since they would be
         ambiguous on such a plot.
     evidences: bool, optional
         Add the log-evidence calculations to the legend. If available, the
         Bayes factor will be used instead.
+    corner_labels: list, optional
+        List of strings to be passed to the input `labels` to `result.plot_corner`.
 
     Returns
     -------
@@ -1496,6 +1732,8 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
 
     kwargs['show_titles'] = False
     kwargs['truths'] = None
+    if corner_labels is not None:
+        kwargs['labels'] = corner_labels
 
     fig = results[0].plot_corner(save=False, **kwargs)
     default_filename = '{}/{}'.format(results[0].outdir, 'combined')
@@ -1521,6 +1759,8 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
     if labels is None:
         labels = default_labels
 
+    labels = sanity_check_labels(labels)
+
     if evidences:
         if np.isnan(results[0].log_bayes_factor):
             template = ' $\mathrm{{ln}}(Z)={lnz:1.3g}$'
@@ -1538,10 +1778,11 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
         filename = default_filename
 
     if save:
-        fig.savefig(filename)
+        safe_save_figure(fig=fig, filename=filename)
     return fig
 
 
+@latex_plot_format
 def make_pp_plot(results, filename=None, save=True, confidence_interval=[0.68, 0.95, 0.997],
                  lines=None, legend_fontsize='x-small', keys=None, title=True,
                  confidence_interval_alpha=0.1,
@@ -1644,16 +1885,24 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=[0.68, 0
             len(results), pvals.combined_pvalue))
     ax.set_xlabel("C.I.")
     ax.set_ylabel("Fraction of events in C.I.")
-    ax.legend(linewidth=1, handlelength=2, labelspacing=0.25, fontsize=legend_fontsize)
+    ax.legend(handlelength=2, labelspacing=0.25, fontsize=legend_fontsize)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     fig.tight_layout()
     if save:
         if filename is None:
             filename = 'outdir/pp.png'
-        fig.savefig(filename, dpi=500)
+        safe_save_figure(fig=fig, filename=filename, dpi=500)
 
     return fig, pvals
+
+
+def sanity_check_labels(labels):
+    """ Check labels for plotting to remove matplotlib errors """
+    for ii, lab in enumerate(labels):
+        if "_" in lab and "$" not in lab:
+            labels[ii] = lab.replace("_", "-")
+    return labels
 
 
 class ResultError(Exception):

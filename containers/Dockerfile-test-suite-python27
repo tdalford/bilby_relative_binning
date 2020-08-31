@@ -22,7 +22,7 @@ echo "conda activate base" >> ~/.bashrc
 # Install conda-installable programs
 RUN conda install -y numpy scipy matplotlib pandas==0.23
 
-RUN conda install -c conda-forge deepdish
+RUN conda install -c conda-forge deepdish arviz
 
 # Install requirements
 RUN pip install --upgrade pip \
@@ -38,10 +38,10 @@ pytest-cov \
 coverage-badge
 
 # Install additional bilby requirements
-RUN pip install corner lalsuite astropy gwpy theano
+RUN pip install corner lalsuite astropy gwpy theano tables
 
 # Install samplers
-RUN pip install cpnest dynesty emcee nestle ptemcee pymc3 pymultinest kombine
+RUN pip install cpnest dynesty emcee nestle ptemcee pymc3 pymultinest kombine ultranest dnest4
 
 # Install pymultinest requirements
 RUN apt-get install -y libblas3 libblas-dev liblapack3 liblapack-dev \
@@ -55,7 +55,7 @@ ENV LD_LIBRARY_PATH $HOME/MultiNest/MultiNest_v3.11_CMake/multinest/lib:
 
 # Install Polychord
 RUN git clone https://github.com/PolyChord/PolyChordLite.git \
-&& (cd PolyChordLite && make pypolychord  MPI= && python setup.py install)
+&& (cd PolyChordLite && python setup.py --no-mpi install)
 
 # Install PTMCMCSampler
 RUN git clone https://github.com/jellis18/PTMCMCSampler.git \

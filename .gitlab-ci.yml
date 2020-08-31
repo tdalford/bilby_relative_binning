@@ -66,6 +66,15 @@ python-3.7:
       - coverage_badge.svg
       - docs/_build/html/
 
+# test example on python 3.8
+python-3.8:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python38
+  script:
+    - python -m pip install .
+
+    - pytest
+
 # test example on python 3.6
 python-3.6:
   stage: test
@@ -82,7 +91,8 @@ python-3.7-samplers:
   script:
     - python -m pip install .
 
-    - pytest test/sampler_test.py --durations 10
+    - pytest test/core/sampler/sampler_run_test.py --durations 10
+    - pytest test/gw/sample_from_the_prior_test.py
 
 # test samplers on python 3.6
 python-3.6-samplers:
@@ -91,7 +101,7 @@ python-3.6-samplers:
   script:
     - python -m pip install .
 
-    - pytest test/sampler_test.py
+    - pytest test/core/sampler/sampler_run_test.py
 
 # Tests run at a fixed schedule rather than on push
 scheduled-python-3.7:
@@ -103,9 +113,20 @@ scheduled-python-3.7:
     - python -m pip install .
 
     # Run tests which are only done on schedule
-    - pytest test/example_test.py
-    - pytest test/gw_example_test.py
-    - pytest test/sample_from_the_prior_test.py
+    - pytest test/core/example_test.py
+    - pytest test/gw/example_test.py
+    - pytest test/gw/sample_from_the_prior_test.py
+
+plotting:
+  stage: test
+  image: bilbydev/bilby-test-suite-python37
+  only:
+    - schedules
+  script:
+    - python -m pip install .
+    - python -m pip install ligo.skymap
+
+    - pytest test/gw/plot_test.py
 
 pages:
   stage: deploy
@@ -136,3 +157,18 @@ deploy_release:
     - twine upload dist/*
   only:
   - tags
+
+
+precommits-py3.7:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python37
+  script:
+    - source activate python37
+    - mkdir -p .pip37
+    - pip install --upgrade pip
+    - pip --cache-dir=.pip37 install --upgrade bilby
+    - pip --cache-dir=.pip37 install .
+    - pip --cache-dir=.pip37 install pre-commit
+
+    # Run precommits (flake8, spellcheck, isort, no merge conflicts, etc)
+    - pre-commit run --all-files --verbose --show-diff-on-failure

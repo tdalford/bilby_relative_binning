@@ -39,7 +39,7 @@ def write_version_file(version):
     except Exception as e:
         print("Unable to obtain git version information, exception: {}"
               .format(e))
-        git_status = ''
+        git_status = 'release'
 
     version_file = '.version'
     if os.path.isfile(version_file) is False:
@@ -64,7 +64,7 @@ def readfile(filename):
     return filecontents
 
 
-VERSION = '0.6.5'
+VERSION = '1.0.1'
 version_file = write_version_file(VERSION)
 long_description = get_long_description()
 
@@ -79,10 +79,11 @@ setup(name='bilby',
       version=VERSION,
       packages=['bilby', 'bilby.core', 'bilby.core.prior', 'bilby.core.sampler',
                 'bilby.gw', 'bilby.gw.detector', 'bilby.gw.sampler',
-                'bilby.hyper', 'cli_bilby'],
+                'bilby.hyper', 'bilby.gw.eos', 'cli_bilby'],
       package_dir={'bilby': 'bilby', 'cli_bilby': 'cli_bilby'},
       package_data={'bilby.gw': ['prior_files/*'],
                     'bilby.gw.detector': ['noise_curves/*.txt', 'detectors/*'],
+                    'bilby.gw.eos': ['eos_tables/*.dat'],
                     'bilby': [version_file]},
       python_requires='>=3.5',
       install_requires=[
@@ -98,8 +99,7 @@ setup(name='bilby',
           'tqdm'],
       entry_points={'console_scripts':
                     ['bilby_plot=cli_bilby.plot_multiple_posteriors:main',
-                     'bilby_result=cli_bilby.bilby_result:main',
-                     'bilby_convert_resume=cli_bilby.resume:main']
+                     'bilby_result=cli_bilby.bilby_result:main']
                     },
       classifiers=[
           "Programming Language :: Python :: 3.6",

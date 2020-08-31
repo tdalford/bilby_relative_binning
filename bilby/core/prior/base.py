@@ -8,7 +8,8 @@ import scipy.stats
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
 
-from bilby.core.utils import infer_args_from_method, BilbyJsonEncoder, decode_bilby_json, logger
+from bilby.core.utils import infer_args_from_method, BilbyJsonEncoder, decode_bilby_json, logger, \
+    get_dict_with_properties
 
 
 class Prior(object):
@@ -67,6 +68,9 @@ class Prior(object):
         if sorted(self.__dict__.keys()) != sorted(other.__dict__.keys()):
             return False
         for key in self.__dict__:
+            if key == "least_recently_sampled":
+                # ignore sample drawn from prior in comparison
+                continue
             if type(self.__dict__[key]) is np.ndarray:
                 if not np.array_equal(self.__dict__[key], other.__dict__[key]):
                     return False
@@ -280,15 +284,8 @@ class Prior(object):
 
     def get_instantiation_dict(self):
         subclass_args = infer_args_from_method(self.__init__)
-        property_names = [p for p in dir(self.__class__)
-                          if isinstance(getattr(self.__class__, p), property)]
-        dict_with_properties = self.__dict__.copy()
-        for key in property_names:
-            dict_with_properties[key] = getattr(self, key)
-        instantiation_dict = dict()
-        for key in subclass_args:
-            instantiation_dict[key] = dict_with_properties[key]
-        return instantiation_dict
+        dict_with_properties = get_dict_with_properties(self)
+        return {key: dict_with_properties[key] for key in subclass_args}
 
     @property
     def boundary(self):
@@ -427,7 +424,7 @@ class Prior(object):
             val = other_cls.from_repr(vals)
         else:
             try:
-                val = eval(val, dict(), dict(np=np))
+                val = eval(val, dict(), dict(np=np, inf=np.inf, pi=np.pi))
             except NameError:
                 raise TypeError(
                     "Cannot evaluate prior, "

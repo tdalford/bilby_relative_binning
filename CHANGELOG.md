@@ -1,5 +1,82 @@
 # All notable changes will be documented in this file
 
+## [1.0.1] 2020-08-29
+
+Version 1.0.1 release of bilby
+
+### Added
+- Added an rcparams configuration for plotting (!832)
+- Added `chi_1` and `chi_2` parameters to default latex label dictionary (!841)
+- Allow output merged result file to be gzip or saved as a HDF5 file (!802)
+
+### Changes
+- Fixed first value in EOS cumulative integral(!860)
+- Fixed saving the number of likelihood evaluations (!848)
+- Likelihood condition is now strictly increasing (!846)
+- Fixed a minor issue with conditional priors that could cause unexpected behaviour in edge cases (!838)
+- Fixed `__repr__` method in the `FromFile` prior (!836)
+- Fixed an issue that caused problems for some users when plotting with a latex backend (!816)
+- Fixed bug that occured when min/max of interpolated priors was changed (!815)
+- Fixed time domain waveform epoch (!736)
+- Fixed time keeping in multinest (!830)
+- Now checks if marginalised priors were defined before marginalising (!829)
+- Fixed an issue with multivariate Gaussian prior (!822)
+- Various minor code improvements (!836)(!839)
+- Various minor bug fixes and improvements to the documentation (!820)(!823)(!837)
+- Various testing improvements (!833)(!847)(!855)(!852)
+
+## [1.0.0] 2020-07-06
+
+Version 1.0 release of bilby
+
+### Changes
+- Minor bug fixes and typo changes only from 0.6.9, see
+git.ligo.org/lscsoft/bilby/-/merge_requests?scope=all&utf8=%E2%9C%93&state=merged&milestone_title=1.0.0
+for details
+
+## [0.6.9] 2020-05-21
+### Changes
+- Improvement to the proposal step in dynesty (!774)
+- Fix a bug in checking and making directories (!792)
+- Clean up of the default prior files (!789)
+
+## [0.6.8] 2020-05-13
+### Added
+- Option to sample in the sky frame (!786)
+- Multiprocessing to reconstruction of marginalized parameters (!782)
+- Generic reweighting method for likelihood / priors (!776)
+- Parameterized EOS sampling (!543)
+- Implementation of the UltraNest sampler (!766)
+- Implementation of arVix result files (!772)
+- Added basic pre-commit behaviour (!763)
+
+### Changes
+- Updated the default PSD to O4 (!757)
+- Make multinest allow long file names, optional and work with MPI (!764 !785)
+- Add min/max to aligned spin prior (!787)
+- Reduce redudant code (!703)
+- Added testing for python 3.8 (!762)
+- Improvements to the waveform plot (!769)
+
+## [0.6.7] 2020-04-15
+### Changes
+- Allow dynesty to run with multiprocessing (!754)
+- Rewrite ptemcee implementation (!750)
+- Change 'source frame' to 'detector frame' in L34-35 of compare_samplers tutorial (!745)
+- Allow lal dictionary to be passed through to '_base_lal_cbc_fd_waveform' (!752)
+
+## [0.6.6] 2020-03-06
+### Changes
+- Fix bug where injected values are not present for corner plot (!749)
+- Significant backwards-incompatible improvements to `dynesty` checkpointing (!746)
+- Improve checkpoint interval calculation with `dynesty` (!741)
+- Fix reading of `PriorDict` class from result file (!739)
+- Fix definition of time for time-domain `lalsimulation` waveforms (!736)
+- LaTeX text formatting for plots by default (!702)
+
+### Added
+- Normalisation dynamically computed when using prior constraints (!704)
+
 ## [0.6.5] 2020-02-14
 ### Changes
 - Fix for time reconstruction bug (!714)
