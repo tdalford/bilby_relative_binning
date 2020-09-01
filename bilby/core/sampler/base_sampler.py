@@ -88,7 +88,7 @@ class Sampler(object):
 
     """
     default_kwargs = dict()
-    npool_equiv_kwargs = ['queue_size', 'threads', 'nthreads', 'npool']
+    npool_equiv_kwargs = ['queue_size', 'threads', 'nthreads', 'npool', 'processes']
 
     def __init__(
             self, likelihood, priors, outdir='outdir', label='label',
@@ -553,6 +553,14 @@ class Sampler(object):
             return self.pool.map
         else:
             return map
+
+    @property
+    def npool(self):
+        npool = 1
+        for key in self.npool_equiv_kwargs:
+            if self.kwargs.get(key, None) is not None:
+                npool = self.kwargs[key]
+        return npool
 
 
 class NestedSampler(Sampler):
