@@ -645,8 +645,9 @@ class MCMCSampler(Sampler):
         """
         import emcee
         try:
-            self.result.max_autocorrelation_time = int(np.max(
-                emcee.autocorr.integrated_time(samples, c=c)))
+            self.result.max_autocorrelation_time = int(np.ceil(np.max(
+                emcee.autocorr.integrated_time(samples, c=c, quiet=True, tol=10)
+            )))
             logger.info("Max autocorr time = {}".format(
                 self.result.max_autocorrelation_time))
         except emcee.autocorr.AutocorrError as e:
