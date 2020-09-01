@@ -441,7 +441,6 @@ class Ptemcee(MCMCSampler):
                     self.log_posterior_array, self.get_zero_log_likelihood_array()),
                     axis=2)
 
-
             self.pos0 = pos0
             self.chain_array[:, self.iteration, :] = pos0[0, :, :]
             self.log_likelihood_array[:, :, self.iteration] = log_likelihood
@@ -637,15 +636,7 @@ def check_iteration(
             try:
                 temp = emcee.autocorr.integrated_time(
                     samples[ii, :, jj], c=ci.autocorr_c, tol=0)
-                # print(temp)
                 tau_array[ii, jj] = temp[0]
-                # tau_array[ii, jj] = emcee.autocorr.integrated_time(
-                #     samples[ii, :, jj], c=ci.autocorr_c, tol=0)[0]
-                # if nburn < iteration:
-                #     tau_array[ii, jj] = emcee.autocorr.integrated_time(
-                #         samples[ii, nburn:, jj], c=ci.autocorr_c, tol=0)[0]
-                # else:
-                #     tau_array[ii, jj] = 0
             except emcee.autocorr.AutocorrError:
                 tau_array[ii, jj] = np.inf
 
@@ -740,11 +731,6 @@ def print_progress(
     )
 
     ave_time_per_check = np.mean(time_per_check[-3:])
-    time_left = (convergence_inputs.nsamples - nsamples_effective) * ave_time_per_check / samples_per_check
-    if time_left > 0:
-        time_left = str(datetime.timedelta(seconds=int(time_left)))
-    else:
-        time_left = "waiting on convergence"
 
     sampling_time = datetime.timedelta(seconds=np.sum(time_per_check))
 
