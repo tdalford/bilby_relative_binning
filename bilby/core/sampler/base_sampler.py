@@ -539,6 +539,13 @@ class Sampler(object):
         else:
             return None
 
+    @property
+    def map(self):
+        if getattr(self, "pool", None) is not None:
+            return self.pool.map
+        else:
+            return map
+
 
 class NestedSampler(Sampler):
     npoints_equiv_kwargs = ['nlive', 'nlives', 'n_live_points', 'npoints', 'npoint', 'Nlive', 'num_live_points']
@@ -603,7 +610,7 @@ class NestedSampler(Sampler):
 
 
 class MCMCSampler(Sampler):
-    nwalkers_equiv_kwargs = ['nwalker', 'nwalkers', 'draws', 'Niter']
+    nwalkers_equiv_kwargs = ['nwalker', 'nwalkers', 'draws', 'Niter', 'walkers']
     nburn_equiv_kwargs = ['burn', 'nburn']
 
     def print_nburn_logging_info(self):
