@@ -1,8 +1,11 @@
-from __future__ import absolute_import, print_function
-from ..utils import logger, get_progress_bar
-import numpy as np
+import time
 import os
-from .emcee import Emcee
+
+import numpy as np
+from emcee.autocorr import integrated_time
+
+from .emcee import Emcee, _log_posterior
+from ..utils import logger, get_progress_bar
 
 
 class Kombine(Emcee):
@@ -50,7 +53,7 @@ class Kombine(Emcee):
                                       burn_in_act=burn_in_act, resume=resume, **kwargs)
 
         if self.kwargs['nwalkers'] > self.kwargs['iterations']:
-            raise ValueError("Kombine Sampler requires Iterations be > nWalkers")
+            logger.warning("Kombine Sampler expects Iterations be > nWalkers")
         self.autoburnin = autoburnin
 
     def _check_version(self):
@@ -65,15 +68,7 @@ class Kombine(Emcee):
         if 'iterations' not in kwargs:
             if 'nsteps' in kwargs:
                 kwargs['iterations'] = kwargs.pop('nsteps')
-        # make sure processes kwarg is 1
-        if 'processes' in kwargs:
-            if kwargs['processes'] != 1:
-                logger.warning("The 'processes' argument cannot be used for "
-                               "parallelisation. This run will proceed "
-                               "without parallelisation, but consider the use "
-                               "of an appropriate Pool object passed to the "
-                               "'pool' keyword.")
-                kwargs['processes'] = 1
+        kwargs['processes'] = kwargs.get('npool', 1)
 
     @property
     def sampler_function_kwargs(self):
@@ -104,11 +99,10 @@ class Kombine(Emcee):
                        for key, value in self.kwargs.items()
                        if key not in self.sampler_function_kwargs and key not in self.sampler_burnin_kwargs}
         init_kwargs.pop("burnin_verbose")
-        init_kwargs['lnpostfn'] = self.lnpostfn
+        init_kwargs['lnpostfn'] = _log_posterior
         init_kwargs['ndim'] = self.ndim
 
-        # have to make sure pool is None so sampler will be pickleable
-        init_kwargs['pool'] = None
+        init_kwargs['pool'] = self.pool
         return init_kwargs
 
     def _initialise_sampler(self):
@@ -124,12 +118,13 @@ class Kombine(Emcee):
     def sampler_chain(self):
         # remove last iterations when resuming
         nsteps = self._previous_iterations
-        return self.sampler.chain[:nsteps, :, :]
+        return np.swapaxes(self.sampler.chain.copy()[:nsteps], 0, 1)
 
     def check_resume(self):
         return self.resume and os.path.isfile(self.checkpoint_info.sampler_file)
 
     def run_sampler(self):
+        self._setup_pool()
         if self.autoburnin:
             if self.check_resume():
                 logger.info("Resuming with autoburnin=True skips burnin process:")
@@ -146,10 +141,18 @@ class Kombine(Emcee):
         iterations = sampler_function_kwargs.pop('iterations')
         iterations -= self._previous_iterations
         sampler_function_kwargs['p0'] = self.pos0
-        for sample in tqdm(
-                self.sampler.sample(iterations=iterations, **sampler_function_kwargs),
-                total=iterations):
-            self.write_chains_to_file(sample)
+        last_checkpoint_time = time.time()
+        for _ in tqdm(
+            self.sampler.sample(iterations=iterations, **sampler_function_kwargs),
+            total=iterations
+        ):
+            self.tau_list.append(integrated_time(
+                self.sampler.chain[self.nburn:self._previous_iterations + 1], tol=0
+            ))
+            if time.time() - last_checkpoint_time > self.checkpoint_delta_t:
+                self._make_plots()
+                last_checkpoint_time = time.time()
+        self._make_plots()
         self.checkpoint()
         self.result.sampler_output = np.nan
         if not self.autoburnin:
@@ -158,9 +161,23 @@ class Kombine(Emcee):
             self.print_nburn_logging_info()
 
         self._generate_result()
-        self.result.log_evidence_err = np.nan
+        self.result.log_evidence, self.result.log_evidence_err = self.sampler.ln_ev(self.nwalkers)
+        self._close_pool()
 
-        tmp_chain = self.sampler.chain[self.nburn:, :, :].copy()
-        self.result.samples = tmp_chain.reshape((-1, self.ndim))
-        self.result.walkers = self.sampler.chain.reshape((self.nwalkers, self.nsteps, self.ndim))
+        self.result.samples = self.sampler_chain[:, self.nburn:].reshape((-1, self.ndim))
+        self.result.walkers = self.sampler_chain
         return self.result
+
+    def checkpoint(self):
+        """ Writes a pickle file of the sampler to disk using dill """
+        import dill as pickle
+        logger.info("Checkpointing sampler to file {}"
+                    .format(self.checkpoint_info.sampler_file))
+        with open(self.checkpoint_info.sampler_file, 'wb') as f:
+            # Overwrites the stored sampler chain with one that is truncated
+            # to only the completed steps
+            self._sampler._chain = np.swapaxes(self.sampler_chain, 0, 1)
+            self._sampler.tau_list = self.tau_list
+            self._sampler.pool = None
+            pickle.dump(self._sampler, f)
+        self._sampler.pool = self.pool
