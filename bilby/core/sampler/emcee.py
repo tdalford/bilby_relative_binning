@@ -579,7 +579,7 @@ def plot_ln_post(array, outdir, label, window=20, threshold=0.5):
     axes[2].set_ylabel("Running mean / sigma")
     axes[0].set_ylim(np.min(mean_array), 1.2 * np.max(mean_array) - 0.2 * np.min(mean_array))
     axes[2].set_xlim(0, len(mu_on_sigma) - 1)
-    plt.savefig(f"{outdir}/{label}_ln_likelihood.png")
+    plt.savefig(f"{outdir}/{label}_ln_post.png")
     plt.tight_layout()
     plt.close(fig)
 

@@ -571,7 +571,7 @@ class Ptemcee(MCMCSampler):
             )
 
             try:
-                plot_ln_likelihood(
+                plot_ln_post(
                     self.log_posterior_array,
                     self.outdir,
                     self.label,
@@ -836,7 +836,7 @@ def checkpoint(
     logger.info("Finished writing checkpoint")
 
 
-def plot_ln_likelihood(array, outdir, label, window=20, threshold=0.5):
+def plot_ln_post(array, outdir, label, window=20, threshold=0.5):
     mean_ln_likes = np.mean(array, axis=1)
     std_ln_likes = np.std(array, axis=1)
     fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8, 15), sharex=True)
@@ -862,7 +862,7 @@ def plot_ln_likelihood(array, outdir, label, window=20, threshold=0.5):
     axes[2].set_ylabel("Running mean / sigma")
     axes[1].set_ylim(-1, 1)
     axes[2].set_xlim(0, len(mu_on_sigma) - 1)
-    plt.savefig(f"{outdir}/{label}_ln_likelihood.png")
+    plt.savefig(f"{outdir}/{label}_ln_post.png")
     plt.close(fig)
 
 
