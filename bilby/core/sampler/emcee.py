@@ -53,7 +53,7 @@ class Emcee(MCMCSampler):
         nwalkers=500, a=2, args=[], kwargs={}, postargs=None, pool=None,
         live_dangerously=False, runtime_sortingfn=None, lnprob0=None,
         rstate0=None, blobs0=None, iterations=100, thin=1, storechain=True,
-        mh_proposal=None, npool=1)
+        mh_proposal=None, npool=1, moves="default")
 
     def __init__(
             self,
@@ -167,15 +167,14 @@ class Emcee(MCMCSampler):
         if "npool" in init_kwargs:
             del init_kwargs["npool"]
 
-        from emcee import moves
-        init_kwargs["moves"] = [
-            [moves.StretchMove(), 25],
-            [moves.WalkMove(), 10],
-            [moves.DEMove(), 10],
-            [moves.DESnookerMove(), 5],
-            # [moves.GaussianMove(cov=1), 2],
-            [moves.KDEMove(), 25],
-        ]
+        if init_kwargs["moves"] == "default":
+            from emcee import moves
+            init_kwargs["moves"] = [
+                [moves.StretchMove(), 25],
+                [moves.WalkMove(), 10],
+                [moves.DEMove(), 10],
+                [moves.DESnookerMove(), 5],
+            ]
 
         return init_kwargs
 
