@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 
 from ..utils import logger
 from .base_sampler import SamplerError, MCMCSampler
+from .emcee import running_mean_burn_in, running_mean_on_sigma, plot_tau, plot_walkers
 
 
 ConvergenceInputs = namedtuple(
@@ -270,13 +271,12 @@ class Ptemcee(MCMCSampler):
 
         logger.info("Attempting to set pos0 for {} from minimize".format(minimize_list))
 
-        likelihood_copy = copy.copy(self.likelihood)
+        likelihood_copy = copy.deepcopy(self.likelihood)
 
         def neg_log_like(params):
             """ Internal function to minimize """
-            likelihood_copy.parameters.update(
-                {key: val for key, val in zip(minimize_list, params)}
-            )
+            new_parameters = {key: val for key, val in zip(minimize_list, params)}
+            likelihood_copy.parameters.update(new_parameters)
             try:
                 return -likelihood_copy.log_likelihood()
             except RuntimeError:
@@ -335,6 +335,9 @@ class Ptemcee(MCMCSampler):
             self.iteration = data["iteration"]
             self.chain_array = data["chain_array"]
             self.log_likelihood_array = data["log_likelihood_array"]
+            self.log_posterior_array = data.get(
+                "log_posterior_array", self.log_likelihood_array * 0
+            )
             self.pos0 = data["pos0"]
             self.beta_list = data["beta_list"]
             self.sampler._betas = np.array(self.beta_list[-1])
@@ -377,6 +380,7 @@ class Ptemcee(MCMCSampler):
             self.iteration = 0
             self.chain_array = self.get_zero_chain_array()
             self.log_likelihood_array = self.get_zero_log_likelihood_array()
+            self.log_posterior_array = self.get_zero_log_likelihood_array()
             self.beta_list = []
             self.tau_list = []
             self.tau_list_n = []
@@ -433,10 +437,15 @@ class Ptemcee(MCMCSampler):
                 self.log_likelihood_array = np.concatenate((
                     self.log_likelihood_array, self.get_zero_log_likelihood_array()),
                     axis=2)
+                self.log_posterior_array = np.concatenate((
+                    self.log_posterior_array, self.get_zero_log_likelihood_array()),
+                    axis=2)
+
 
             self.pos0 = pos0
             self.chain_array[:, self.iteration, :] = pos0[0, :, :]
             self.log_likelihood_array[:, :, self.iteration] = log_likelihood
+            self.log_posterior_array[:, :, self.iteration] = log_posterior
 
             # Calculate time per iteration
             self.time_per_check.append((datetime.datetime.now() - t0).total_seconds())
@@ -459,6 +468,7 @@ class Ptemcee(MCMCSampler):
                 self.beta_list,
                 self.tau_list,
                 self.tau_list_n,
+                self.log_posterior_array,
             )
 
             if stop:
@@ -528,6 +538,7 @@ class Ptemcee(MCMCSampler):
             self.search_parameter_keys,
             self.resume_file,
             self.log_likelihood_array,
+            self.log_posterior_array,
             self.chain_array,
             self.pos0,
             self.beta_list,
@@ -558,6 +569,15 @@ class Ptemcee(MCMCSampler):
                 self.convergence_inputs.autocorr_tau,
             )
 
+            try:
+                plot_ln_likelihood(
+                    self.log_posterior_array,
+                    self.outdir,
+                    self.label,
+                )
+            except:
+                pass
+
 
 def check_iteration(
     samples,
@@ -568,6 +588,7 @@ def check_iteration(
     beta_list,
     tau_list,
     tau_list_n,
+    log_posterior_array,
 ):
     """ Per-iteration logic to calculate the convergence check
 
@@ -598,6 +619,14 @@ def check_iteration(
     ci = convergence_inputs
     nwalkers, iteration, ndim = samples.shape
 
+    window = 20
+    if iteration > window * 2:
+        nburn = running_mean_burn_in(
+            log_posterior_array[0], window=window, threshold=0.2
+        )
+    else:
+        nburn = iteration
+
     # Compute ACT tau for 0-temperature chains
     tau_array = np.zeros((nwalkers, ndim))
     for ii in range(nwalkers):
@@ -605,13 +634,24 @@ def check_iteration(
             if ci.ignore_keys_for_tau and ci.ignore_keys_for_tau in key:
                 continue
             try:
-                tau_array[ii, jj] = emcee.autocorr.integrated_time(
-                    samples[ii, :, jj], c=ci.autocorr_c, tol=0)[0]
+                temp = emcee.autocorr.integrated_time(
+                    samples[ii, :, jj], c=ci.autocorr_c, tol=0)
+                # print(temp)
+                tau_array[ii, jj] = temp[0]
+                # tau_array[ii, jj] = emcee.autocorr.integrated_time(
+                #     samples[ii, :, jj], c=ci.autocorr_c, tol=0)[0]
+                # if nburn < iteration:
+                #     tau_array[ii, jj] = emcee.autocorr.integrated_time(
+                #         samples[ii, nburn:, jj], c=ci.autocorr_c, tol=0)[0]
+                # else:
+                #     tau_array[ii, jj] = 0
             except emcee.autocorr.AutocorrError:
                 tau_array[ii, jj] = np.inf
 
     # Maximum over paramters, mean over walkers
     tau = np.max(np.mean(tau_array, axis=0))
+    if nburn < iteration:
+        tau -= max(tau_list[nburn])
 
     # Apply multiplicitive safety factor
     tau = ci.safety * tau
@@ -632,8 +672,9 @@ def check_iteration(
         return False, np.nan, np.nan, np.nan, np.nan
 
     # Calculate the effective number of samples available
-    nburn = int(ci.burn_in_nact * tau_int)
+    # nburn = int(ci.burn_in_nact * tau_int)
     thin = int(np.max([1, ci.thin_by_nact * tau_int]))
+    nburn += thin
     samples_per_check = nwalkers / thin
     nsamples_effective = int(nwalkers * (iteration - nburn) / thin)
 
@@ -641,8 +682,10 @@ def check_iteration(
     converged = ci.nsamples < nsamples_effective
 
     # Calculate fractional change in tau from previous iteration
-    check_taus = np.array(tau_list[-tau_int * ci.autocorr_tau :])
+    check_taus = np.array(tau_list[-tau_int * ci.autocorr_tau:])
     taus_per_parameter = check_taus[-1, :]
+    # if nburn < iteration:
+    #     taus_per_parameter -= tau_list[nburn]
     if not np.any(np.isnan(check_taus)):
         frac = (taus_per_parameter - check_taus) / taus_per_parameter
         max_frac = np.max(frac)
@@ -650,6 +693,8 @@ def check_iteration(
     else:
         max_frac = np.nan
         tau_usable = False
+    if nburn < iteration:
+        tau_usable = True
 
     if iteration < tau_int * ci.autocorr_tol or tau_int < ci.min_tau:
         tau_usable = False
@@ -665,6 +710,7 @@ def check_iteration(
         max_frac,
         tau_usable,
         convergence_inputs,
+        nburn,
     )
     stop = converged and tau_usable
     return stop, nburn, thin, tau_int, nsamples_effective
@@ -680,6 +726,7 @@ def print_progress(
     max_frac,
     tau_usable,
     convergence_inputs,
+    nburn,
 ):
     # Setup acceptance string
     acceptance = sampler.acceptance_fraction[0, :]
@@ -717,8 +764,9 @@ def print_progress(
     samp_timing = "{:1.1f}ms/sm".format(1e3 * ave_time_per_check / samples_per_check)
 
     print(
-        "{}| {}| nc:{}| a0:{}| swp:{}| n:{}<{}| tau{}| {}| {}".format(
+        "{}-{}| {}| nc:{}| a0:{}| swp:{}| n:{}<{}| tau{}| {}| {}".format(
             iteration,
+            nburn,
             str(sampling_time).split(".")[0],
             ncalls,
             acceptance_str,
@@ -744,6 +792,7 @@ def checkpoint(
     search_parameter_keys,
     resume_file,
     log_likelihood_array,
+    log_posterior_array,
     chain_array,
     pos0,
     beta_list,
@@ -775,6 +824,7 @@ def checkpoint(
         tau_list_n=tau_list_n,
         time_per_check=time_per_check,
         log_likelihood_array=log_likelihood_array,
+        log_posterior_array=log_posterior_array,
         chain_array=chain_array,
         pos0=pos0,
     )
@@ -785,50 +835,33 @@ def checkpoint(
     logger.info("Finished writing checkpoint")
 
 
-def plot_walkers(walkers, nburn, thin, parameter_labels, outdir, label):
-    """ Method to plot the trace of the walkers in an ensemble MCMC plot """
-    nwalkers, nsteps, ndim = walkers.shape
-    idxs = np.arange(nsteps)
-    fig, axes = plt.subplots(nrows=ndim, ncols=2, figsize=(8, 3 * ndim))
-    scatter_kwargs = dict(lw=0, marker="o", markersize=1, alpha=0.05,)
-    # Plot the burn-in
-    for i, (ax, axh) in enumerate(axes):
-        ax.plot(
-            idxs[: nburn + 1],
-            walkers[:, : nburn + 1, i].T,
-            color="C1",
-            **scatter_kwargs
-        )
-
-    # Plot the thinned posterior samples
-    for i, (ax, axh) in enumerate(axes):
-        ax.plot(
-            idxs[nburn::thin],
-            walkers[:, nburn::thin, i].T,
-            color="C0",
-            **scatter_kwargs
-        )
-        axh.hist(walkers[:, nburn::thin, i].reshape((-1)), bins=50, alpha=0.8)
-        axh.set_xlabel(parameter_labels[i])
-        ax.set_ylabel(parameter_labels[i])
-
-    fig.tight_layout()
-    filename = "{}/{}_checkpoint_trace.png".format(outdir, label)
-    fig.savefig(filename)
-    plt.close(fig)
-
-
-def plot_tau(
-    tau_list_n, tau_list, search_parameter_keys, outdir, label, tau, autocorr_tau
-):
-    fig, ax = plt.subplots()
-    for i, key in enumerate(search_parameter_keys):
-        ax.plot(tau_list_n, np.array(tau_list)[:, i], label=key)
-    ax.axvline(tau_list_n[-1] - tau * autocorr_tau)
-    ax.set_xlabel("Iteration")
-    ax.set_ylabel(r"$\langle \tau \rangle$")
-    ax.legend()
-    fig.savefig("{}/{}_checkpoint_tau.png".format(outdir, label))
+def plot_ln_likelihood(array, outdir, label, window=20, threshold=0.5):
+    mean_ln_likes = np.mean(array, axis=1)
+    std_ln_likes = np.std(array, axis=1)
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8, 15), sharex=True)
+    for ii, line, std_line in enumerate(zip(mean_ln_likes, std_ln_likes)):
+        axes[0].plot(line, label=ii)
+        axes[1].plot(std_line)
+    mean_ln_likes = mean_ln_likes[0, mean_ln_likes[0] != 0]
+    std_ln_likes = std_ln_likes[0, mean_ln_likes[0] != 0]
+    mu_on_sigma = running_mean_on_sigma(mean_ln_likes, window=window)
+    mu_on_sigma_std = running_mean_on_sigma(std_ln_likes, window=window)
+    axes[2].plot(mu_on_sigma)
+    axes[2].plot(mu_on_sigma_std)
+    axes[2].fill_between(
+        x=np.arange(len(mu_on_sigma)),
+        y1=-threshold * np.ones_like(mu_on_sigma),
+        y2=threshold * np.ones_like(mu_on_sigma),
+        alpha=0.2,
+        color="g"
+    )
+    axes[2].set_xlabel("Iteration")
+    axes[0].set_ylabel("$\\langle \\ln L \\rangle$")
+    axes[1].set_ylabel("$\\Delta \\langle \\ln L \\rangle$")
+    axes[2].set_ylabel("Running mean / sigma")
+    axes[1].set_ylim(-1, 1)
+    axes[2].set_xlim(0, len(mu_on_sigma) - 1)
+    plt.savefig(f"{outdir}/{label}_ln_likelihood.png")
     plt.close(fig)
 
 
@@ -916,11 +949,12 @@ class LikePriorEvaluator(object):
         if priors.evaluate_constraints(parameters) > 0:
             likelihood.parameters.update(parameters)
             if self.use_ratio:
-                return likelihood.log_likelihood() - likelihood.noise_log_likelihood()
+                ln_l = likelihood.log_likelihood_ratio()
             else:
-                return likelihood.log_likelihood()
+                ln_l = likelihood.log_likelihood()
         else:
-            return np.nan_to_num(-np.inf)
+            ln_l = np.nan_to_num(-np.inf)
+        return np.nan_to_num(ln_l, nan=-np.nan_to_num(np.inf))
 
     def logp(self, v_array):
         params = {key: t for key, t in zip(self.search_parameter_keys, v_array)}
