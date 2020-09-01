@@ -234,7 +234,7 @@ def convert_to_lal_binary_black_hole_parameters(parameters):
     for idx in ['1', '2']:
         key = 'chi_{}'.format(idx)
         if key in original_keys:
-            if f"a_{idx}" not in original_keys:
+            if "a_{}".format(idx) not in original_keys:
                 converted_parameters['a_{}'.format(idx)] = abs(
                     converted_parameters[key])
                 converted_parameters['cos_tilt_{}'.format(idx)] = \
