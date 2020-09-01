@@ -1,5 +1,3 @@
-from __future__ import absolute_import, print_function
-
 from collections import namedtuple
 import os
 import signal
@@ -11,6 +9,7 @@ import time
 import numpy as np
 from pandas import DataFrame
 from distutils.version import LooseVersion
+from emcee.autocorr import integrated_time
 import dill as pickle
 
 from ..utils import (
@@ -90,7 +89,7 @@ class Emcee(MCMCSampler):
         self.nburn = nburn
         self.burn_in_fraction = burn_in_fraction
         self.burn_in_act = burn_in_act
-        # self.tau_list = list()
+        self.tau_list = list()
         self.checkpoint_delta_t = checkpoint_delta_t
 
         signal.signal(signal.SIGTERM, self.checkpoint_and_exit)
@@ -112,14 +111,6 @@ class Emcee(MCMCSampler):
         if 'iterations' not in kwargs:
             if 'nsteps' in kwargs:
                 kwargs['iterations'] = kwargs.pop('nsteps')
-        if 'threads' in kwargs:
-            if kwargs['threads'] != 1:
-                logger.warning("The 'threads' argument cannot be used for "
-                               "parallelisation. This run will proceed "
-                               "without parallelisation, but consider the use "
-                               "of an appropriate Pool object passed to the "
-                               "'pool' keyword.")
-                kwargs['threads'] = 1
 
     @property
     def sampler_function_kwargs(self):
@@ -302,7 +293,7 @@ class Emcee(MCMCSampler):
             # Overwrites the stored sampler chain with one that is truncated
             # to only the completed steps
             self._sampler._chain = self.sampler_chain
-            # self._sampler.tau_list = self.tau_list
+            self._sampler.tau_list = self.tau_list
             self._sampler.pool = None
             pickle.dump(self._sampler, f)
         self._sampler.pool = self.pool
@@ -322,15 +313,15 @@ class Emcee(MCMCSampler):
         if self.kwargs["pool"] is not None:
             logger.info("Using user defined pool.")
             self.pool = self.kwargs["pool"]
-        elif self.kwargs["npool"] > 1:
+        elif self.npool > 1:
             logger.info(
                 "Setting up multiproccesing pool with {} processes.".format(
-                    self.kwargs["npool"]
+                    self.npool
                 )
             )
             import multiprocessing
             self.pool = multiprocessing.Pool(
-                processes=self.kwargs["npool"],
+                processes=self.npool,
                 initializer=_initialize_global_variables,
                 initargs=(
                     self.likelihood,
@@ -375,8 +366,8 @@ class Emcee(MCMCSampler):
                         .format(self.checkpoint_info.sampler_file))
             with open(self.checkpoint_info.sampler_file, 'rb') as f:
                 self._sampler = pickle.load(f)
-                # self.tau_list = self._sampler.tau_list
-                # del self._sampler.tau_list
+                self.tau_list = self._sampler.tau_list
+                del self._sampler.tau_list
                 self._sampler.pool = self.pool
             self._set_pos0_for_resume()
         else:
@@ -411,20 +402,8 @@ class Emcee(MCMCSampler):
             return 0
 
     def _draw_pos0_from_prior(self):
-        from tqdm import tqdm, trange
-        # points = self.pool.map(self.get_random_draw_from_prior, tqdm([20 for _ in range(self.nwalkers)]))
-        # print("Points identified")
-        # return np.array(points)
         _, points, ln_l = self.get_initial_points_from_prior(self.nwalkers, ln_l_min=-np.inf)
-        # keep = ln_l >= np.quantile(ln_l, 0.9)
-        # points = points[keep]
-        # import IPython; IPython.embed()
-        # points = np.array([_ for _ in self.map(_minimize_point, tqdm(list(points)))])
         return points
-        # return np.array([
-        #     self.get_random_draw_from_prior(ln_l_min=20)
-        #     for _ in trange(self.nwalkers)
-        # ])
 
     @property
     def _pos0_shape(self):
@@ -459,20 +438,20 @@ class Emcee(MCMCSampler):
             window=20,
             threshold=0.5
         )
-        # plot_tau(
-        #     tau_list_n=np.arange(len(self.tau_list)) + 1,
-        #     tau_list=self.tau_list,
-        #     search_parameter_keys=self.search_parameter_keys,
-        #     outdir=self.outdir,
-        #     label=self.label,
-        #     tau=1,
-        #     autocorr_tau=1
-        # )
+        plot_tau(
+            tau_list_n=np.arange(len(self.tau_list)) + 1,
+            tau_list=self.tau_list,
+            search_parameter_keys=self.search_parameter_keys,
+            outdir=self.outdir,
+            label=self.label,
+            tau=1,
+            autocorr_tau=1
+        )
         thin = getattr(self.result, "max_autocorrelation_time", 1)
         if thin is None:
             thin = 1
         plot_walkers(
-            walkers=self.sampler.chain,
+            walkers=self.sampler_chain,
             nburn=self.nburn,
             thin=thin,
             parameter_labels=self.search_parameter_keys,
@@ -482,7 +461,6 @@ class Emcee(MCMCSampler):
 
     def run_sampler(self):
         self._setup_pool()
-        import emcee
         tqdm = get_progress_bar()
         sampler_function_kwargs = self.sampler_function_kwargs
         iterations = sampler_function_kwargs.pop('iterations')
@@ -503,10 +481,9 @@ class Emcee(MCMCSampler):
             self.sampler.chain[:, :, _periodic] = np.mod(
                 self.sampler.chain[:, :, _periodic] - _minima[_periodic], _range[_periodic]
             ) + _minima[_periodic]
-            # self.write_chains_to_file(sample)
-            # self.tau_list.append(emcee.autocorr.integrated_time(
-            #         np.einsum("ijk->jik", self.sampler.chain), tol=0
-            # ))
+            self.tau_list.append(integrated_time(
+                np.swapaxes(self.sampler.chain, 0, 1), tol=0
+            ))
             if time.time() - last_checkpoint_time > self.checkpoint_delta_t:
                 self.checkpoint()
                 self._make_plots()
@@ -515,7 +492,7 @@ class Emcee(MCMCSampler):
         self.checkpoint()
 
         self.result.sampler_output = np.nan
-        self.calculate_autocorrelation(np.einsum("ijk->jik", self.sampler.chain)[self.nburn:])
+        self.calculate_autocorrelation(np.swapaxes(self.sampler.chain, 0, 1)[self.nburn:])
         self._make_plots()
 
         self.print_nburn_logging_info()
@@ -585,9 +562,6 @@ def plot_ln_post(array, outdir, label, window=20, threshold=0.5):
         alpha=0.2,
         color="C0"
     )
-    # axes[1].plot(np.gradient(mean_array))
-    # axes[1].plot(statistics)
-    # axes[1].plot(pvalues)
     axes[1].plot(np.log(np.std(array, axis=1)))
     mu_on_sigma = running_mean_on_sigma(array=mean_array, window=window)
     mu_on_sigma_2 = running_mean_on_sigma(array=np.std(array, axis=1), window=window)
@@ -605,7 +579,6 @@ def plot_ln_post(array, outdir, label, window=20, threshold=0.5):
     axes[1].set_ylabel("$\\Delta \\langle \\ln P \\rangle$")
     axes[2].set_ylabel("Running mean / sigma")
     axes[0].set_ylim(np.min(mean_array), 1.2 * np.max(mean_array) - 0.2 * np.min(mean_array))
-    # axes[1].set_ylim(-1, 1)
     axes[2].set_xlim(0, len(mu_on_sigma) - 1)
     plt.savefig(f"{outdir}/{label}_ln_likelihood.png")
     plt.tight_layout()
@@ -734,68 +707,3 @@ def _log_posterior(theta):
         else:
             log_likelihood = _likelihood.log_likelihood()
     return log_likelihood + log_prior, [log_likelihood, log_prior]
-
-
-def _minimize_point(theta):
-    import copy
-    from scipy.optimize import minimize
-    likelihood_copy = copy.deepcopy(_likelihood)
-
-    _keys = [
-        key for key in _search_parameter_keys
-        if key not in [
-            "a_1", "a_2", "cos_tilt_1", "cos_tilt_2", "phi_12", "phi_jl",
-            "phase"
-        ]
-    ]
-    likelihood_copy.parameters.update({
-        key: tt for key, tt in zip(_search_parameter_keys, theta)
-    })
-    _theta = np.array([
-        float(_priors[key].cdf(tt))
-        for tt, key in zip(theta, _search_parameter_keys)
-        if key in _keys
-    ])
-    idxs = [ii for ii, key in enumerate(_search_parameter_keys) if key in _keys]
-    # print(theta)
-    # print(idxs)
-    # print(_keys)
-    # print(_theta)
-
-    def neg_log_like(params):
-        """ Internal function to minimize """
-        # print(params)
-        if np.any((params < 0) | (params > 1)):
-            return +np.inf
-        # new_parameters = {key: val for key, val in zip(_search_parameter_keys, params)}
-        new_parameters = {key: _priors[key].rescale(val) for key, val in zip(_keys, params)}
-        if not _priors.evaluate_constraints(new_parameters):
-            return +np.inf
-        likelihood_copy.parameters.update(new_parameters)
-        try:
-            if _use_ratio:
-                return -likelihood_copy.log_likelihood_ratio()
-            else:
-                return -likelihood_copy.log_likelihood()
-        except RuntimeError:
-            return +np.inf
-
-    # Bounds used in the minimization
-    # bounds = [
-    #     (_priors[key].minimum, _priors[key].maximum)
-    #     for key in _search_parameter_keys
-    # ]
-    bounds = [(0, 1) for _ in _keys]
-    # theta = [float(_priors[key].cdf(tt)) for tt, key in zip(theta, _search_parameter_keys)]
-
-    # Run the minimization step several times to get a range of values
-    start = neg_log_like(_theta)
-    res = minimize(
-        neg_log_like, _theta, bounds=bounds, method="L-BFGS-B", tol=1e-15
-    )
-    if res.fun < start:
-        _theta = res.x
-    for idx, key, val in zip(idxs, _keys, _theta):
-        theta[idx] = _priors[key].rescale(val)
-
-    return theta
