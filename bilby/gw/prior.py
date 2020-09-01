@@ -8,6 +8,7 @@ from scipy.stats import norm
 
 from ..core.prior import (PriorDict, Uniform, Prior, DeltaFunction, Gaussian,
                           Interped, Constraint, conditional_prior_factory,
+                          ConditionalLogUniform, ConditionalPriorDict,
                           BaseJointPriorDist, JointPrior, JointPriorDistError)
 from ..core.utils import infer_args_from_method, logger
 from .conversion import (
@@ -328,6 +329,30 @@ class AlignedSpin(Interped):
                                           maximum=maximum)
 
 
+class ConditionalChiUniformSpinMagnitude(ConditionalLogUniform):
+
+    def __init__(self, minimum, maximum, name, latex_label=None, unit=None, boundary=None):
+        super(ConditionalChiUniformSpinMagnitude, self).__init__(
+            minimum=minimum, maximum=maximum, name=name, latex_label=latex_label, unit=unit, boundary=boundary,
+            condition_func=self._condition_function)
+        self._required_variables = [name.replace("a", "chi")]
+        self.__class__.__name__ = "ConditionalChiUniformSpinMagnitude"
+        self.__class__.__qualname__ = "ConditionalChiUniformSpinMagnitude"
+
+    def _condition_function(self, reference_params, **kwargs):
+        return dict(minimum=np.abs(kwargs[self._required_variables[0]]), maximum=reference_params["maximum"])
+
+    def __repr__(self):
+        return Prior.__repr__(self)
+
+    def get_instantiation_dict(self):
+        instantiation_dict = Prior.get_instantiation_dict(self)
+        for key, value in self.reference_params.items():
+            if key in instantiation_dict:
+                instantiation_dict[key] = value
+        return instantiation_dict
+
+
 class EOSCheck(Constraint):
     def __init__(self, minimum=-np.inf, maximum=np.inf):
         """
@@ -354,7 +379,7 @@ class EOSCheck(Constraint):
         return result
 
 
-class CBCPriorDict(PriorDict):
+class CBCPriorDict(ConditionalPriorDict):
     @property
     def minimum_chirp_mass(self):
         mass_1 = None
