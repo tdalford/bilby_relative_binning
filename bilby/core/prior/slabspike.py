@@ -64,16 +64,19 @@ def slab_spike_prior_factory(prior_class):
 
         def prob(self, val):
             res = super(SlabSpikePrior, self).prob(val) * self.slab_fraction
+            res = np.atleast_1d(res)
             res[np.where(val == self.spike_loc)] = np.inf
             return res
 
         def ln_prob(self, val):
             res = super(SlabSpikePrior, self).ln_prob(val) + np.log(self.slab_fraction)
+            res = np.atleast_1d(res)
             res[np.where(val == self.spike_loc)] = np.inf
             return res
 
         def cdf(self, val):
             res = super(SlabSpikePrior, self).cdf(val) / self.slab_fraction
+            res = np.atleast_1d(res)
             res[np.where(val) > self.spike_loc] += self.spike_height
             return res
 
