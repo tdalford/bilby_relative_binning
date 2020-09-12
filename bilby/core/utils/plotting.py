@@ -4,7 +4,7 @@ from distutils.spawn import find_executable
 
 from matplotlib import pyplot as plt
 
-from bilby.core.utils import logger
+from .logger import logger
 
 
 def latex_plot_format(func):

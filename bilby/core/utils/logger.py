@@ -1,7 +1,7 @@
 import logging
 import os
 
-from bilby.core.utils import check_directory_exists_and_if_not_mkdir
+from .io import check_directory_exists_and_if_not_mkdir
 
 logger = logging.getLogger('bilby')
 

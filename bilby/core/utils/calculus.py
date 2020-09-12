@@ -2,7 +2,7 @@ import numpy as np
 from scipy.interpolate import interp2d
 from scipy.special import logsumexp
 
-from bilby.core.utils import logger
+from .logger import logger
 
 
 def derivatives(vals, func, releps=1e-3, abseps=None, mineps=1e-9, reltol=1e-3,

@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 
-from bilby.core.utils import logger
+from .logger import logger
 
 
 def set_up_command_line_arguments():

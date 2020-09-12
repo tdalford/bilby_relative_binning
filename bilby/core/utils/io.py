@@ -7,7 +7,8 @@ from importlib import import_module
 import numpy as np
 import pandas as pd
 
-from bilby.core.utils import logger, infer_args_from_method
+from .logger import logger
+from .introspection import infer_args_from_method
 
 
 def check_directory_exists_and_if_not_mkdir(directory):
