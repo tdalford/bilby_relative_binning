@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 from importlib import import_module
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -20,13 +21,7 @@ def check_directory_exists_and_if_not_mkdir(directory):
         Name of the directory
 
     """
-    if directory == "":
-        return
-    elif not os.path.exists(directory):
-        os.makedirs(directory)
-        logger.debug('Making directory {}'.format(directory))
-    else:
-        logger.debug('Directory {} exists'.format(directory))
+    Path(directory).mkdir(parents=True, exist_ok=True)
 
 
 class BilbyJsonEncoder(json.JSONEncoder):
