@@ -1,7 +1,6 @@
 import logging
 import os
-
-from .io import check_directory_exists_and_if_not_mkdir
+from pathlib import Path
 
 logger = logging.getLogger('bilby')
 
@@ -43,7 +42,7 @@ def setup_logger(outdir=None, label=None, log_level='INFO', print_version=False)
     if any([type(h) == logging.FileHandler for h in logger.handlers]) is False:
         if label:
             if outdir:
-                check_directory_exists_and_if_not_mkdir(outdir)
+                Path(outdir).mkdir(parents=True, exist_ok=True)
             else:
                 outdir = '.'
             log_file = '{}/{}.log'.format(outdir, label)
