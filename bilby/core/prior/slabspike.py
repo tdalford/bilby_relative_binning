@@ -49,8 +49,7 @@ class SlabSpikePrior(Prior):
         if spike_loc is None:
             spike_loc = self.minimum
         if not self.minimum <= spike_loc <= self.maximum:
-            raise ValueError("Spike location {} not within prior domain "
-                             .format(spike_loc, self.minimum, self.maximum))
+            raise ValueError("Spike location {} not within prior domain ".format(spike_loc))
         self._spike_loc = spike_loc
 
     @property
