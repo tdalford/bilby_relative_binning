@@ -5,9 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from ...core import utils
-from ...core.utils import logger
+from ...core.utils import logger, PropertyAccessor
 from .. import utils as gwutils
-from ..utils import PropertyAccessor
 from .calibration import Recalibrate
 from .geometry import InterferometerGeometry
 from .strain_data import InterferometerStrainData

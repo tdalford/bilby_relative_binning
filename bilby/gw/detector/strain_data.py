@@ -3,9 +3,8 @@ from scipy.signal.windows import tukey
 
 from ...core import utils
 from ...core.series import CoupledTimeAndFrequencySeries
-from ...core.utils import logger
+from ...core.utils import logger, PropertyAccessor
 from .. import utils as gwutils
-from ..utils import PropertyAccessor
 
 try:
     import gwpy
