@@ -1,9 +1,11 @@
+import numpy as np
 import unittest
-import mock
 
 import bilby
-from bilby.core.prior.slabspike import *
-from bilby.core.prior.analytical import *
+from bilby.core.prior.slabspike import SlabSpikePrior
+from bilby.core.prior.analytical import Uniform, PowerLaw, LogUniform, TruncatedGaussian, \
+    Beta, Gaussian, Cosine, Sine, HalfGaussian, LogNormal, Exponential, StudentT, Logistic, \
+    Cauchy, Gamma, ChiSquared
 
 
 class TestSlabSpikePrior(unittest.TestCase):
@@ -14,52 +16,48 @@ class TestSlabSpikePrior(unittest.TestCase):
         self.spike_loc = 0.5
         self.spike_height = 0.3
         self.slab = bilby.core.prior.Prior(minimum=self.minimum, maximum=self.maximum)
-        self.base_prior = SlabSpikePrior(
-            slab=self.slab, spike_loc=self.spike_loc, spike_height=self.spike_height)
+        self.prior = SlabSpikePrior(
+            slab=self.slab, spike_location=self.spike_loc, spike_height=self.spike_height)
 
     def tearDown(self):
         del self.minimum
         del self.maximum
         del self.spike_loc
         del self.spike_height
-        del self.base_prior
+        del self.prior
         del self.slab
-
-    def test_segment_length(self):
-        expected = self.maximum - self.minimum
-        self.assertEqual(expected, self.base_prior.segment_length)
 
     def test_slab_fraction(self):
         expected = 1 - self.spike_height
-        self.assertEqual(expected, self.base_prior.slab_fraction)
+        self.assertEqual(expected, self.prior.slab_fraction)
 
     def test_spike_loc(self):
-        self.assertEqual(self.spike_loc, self.base_prior.spike_loc)
+        self.assertEqual(self.spike_loc, self.prior.spike_location)
 
     def test_set_spike_loc_none(self):
-        self.base_prior.spike_loc = None
-        self.assertEqual(self.base_prior.minimum, self.base_prior.spike_loc)
+        self.prior.spike_location = None
+        self.assertEqual(self.prior.minimum, self.prior.spike_location)
 
     def test_set_spike_loc_outside_domain(self):
         with self.assertRaises(ValueError):
-            self.base_prior.spike_loc = 1.5
+            self.prior.spike_location = 1.5
 
     def test_set_spike_loc_maximum(self):
-        self.base_prior.spike_loc = self.maximum
-        self.assertEqual(self.maximum, self.base_prior.spike_loc)
+        self.prior.spike_location = self.maximum
+        self.assertEqual(self.maximum, self.prior.spike_location)
 
     def test_class_name(self):
         expected = "SlabSpikePrior"
-        self.assertEqual(expected, self.base_prior.__class__.__name__)
-        self.assertEqual(expected, self.base_prior.__class__.__qualname__)
+        self.assertEqual(expected, self.prior.__class__.__name__)
+        self.assertEqual(expected, self.prior.__class__.__qualname__)
 
-    # @mock.patch.object(bilby.core.utils.logger, "warning")
-    # def test_warn_if_cdf_fraction_can_not_be_calculated(self, m):
-    #     self.assertFalse(m.called)
-    #     _ = SlabSpikeBasePrior(
-    #         minimum=self.minimum, maximum=self.maximum,
-    #         spike_loc=self.spike_loc, spike_height=self.spike_height)
-    #     self.assertTrue(m.assert_called_once)
+    def test_set_spike_height_outside_domain(self):
+        with self.assertRaises(ValueError):
+            self.prior.spike_height = 1.5
+
+    def test_set_spike_height_domain_edge(self):
+        self.prior.spike_height = 0
+        self.prior.spike_height = 1
 
 
 class TestSlabSpikeClasses(unittest.TestCase):
@@ -74,7 +72,6 @@ class TestSlabSpikeClasses(unittest.TestCase):
             Uniform(minimum=self.minimum, maximum=self.maximum),
             PowerLaw(minimum=self.minimum, maximum=self.maximum, alpha=2),
             LogUniform(minimum=self.minimum, maximum=self.maximum),
-            # SymmetricLogUniform(minimum=self.minimum, maximum=self.maximum),
             TruncatedGaussian(minimum=self.minimum, maximum=self.maximum, mu=0, sigma=1),
             Beta(minimum=self.minimum, maximum=self.maximum, alpha=1, beta=1),
             Gaussian(mu=0, sigma=1),
@@ -87,9 +84,8 @@ class TestSlabSpikeClasses(unittest.TestCase):
             Logistic(mu=2, scale=1),
             Cauchy(alpha=1, beta=2),
             Gamma(k=1, theta=1.),
-            ChiSquared(nu=2)]#,
-            # FermiDirac(sigma=1, mu=1)]
-        self.slab_spikes = [SlabSpikePrior(slab, spike_height=self.spike_height, spike_loc=self.spike_loc)
+            ChiSquared(nu=2)]
+        self.slab_spikes = [SlabSpikePrior(slab, spike_height=self.spike_height, spike_location=self.spike_loc)
                             for slab in self.slabs]
         self.test_nodes_finite_support = np.linspace(self.minimum, self.maximum, 1000)
         self.test_nodes_infinite_support = np.linspace(-10, 10, 1000)
@@ -128,12 +124,12 @@ class TestSlabSpikeClasses(unittest.TestCase):
 
     def test_inverse_cdf_below_spike_with_spike_at_minimum(self):
         for slab in self.slabs:
-            slab_spike = SlabSpikePrior(slab=slab, spike_height=0.4, spike_loc=slab.minimum)
+            slab_spike = SlabSpikePrior(slab=slab, spike_height=0.4, spike_location=slab.minimum)
             self.assertEqual(0, slab_spike.inverse_cdf_below_spike)
 
     def test_inverse_cdf_below_spike_with_spike_at_maximum(self):
         for slab in self.slabs:
-            slab_spike = SlabSpikePrior(slab=slab, spike_height=0.4, spike_loc=slab.maximum)
+            slab_spike = SlabSpikePrior(slab=slab, spike_height=0.4, spike_location=slab.maximum)
             expected = 1 - slab_spike.spike_height
             actual = slab_spike.inverse_cdf_below_spike
             self.assertEqual(expected, actual)
@@ -175,7 +171,7 @@ class TestSlabSpikeClasses(unittest.TestCase):
 
     def test_rescale_no_spike(self):
         for slab in self.slabs:
-            slab_spike = SlabSpikePrior(slab=slab, spike_height=0, spike_loc=slab.minimum)
+            slab_spike = SlabSpikePrior(slab=slab, spike_height=0, spike_location=slab.minimum)
             vals = np.linspace(0, 1, 1000)
             expected = slab.rescale(vals)
             actual = slab_spike.rescale(vals)
