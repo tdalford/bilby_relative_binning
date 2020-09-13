@@ -3,6 +3,7 @@ import numpy as np
 
 _TOL = 14
 
+
 def get_sampling_frequency(time_array):
     """
     Calculate sampling frequency from a time series

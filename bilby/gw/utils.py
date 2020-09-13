@@ -1036,5 +1036,3 @@ def plot_spline_pos(log_freqs, samples, nfreqs=100, level=0.9, color='k', label=
                      data_summary.upper_absolute_credible_interval,
                      color=color, alpha=.1, linewidth=0.1)
     plt.xlim(freq_points.min() - .5, freq_points.max() + 50)
-
-
