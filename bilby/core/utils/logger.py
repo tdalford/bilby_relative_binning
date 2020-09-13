@@ -63,7 +63,9 @@ def setup_logger(outdir=None, label=None, log_level='INFO', print_version=False)
 
 def get_version_information():
     version_file = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), '.version')
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(__file__))), '.version')
     try:
         with open(version_file, 'r') as f:
             return f.readline().rstrip()
