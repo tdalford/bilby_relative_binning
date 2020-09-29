@@ -18,7 +18,7 @@ bilby.utils.check_directory_exists_and_if_not_mkdir(outdir)
 
 # Here we define our model. We want to inject two Gaussians and recover with up to three.
 def gaussian(xs, amplitude, mu, sigma):
-    return amplitude / np.sqrt(2 * np.pi * sigma**2)*np.exp(-0.5 * (xs - mu)**2 / sigma**2)
+    return amplitude / np.sqrt(2 * np.pi * sigma**2) * np.exp(-0.5 * (xs - mu)**2 / sigma**2)
 
 
 def triple_gaussian(xs, amplitude_0, amplitude_1, amplitude_2, mu_0, mu_1, mu_2, sigma_0, sigma_1, sigma_2, **kwargs):
