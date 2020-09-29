@@ -18,7 +18,7 @@ bilby.utils.check_directory_exists_and_if_not_mkdir(outdir)
 
 # Here we define our model. We want to inject two Gaussians and recover with up to three.
 def gaussian(xs, amplitude, mu, sigma):
-    return amplitude/np.sqrt(2 * np.pi * sigma**2)*np.exp(-0.5 * (xs - mu)**2 / sigma**2)
+    return amplitude / np.sqrt(2 * np.pi * sigma**2)*np.exp(-0.5 * (xs - mu)**2 / sigma**2)
 
 
 def triple_gaussian(xs, amplitude_0, amplitude_1, amplitude_2, mu_0, mu_1, mu_2, sigma_0, sigma_1, sigma_2, **kwargs):
@@ -89,9 +89,9 @@ plt.savefig(f'{outdir}/{label}_max_likelihood_recovery')
 plt.clf()
 
 # Finally, we can check what fraction of amplitude samples are exactly on the spike.
-spike_samples_0 = len(np.where(result.posterior['amplitude_0'] == 0.0)[0])/len(result.posterior)
-spike_samples_1 = len(np.where(result.posterior['amplitude_1'] == 0.0)[0])/len(result.posterior)
-spike_samples_2 = len(np.where(result.posterior['amplitude_2'] == 0.0)[0])/len(result.posterior)
+spike_samples_0 = len(np.where(result.posterior['amplitude_0'] == 0.0)[0]) / len(result.posterior)
+spike_samples_1 = len(np.where(result.posterior['amplitude_1'] == 0.0)[0]) / len(result.posterior)
+spike_samples_2 = len(np.where(result.posterior['amplitude_2'] == 0.0)[0]) / len(result.posterior)
 print(f"{spike_samples_0 * 100:.2f}% of amplitude_0 samples are exactly 0.0")
 print(f"{spike_samples_1 * 100:.2f}% of amplitude_1 samples are exactly 0.0")
 print(f"{spike_samples_2 * 100:.2f}% of amplitude_2 samples are exactly 0.0")
