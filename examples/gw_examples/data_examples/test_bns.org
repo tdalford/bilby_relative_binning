@@ -1,0 +1,384 @@
+#+BEGIN_SRC jupyter-python :session py :kernel igwn-py37
+from __future__ import division, print_function
+import os
+os.chdir('/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby')
+
+import bilby
+import numpy as np
+import pickle 
+
+import importlib
+importlib.reload(bilby)
+#+END_SRC
+
+#+RESULTS:
+: <module 'bilby' from '/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/__init__.py'>
+
+#+BEGIN_SRC jupyter-python :session py :kernel igwn-py37
+"""
+This tutorial includes advanced specifications
+for analysing binary neutron star event data.
+Here GW170817 is used as an example.
+"""
+outdir = 'test_outdir'
+label = 'GW170817'
+time_of_event = bilby.gw.utils.get_event_time(label)
+bilby.core.utils.setup_logger(outdir=outdir, label=label)
+# GET DATA FROM INTERFEROMETER
+# include 'V1' for appropriate O2 events
+interferometer_names = ['H1']#, 'L1', 'V1']
+duration = 32
+roll_off = 0.2  # how smooth is the transition from no signal
+# to max signal in a Tukey Window.
+psd_offset = -512  # PSD is estimated using data from
+# `center_time+psd_offset` to `center_time+psd_offset + psd_duration`
+# This determines the time window used to fetch open data.
+psd_duration = 1024
+coherence_test = False  # coherence between detectors
+filter_freq = None  # low pass filter frequency to cut signal content above
+# Nyquist frequency. The condition is 2 * filter_freq >= sampling_frequency
+
+
+# All keyword arguments are passed to
+# `gwpy.timeseries.TimeSeries.fetch_open_data()'
+kwargs = {}
+# Data are stored by LOSC at 4096 Hz, however
+# there may be event-related data releases with a 16384 Hz rate.
+kwargs['sample_rate'] = 4096
+# For O2 events a "tag" is required to download the data.
+# CLN = clean data; C02 = raw data
+kwargs['tag'] = 'C02'
+# interferometers = bilby.gw.detector.get_event_data(
+#     label,
+#     interferometer_names=interferometer_names,
+#     duration=duration,
+#     roll_off=roll_off,
+#     psd_offset=psd_offset,
+#     psd_duration=psd_duration,
+#     cache=True,
+#     filter_freq=filter_freq,
+#     **kwargs)
+
+interferometers = pickle.load(open('interferometer_data.pkl', 'rb'))
+# CHOOSE PRIOR FILE
+prior = bilby.gw.prior.BNSPriorDict(filename='GW170817.prior')
+deltaT = 0.1
+prior['geocent_time'] = bilby.core.prior.Uniform(
+    minimum=time_of_event - deltaT / 2,
+    maximum=time_of_event + deltaT / 2,
+    name='geocent_time',
+    latex_label='$t_c$',
+    unit='$s$')
+
+
+# GENERATE WAVEFORM
+# OVERVIEW OF APPROXIMANTS:
+# https://www.lsc-group.phys.uwm.edu/ligovirgo/cbcnote/Waveforms/Overview
+duration = None  # duration and sampling frequency will be overwritten
+# to match the ones in interferometers.
+sampling_frequency = kwargs['sample_rate']
+start_time = 0  # set the starting time of the time array
+waveform_arguments = {'reference_frequency': 20}
+
+source_model = bilby.gw.source.lal_binary_neutron_star
+convert_bns = bilby.gw.conversion.convert_to_lal_binary_neutron_star_parameters
+waveform_generator = bilby.gw.WaveformGenerator(
+    duration=duration,
+    sampling_frequency=sampling_frequency,
+    start_time=start_time,
+    frequency_domain_source_model=source_model,
+    parameter_conversion=convert_bns,
+    waveform_arguments=waveform_arguments,)
+
+init_params = {
+    'chirp_mass': 1.1977, 'symmetric_mass_ratio': .244, 
+    'a_1': 0, 'a_2': 0, 'tilt_1': 0, 'tilt_2': 0,
+    'phi_12': 0, 'phi_jl': 0, 'luminosity_distance': 50,
+    'dec': 0, 'ra': 0, 'theta_jn': 0, 'psi': 0, 'phase': 0,
+    #'lambda_1': 0, 'lambda_2': 0, 
+    'geocent_time': 11870882.3848135}
+
+parameter_bounds = {
+    'chirp_mass': [1.18, 1.2], 'symmetric_mass_ratio': [.2, .2499],
+    'a_1': [0, .05], 'a_2': [0, .05], 'tilt_1': [0, 2 * np.pi],
+    'tilt_2': [0, 2 * np.pi], 'phi_12': [0, 2 * np.pi],
+    'phi_jl': [0, 2 * np.pi], 'luminosity_distance': [10, 100],
+    'dec': [0, 2 * np.pi], 'ra': [0, 2 * np.pi],
+    'theta_jn': [0, 2 * np.pi], 'psi': [0, np.pi],
+    'phase': [0, 2 * np.pi], 
+    #'lambda_1': [0, 5000], 'lambda_2': [0, 5000],
+    'geocent_time': [1187008881.3848135, 1187008883.3848135]}
+
+# CHOOSE LIKELIHOOD FUNCTION
+# Time marginalisation uses FFT.
+# Distance marginalisation uses a look up table calculated at run time.
+# Phase marginalisation is done analytically using a Bessel function.
+likelihood = bilby.gw.likelihood.RelativeBinningGravitationalWaveTransient(
+    interferometers,
+    waveform_generator,
+    initial_parameters=init_params, 
+    parameter_bounds=parameter_bounds)
+
+# RUN SAMPLER
+# Implemented Samplers:
+# LIST OF AVAILABLE SAMPLERS: Run -> bilby.sampler.implemented_samplers
+# conversion function = bilby.gw.conversion.generate_all_bns_parameters
+npoints = 512
+sampler = 'dynesty'
+result = bilby.run_sampler(
+    likelihood,
+    prior,
+    outdir=outdir,
+    label=label,
+    sampler=sampler,
+    npoints=npoints,
+    use_ratio=False,
+    conversion_function=bilby.gw.conversion.generate_all_bns_parameters)
+
+# result.plot_corner()
+#+END_SRC
+
+#+RESULTS:
+:RESULTS:
+#+begin_example
+16:56 bilby WARNING : The waveform_generator start_time is not equal to that of the provided interferometers. Overwriting the waveform_generator.
+16:56 bilby INFO    : Running for label 'GW170817', output will be saved to 'test_outdir'
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Performing redundancy check using BBHPriorDict(self).test_redundancy
+16:56 bilby INFO    : Using LAL version Branch: None;Tag: lal-v6.21.0;Id: 37caf89936b637993c30b3076fe4b853311873ee;;Builder: Adam Mercer <adam.mercer@ligo.org>;Repository status: CLEAN: All modifications committed
+16:56 bilby INFO    : Search parameters:
+16:56 bilby INFO    :   chirp_mass = Uniform(minimum=0.87, maximum=1.74, name='chirp_mass', latex_label='$\\mathcal{M}$', unit='$M_{\\odot}$', boundary=None)
+16:56 bilby INFO    :   mass_ratio = Uniform(minimum=0.125, maximum=1.0, name='mass_ratio', latex_label='$q$', unit=None, boundary=None)
+16:56 bilby INFO    :   a_1 = Uniform(minimum=0, maximum=0.05, name='a_1', latex_label='$a_1$', unit=None, boundary='reflective')
+16:56 bilby INFO    :   a_2 = Uniform(minimum=0, maximum=0.05, name='a_2', latex_label='$a_2$', unit=None, boundary='reflective')
+16:56 bilby INFO    :   tilt_1 = Sine(name='tilt_1', latex_label='$\\theta_1$', unit=None, minimum=0, maximum=3.141592653589793, boundary='reflective')
+16:56 bilby INFO    :   tilt_2 = Sine(name='tilt_2', latex_label='$\\theta_2$', unit=None, minimum=0, maximum=3.141592653589793, boundary='reflective')
+16:56 bilby INFO    :   phi_12 = Uniform(minimum=0, maximum=6.283185307179586, name='phi_12', latex_label='$\\Delta\\phi$', unit=None, boundary='periodic')
+16:56 bilby INFO    :   phi_jl = Uniform(minimum=0, maximum=6.283185307179586, name='phi_jl', latex_label='$\\phi_{JL}$', unit=None, boundary='periodic')
+16:56 bilby INFO    :   luminosity_distance = UniformSourceFrame(minimum=10.0, maximum=100.0, cosmology=FlatLambdaCDM(name="Planck15", H0=67.7 km / (Mpc s), Om0=0.307, Tcmb0=2.725 K, Neff=3.05, m_nu=[0.   0.   0.06] eV, Ob0=0.0486), name='luminosity_distance', latex_label='$d_L$', unit=Unit("Mpc"), boundary=None)
+16:56 bilby INFO    :   dec = Cosine(name='dec', latex_label='$\\mathrm{DEC}$', unit=None, minimum=-1.5707963267948966, maximum=1.5707963267948966, boundary='reflective')
+16:56 bilby INFO    :   ra = Uniform(minimum=0, maximum=6.283185307179586, name='ra', latex_label='$\\mathrm{RA}$', unit=None, boundary='periodic')
+16:56 bilby INFO    :   theta_jn = Sine(name='theta_jn', latex_label='$\\theta_{JN}$', unit=None, minimum=0, maximum=3.141592653589793, boundary='reflective')
+16:56 bilby INFO    :   psi = Uniform(minimum=0, maximum=3.141592653589793, name='psi', latex_label='$\\psi$', unit=None, boundary='periodic')
+16:56 bilby INFO    :   phase = Uniform(minimum=0, maximum=6.283185307179586, name='phase', latex_label='$\\phi$', unit=None, boundary='periodic')
+16:56 bilby INFO    :   lambda_tilde = Uniform(minimum=0, maximum=1000, name='lambda_tilde', latex_label='$\\tilde{\\Lambda}$', unit=None, boundary=None)
+16:56 bilby INFO    :   delta_lambda_tilde = Uniform(minimum=-5000, maximum=5000, name='delta_lambda_tilde', latex_label='$\\delta\\tilde{\\Lambda}$', unit=None, boundary=None)
+16:56 bilby INFO    :   geocent_time = Uniform(minimum=1187008882.3500001, maximum=1187008882.45, name='geocent_time', latex_label='$t_c$', unit='$s$', boundary=None)
+Bin setup completed. Number bins = 61
+fiducial waveforms obtained!
+summary data obtained!
+iter: 0
+computing maxL parameters...
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/gw/likelihood.py:1603: RuntimeWarning: divide by zero encountered in true_divide
+  new_polarizations[mode])) for mode in (
+log-likelihood =  1772061738914.0857
+best fit a_1 = 0.00826811512506985
+best fit a_2 = 0.0033110725658991413
+best fit chirp_mass = 1.1854265332423821
+best fit dec = 5.517018485246268
+best fit geocent_time = 1187008882.0684884
+best fit luminosity_distance = 97.53477307880647
+best fit phase = 2.966888804565191
+best fit phi_12 = 2.309098233137948
+best fit phi_jl = 3.5552317730317315
+best fit psi = 2.4292629765129847
+best fit ra = 4.307974602602399
+best fit symmetric_mass_ratio = 0.2156575577315377
+best fit theta_jn = 4.713020110785294
+best fit tilt_1 = 5.692728284731693
+best fit tilt_2 = 3.6895344772026006
+likelihood: 1772061738914.0857
+Max iters reached. Stopping.
+(62,)
+(62,)
+62
+{'a_1': 0.00826811512506985, 'a_2': 0.0033110725658991413, 'chirp_mass': 1.1854265332423821, 'dec': 5.517018485246268, 'geocent_time': 1187008882.0684884, 'luminosity_distance': 97.53477307880647, 'phase': 2.966888804565191, 'phi_12': 2.309098233137948, 'phi_jl': 3.5552317730317315, 'psi': 2.4292629765129847, 'ra': 4.307974602602399, 'symmetric_mass_ratio': 0.2156575577315377, 'theta_jn': 4.713020110785294, 'tilt_1': 5.692728284731693, 'tilt_2': 3.6895344772026006}
+d_inner_h = (5346.463941703771-104454.01344332313j)
+optimal_snr_squared = (1206556.3588476442+0j)
+maxl value = -597931.7154821183
+65537
+d_inner_h = (-4.2511359503281+2.996263719284709j)
+optimal_snr_squared = (5.092770255530866+0j)
+actual maxl value = -6.797521078093533
+(62,)
+(62,)
+62
+{'chirp_mass': 1.620910594266107, 'mass_ratio': 0.6092665608992909, 'a_1': 9.139651552331207e-06, 'a_2': 0.0002174774591267359, 'tilt_1': 1.5034419645897172, 'tilt_2': 2.0666233234311844, 'phi_12': 1.4260599278691424, 'phi_jl': 3.959460889362617, 'luminosity_distance': 51.50396815725102, 'dec': 0.9338427034686375, 'ra': 5.582274240119624, 'theta_jn': 0.7917117557183202, 'psi': 1.5423209399408566, 'phase': 2.573244673184655, 'lambda_tilde': 383.7487346251827, 'delta_lambda_tilde': -1234.6303547472971, 'geocent_time': 1187008882.4453442}
+d_inner_h = (3.376146785729115+2.721722299621824j)
+optimal_snr_squared = (0.005800447293619641+0j)
+relative binning value = 3.373246562082305
+65537
+d_inner_h = (12.821545854987368-2.1953641392220025j)
+optimal_snr_squared = (190.81358306770764+0j)
+actual value = -82.58524567886646
+#+end_example
+# [goto error]
+#+begin_example
+
+TypeErrorTraceback (most recent call last)
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/core/sampler/base_sampler.py in _verify_parameters(self)
+    280         try:
+--> 281             self.log_likelihood(theta)
+    282         except TypeError as e:
+
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/core/sampler/base_sampler.py in log_likelihood(self, theta)
+    593                 enumerate(self.search_parameter_keys)}):
+--> 594             return Sampler.log_likelihood(self, theta)
+    595         else:
+
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/core/sampler/base_sampler.py in log_likelihood(self, theta)
+    389         else:
+--> 390             return self.likelihood.log_likelihood()
+    391 
+
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/gw/likelihood.py in log_likelihood(self)
+   1361     def log_likelihood(self):
+-> 1362         return self.log_likelihood_ratio_relative_binning() + self.noise_log_likelihood()
+   1363 
+
+TypeError: unsupported operand type(s) for +: 'NoneType' and 'float'
+
+During handling of the above exception, another exception occurred:
+
+TypeErrorTraceback (most recent call last)
+<ipython-input-3-f77687ad52c2> in <module>()
+    117     npoints=npoints,
+    118     use_ratio=False,
+--> 119     conversion_function=bilby.gw.conversion.generate_all_bns_parameters)
+    120 
+    121 # result.plot_corner()
+
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/core/sampler/__init__.py in run_sampler(likelihood, priors, label, outdir, sampler, use_ratio, injection_parameters, conversion_function, plot, default_priors_file, clean, meta_data, save, gzip, result_class, **kwargs)
+    150                 injection_parameters=injection_parameters, meta_data=meta_data,
+    151                 use_ratio=use_ratio, plot=plot, result_class=result_class,
+--> 152                 **kwargs)
+    153         else:
+    154             print(IMPLEMENTED_SAMPLERS)
+
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/core/sampler/dynesty.py in __init__(self, likelihood, priors, outdir, label, use_ratio, plot, skip_import_verification, check_point, check_point_plot, n_check_point, check_point_delta_t, resume, exit_code, **kwargs)
+    105                                       outdir=outdir, label=label, use_ratio=use_ratio,
+    106                                       plot=plot, skip_import_verification=skip_import_verification,
+--> 107                                       **kwargs)
+    108         self.n_check_point = n_check_point
+    109         self.check_point = check_point
+
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/core/sampler/base_sampler.py in __init__(self, likelihood, priors, outdir, label, use_ratio, plot, skip_import_verification, injection_parameters, meta_data, result_class, likelihood_benchmark, soft_init, **kwargs)
+    116 
+    117         if not soft_init:
+--> 118             self._verify_parameters()
+    119             self._time_likelihood()
+    120             self._verify_use_ratio()
+
+/Users/tommyalford/LIGO_research/bilby_relative_binning/bilby/bilby/core/sampler/base_sampler.py in _verify_parameters(self)
+    284                 "Likelihood evaluation failed with message: \n'{}'\n"
+    285                 "Have you specified all the parameters:\n{}"
+--> 286                 .format(e, self.likelihood.parameters))
+    287 
+    288     def _time_likelihood(self, n_evaluations=100):
+
+TypeError: Likelihood evaluation failed with message: 
+'unsupported operand type(s) for +: 'NoneType' and 'float''
+Have you specified all the parameters:
+{'chirp_mass': 1.620910594266107, 'mass_ratio': 0.6092665608992909, 'a_1': 9.139651552331207e-06, 'a_2': 0.0002174774591267359, 'tilt_1': 1.5034419645897172, 'tilt_2': 2.0666233234311844, 'phi_12': 1.4260599278691424, 'phi_jl': 3.959460889362617, 'luminosity_distance': 51.50396815725102, 'dec': 0.9338427034686375, 'ra': 5.582274240119624, 'theta_jn': 0.7917117557183202, 'psi': 1.5423209399408566, 'phase': 2.573244673184655, 'lambda_tilde': 383.7487346251827, 'delta_lambda_tilde': -1234.6303547472971, 'geocent_time': 1187008882.4453442}
+#+end_example
+:END:
+* Other Checks
+#+begin_src jupyter-python :session py :kernel igwn-py37
+likelihood.bin_inds
+#+end_src
+#+RESULTS:
+: array([  640,   664,   688,   715,   745,   778,   814,   854,
+:          899,   950,  1007,  1073,  1150,  1239,  1344,  1470,
+:         1621,  1808,  2039,  2330,  2697,  3161,  3736,  4431,
+:         5236,  6126,  7073,  8047,  9029, 10004, 10962, 11900,
+:        12815, 13706, 14573, 15418, 16239, 17040, 17820, 18581,
+:        19323, 20049, 20758, 21451, 22131, 22796, 23448, 24088,
+:        24715, 25331, 25937, 26532, 27116, 27692, 28259, 28817,
+:        29367, 29908, 30443, 30969, 31488, 32000])
+
+
+#+BEGIN_SRC jupyter-python :session py :kernel python3
+freq_mas = np.array([True, True, True, True, True])
+test = np.array([1, 2, 3, 4, 5])
+test[freq_mas]
+#+END_SRC
+
+#+RESULTS:
+: array([1, 2, 3, 4, 5])
+
+#+BEGIN_SRC jupyter-python :session py :kernel python3
+test = freq_mas.copy()
+test[[1, 3]] = True
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter-python :session py :kernel python3
+np.array([1, 2, 3, 4, 5])[test]
+#+END_SRC
+
+#+RESULTS:
+: array([2, 4])
+
+
+#+BEGIN_SRC jupyter-python :session py :kernel igwn-py37
+likelihood.bin_freqs
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+array([  20.        ,   20.7252145 ,   21.48962979,
+         22.33244665,   23.27326547,   24.29248585,
+         25.40970819,   26.66413328,   28.07536151,
+         29.66299326,   31.46622932,   33.52427049,
+         35.91551831,   38.69877398,   41.99163983,
+         45.91171823,   50.6550131 ,   56.47632953,
+         63.70887418,   72.78385568,   84.26968539,
+         98.75437509,  116.74753495,  138.4647693 ,
+        163.61207224,  191.4250285 ,  221.00202004,
+        251.46102922,  282.13564271,  312.59465189,
+        342.54405088,  371.84663693,  400.44360887,
+        428.29576592,  455.40310806,  481.7852357 ,
+        507.46174923,  532.47184944,  556.85473709,
+        580.6300126 ,  603.83687674,  626.51453029,
+        648.66297326,  670.34100682,  691.56823136,
+        712.36424728,  732.72905458,  752.72145443,
+        772.32184644,  791.58903178,  810.50341007,
+        829.10418208,  847.37174743,  865.3649073 ,
+        883.08366167,  900.50841017,  917.69795396,
+        934.61309226,  951.31262625,  967.75735515,
+        983.98647973, 1000.        ])
+#+end_example
+
+
+#+BEGIN_SRC jupyter-python :session py :kernel igwn-py37
+np.invert(interferometers[0].strain_data.frequency_mask).sum()
+#+END_SRC
+
+#+RESULTS:
+: 0
+
+#+BEGIN_SRC jupyter-python :session py :kernel igwn-py37
+interferometers[0].strain_data.frequency_array
+#+END_SRC
+
+#+RESULTS:
+: array([0.00000000e+00, 3.12500000e-02, 6.25000000e-02, ...,
+:        2.04793750e+03, 2.04796875e+03, 2.04800000e+03])
+:END:
+

@@ -8,6 +8,7 @@ import copy
 import numpy as np
 import scipy.integrate as integrate
 from scipy.interpolate import interp1d
+from scipy.optimize import differential_evolution
 
 try:
     from scipy.special import logsumexp
@@ -256,7 +257,8 @@ class GravitationalWaveTransient(Likelihood):
                         if not isinstance(self.priors[key], Cosmological):
                             raise TypeError(
                                 "To marginalize over {}, the prior must be specified as a "
-                                "subclass of bilby.gw.prior.Cosmological.".format(key)
+                                "subclass of bilby.gw.prior.Cosmological.".format(
+                                    key)
                             )
                         self.priors['luminosity_distance'] = self.priors[key].get_corresponding_prior(
                             'luminosity_distance'
@@ -275,7 +277,8 @@ class GravitationalWaveTransient(Likelihood):
             self._prior = priors.copy()
         elif any([self.time_marginalization, self.phase_marginalization,
                   self.distance_marginalization]):
-            raise ValueError("You can't use a marginalized likelihood without specifying a priors")
+            raise ValueError(
+                "You can't use a marginalized likelihood without specifying a priors")
         else:
             self._prior = None
 
@@ -315,7 +318,8 @@ class GravitationalWaveTransient(Likelihood):
                 interferometer=interferometer)
 
             d_inner_h += per_detector_snr.d_inner_h
-            optimal_snr_squared += np.real(per_detector_snr.optimal_snr_squared)
+            optimal_snr_squared += np.real(
+                per_detector_snr.optimal_snr_squared)
             complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
 
             if self.time_marginalization:
@@ -404,11 +408,13 @@ class GravitationalWaveTransient(Likelihood):
             self.parameters['geocent_time'] += self.parameters['time_jitter']
         if signal_polarizations is None:
             signal_polarizations = \
-                self.waveform_generator.frequency_domain_strain(self.parameters)
+                self.waveform_generator.frequency_domain_strain(
+                    self.parameters)
 
         times = create_time_series(
             sampling_frequency=16384,
-            starting_time=self.parameters['geocent_time'] - self.waveform_generator.start_time,
+            starting_time=self.parameters['geocent_time'] -
+            self.waveform_generator.start_time,
             duration=self.waveform_generator.duration)
         times = times % self.waveform_generator.duration
         times += self.waveform_generator.start_time
@@ -480,8 +486,10 @@ class GravitationalWaveTransient(Likelihood):
         self.parameters.update(self.get_sky_frame_parameters())
         if signal_polarizations is None:
             signal_polarizations = \
-                self.waveform_generator.frequency_domain_strain(self.parameters)
-        d_inner_h, h_inner_h = self._calculate_inner_products(signal_polarizations)
+                self.waveform_generator.frequency_domain_strain(
+                    self.parameters)
+        d_inner_h, h_inner_h = self._calculate_inner_products(
+            signal_polarizations)
 
         d_inner_h_dist = (
             d_inner_h * self.parameters['luminosity_distance'] /
@@ -543,8 +551,10 @@ class GravitationalWaveTransient(Likelihood):
         self.parameters.update(self.get_sky_frame_parameters())
         if signal_polarizations is None:
             signal_polarizations = \
-                self.waveform_generator.frequency_domain_strain(self.parameters)
-        d_inner_h, h_inner_h = self._calculate_inner_products(signal_polarizations)
+                self.waveform_generator.frequency_domain_strain(
+                    self.parameters)
+        d_inner_h, h_inner_h = self._calculate_inner_products(
+            signal_polarizations)
 
         phases = np.linspace(0, 2 * np.pi, 101)
         phasor = np.exp(-2j * phases)
@@ -580,7 +590,8 @@ class GravitationalWaveTransient(Likelihood):
         times = self._times
         if self.jitter_time:
             times = self._times + self.parameters['time_jitter']
-        time_prior_array = self.priors['geocent_time'].prob(times) * self._delta_tc
+        time_prior_array = self.priors['geocent_time'].prob(
+            times) * self._delta_tc
         return logsumexp(log_l_tc_array, b=time_prior_array)
 
     def _setup_rho(self, d_inner_h, optimal_snr_squared):
@@ -622,7 +633,8 @@ class GravitationalWaveTransient(Likelihood):
             n_negative = self._dist_margd_loglikelihood_array.shape[1] // 2
             n_positive = self._dist_margd_loglikelihood_array.shape[1] - n_negative
             return np.hstack((
-                -np.logspace(3, -3, n_negative), np.logspace(-3, 10, n_positive)
+                -np.logspace(3, -3, n_negative), np.logspace(-3,
+                                                             10, n_positive)
             ))
 
     def _setup_distance_marginalization(self, lookup_table=None):
@@ -772,7 +784,8 @@ class GravitationalWaveTransient(Likelihood):
         elif isinstance(frame, str):
             self._reference_frame = InterferometerList([frame[:2], frame[2:4]])
         else:
-            raise ValueError("Unable to parse reference frame {}".format(frame))
+            raise ValueError(
+                "Unable to parse reference frame {}".format(frame))
 
     def get_sky_frame_parameters(self):
         time = self.parameters['{}_time'.format(self.time_reference)]
@@ -810,9 +823,12 @@ class GravitationalWaveTransient(Likelihood):
         try:
             from lalsimulation import git_version, __version__
             lalsim_version = str(__version__)
-            logger.info("Using lalsimulation version {}".format(lalsim_version))
-            lalsim_git_version = str(git_version.verbose_msg).replace("\n", ";")
-            logger.info("Using lalsimulation git version {}".format(lalsim_git_version))
+            logger.info(
+                "Using lalsimulation version {}".format(lalsim_version))
+            lalsim_git_version = str(
+                git_version.verbose_msg).replace("\n", ";")
+            logger.info("Using lalsimulation git version {}".format(
+                lalsim_git_version))
             return "lalsimulation_version={}, lalsimulation_git_version={}".format(lalsim_version, lalsim_git_version)
         except (ImportError, AttributeError):
             return "N/A"
@@ -979,6 +995,7 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         - e.g., "H1": sample in the time of arrival at H1
 
     """
+
     def __init__(
         self, interferometers, waveform_generator, priors,
         weights=None, linear_matrix=None, quadratic_matrix=None,
@@ -1051,7 +1068,8 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         dt = interferometer.time_delay_from_geocenter(
             self.parameters['ra'], self.parameters['dec'],
             self.parameters['geocent_time'])
-        dt_geocent = self.parameters['geocent_time'] - interferometer.strain_data.start_time
+        dt_geocent = self.parameters['geocent_time'] - \
+            interferometer.strain_data.start_time
         ifo_time = dt_geocent + dt
 
         calib_linear = interferometer.calibration_model.get_calibration_factor(
@@ -1061,8 +1079,10 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
             self.frequency_nodes_quadratic,
             prefix='recalib_{}_'.format(interferometer.name), **self.parameters)
 
-        h_plus_linear = f_plus * waveform_polarizations['linear']['plus'] * calib_linear
-        h_cross_linear = f_cross * waveform_polarizations['linear']['cross'] * calib_linear
+        h_plus_linear = f_plus * \
+            waveform_polarizations['linear']['plus'] * calib_linear
+        h_cross_linear = f_cross * \
+            waveform_polarizations['linear']['cross'] * calib_linear
         h_plus_quadratic = (
             f_plus * waveform_polarizations['quadratic']['plus'] * calib_quadratic)
         h_cross_quadratic = (
@@ -1071,7 +1091,8 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         indices, in_bounds = self._closest_time_indices(
             ifo_time, self.weights['time_samples'])
         if not in_bounds:
-            logger.debug("SNR calculation error: requested time at edge of ROQ time samples")
+            logger.debug(
+                "SNR calculation error: requested time at edge of ROQ time samples")
             return self._CalculatedSNRs(
                 d_inner_h=np.nan_to_num(-np.inf), optimal_snr_squared=0,
                 complex_matched_filter_snr=np.nan_to_num(-np.inf),
@@ -1145,9 +1166,12 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         roq_minimum_frequency = roq_params['flow'] * self.roq_scale_factor
         roq_maximum_frequency = roq_params['fhigh'] * self.roq_scale_factor
         roq_segment_length = roq_params['seglen'] / self.roq_scale_factor
-        roq_minimum_chirp_mass = roq_params['chirpmassmin'] / self.roq_scale_factor
-        roq_maximum_chirp_mass = roq_params['chirpmassmax'] / self.roq_scale_factor
-        roq_minimum_component_mass = roq_params['compmin'] / self.roq_scale_factor
+        roq_minimum_chirp_mass = roq_params['chirpmassmin'] / \
+            self.roq_scale_factor
+        roq_maximum_chirp_mass = roq_params['chirpmassmax'] / \
+            self.roq_scale_factor
+        roq_minimum_component_mass = roq_params['compmin'] / \
+            self.roq_scale_factor
 
         if ifo.maximum_frequency > roq_maximum_frequency:
             raise BilbyROQParamsRangeError(
@@ -1163,7 +1187,8 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
 
         priors = self.priors
         if isinstance(priors, CBCPriorDict) is False:
-            logger.warning("Unable to check ROQ parameter bounds: priors not understood")
+            logger.warning(
+                "Unable to check ROQ parameter bounds: priors not understood")
             return
 
         if priors.minimum_chirp_mass is None:
@@ -1204,8 +1229,10 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         # Maximum delay time to geocentre + 5 steps
         earth_light_crossing_time = radius_of_earth / speed_of_light + 5 * time_space
         delta_times = np.arange(
-            self.priors['{}_time'.format(self.time_reference)].minimum - earth_light_crossing_time,
-            self.priors['{}_time'.format(self.time_reference)].maximum + earth_light_crossing_time,
+            self.priors['{}_time'.format(
+                self.time_reference)].minimum - earth_light_crossing_time,
+            self.priors['{}_time'.format(
+                self.time_reference)].maximum + earth_light_crossing_time,
             time_space)
         time_samples = delta_times - self.interferometers.start_time
         self.weights['time_samples'] = time_samples
@@ -1215,9 +1242,12 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
             if self.roq_params is not None:
                 self.perform_roq_params_check(ifo)
                 # Get scaled ROQ quantities
-                roq_scaled_minimum_frequency = self.roq_params['flow'] * self.roq_scale_factor
-                roq_scaled_maximum_frequency = self.roq_params['fhigh'] * self.roq_scale_factor
-                roq_scaled_segment_length = self.roq_params['seglen'] / self.roq_scale_factor
+                roq_scaled_minimum_frequency = self.roq_params['flow'] * \
+                    self.roq_scale_factor
+                roq_scaled_maximum_frequency = self.roq_params['fhigh'] * \
+                    self.roq_scale_factor
+                roq_scaled_segment_length = self.roq_params['seglen'] / \
+                    self.roq_scale_factor
                 # Generate frequencies for the ROQ
                 roq_frequencies = create_frequency_series(
                     sampling_frequency=roq_scaled_maximum_frequency * 2,
@@ -1396,3 +1426,442 @@ def get_binary_black_hole_likelihood(interferometers):
 
 class BilbyROQParamsRangeError(Exception):
     pass
+
+
+class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
+    """A gravitational-wave transient likelihood object which uses the relative
+    binning procedure to calculate a fast likelihood. See IAS paper:
+
+
+    Parameters
+    ----------
+    interferometers: list, bilby.gw.detector.InterferometerList
+        A list of `bilby.detector.Interferometer` instances - contains the
+        detector data and power spectral densities
+    waveform_generator: `bilby.waveform_generator.WaveformGenerator`
+        An object which computes the frequency-domain strain of the signal,
+        given some set of parameters
+    initial_parameters: dict, optional
+        A starting guess for initial parameters of the event for finding the
+        maximum likelihood (fiducial) waveform.
+    parameter_bounds: dict, optional
+        Dictionary of bounds (lists) for the initial parameters when finding
+        the initial maximum likelihood (fiducial) waveform.
+    min_bin_frequencty: int, optional
+        Minimum frequency of the bin range used.
+    max_bin_frequencty: int, optional
+        Maximum frequency of the bin range used.
+    chi: float, optional
+        Tunable parameter which limits the perturbation of alpha when setting
+        up the bin range. See https://arxiv.org/abs/1806.08792.
+    epsilon: float, optional
+        Tunable parameter which limits the differential phase change in each
+        bin when setting up the bin range. See https://arxiv.org/abs/1806.08792.
+
+    Returns
+    -------
+    Likelihood: `bilby.core.likelihood.Likelihood`
+        A likelihood object, able to compute the likelihood of the data given
+        some model parameters
+    """
+
+    # Make sure that working with the individual polarizations still works...
+    def __init__(self, interferometers, waveform_generator,
+                 initial_parameters={}, parameter_bounds={},
+                 min_bin_frequency=20, max_bin_frequency=1000, chi=1,
+                 epsilon=.5):
+        super(RelativeBinningGravitationalWaveTransient, self).__init__(
+            interferometers=interferometers,
+            waveform_generator=waveform_generator, priors=None,
+            distance_marginalization=False,
+            phase_marginalization=False,
+            time_marginalization=False,
+            distance_marginalization_lookup_table=False,
+            jitter_time=False)
+
+        self.initial_parameters = initial_parameters
+        self.parameter_bounds = parameter_bounds
+        self.min_bin_frequency = min_bin_frequency
+        self.max_bin_frequency = max_bin_frequency
+        self.chi = chi
+        self.epsilon = epsilon
+        self.max_likelihood_parameters = None
+
+        # We start without any bins or fidicual waveforms.
+        self.fiducial_waveform_obtained = False
+        self.fiducial_waveform_polarizations = None
+        self.per_detector_fiducial_waveforms = {}
+        self.bin_freqs = None
+        self.bin_inds = None
+        self.initial_parameter_keys_sorted = None
+        self.maximum_likelihood_parameters = None
+
+    # For now, copied from above. Probably should include more details here.
+    def __repr__(self):
+        return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={},\n\initial_parameters={}, ' \
+            .format(self.interferometers, self.waveform_generator, self.initial_parameters)
+
+    def log_likelihood(self):
+        return self.log_likelihood_ratio_relative_binning() + self.noise_log_likelihood()
+
+    def log_likelihood_ratio_relative_binning(self):
+        # If this is the first likelihood sample taken, we need to obtain the
+        # fiducial waveform.
+        if not self.fiducial_waveform_obtained:
+            # Set our parameter keys to convert between (sorted) list <->
+            # dictionary. This seems messy now, but I'm not sure of a better
+            # way to do it.
+            self.initial_parameter_keys_sorted = sorted(
+                self.initial_parameters)
+            self.setup_bins()
+            print('Bin setup completed. Number of bins = %s' %
+                  (len(self.bin_freqs) - 1))
+            self.find_maximum_likelihood_waveform(self.initial_parameters,
+                                                  self.parameter_bounds,
+                                                  max_iters=1)  # make a param
+            self.fiducial_waveform_obtained = True
+
+            # Test and see how well we did. For debugging purposes.
+            maxl_logl = self.log_likelihood_ratio_from_list(
+                None, parameter_dictionary=self.maximum_likelihood_parameters,
+                debug=True)
+            print('maxl value = %s' % maxl_logl)
+            # old_params = self.parameters
+            # self.parameters = self.maximum_likelihood_parameters
+            print('actual maxl value = %s' % self.log_likelihood_ratio_full(
+                self.maximum_likelihood_parameters))
+            # self.parameters = old_params
+
+        # Once fiducial waveform is obtained, use relative binning procedure.
+        logl = self.log_likelihood_ratio_from_list(
+            None, parameter_dictionary=self.parameters, debug=True)
+        print('relative binning value = %s' % logl)
+        print('actual value = %s' %
+              self.log_likelihood_ratio_full(self.parameters))
+
+        # return logl
+
+    def log_likelihood_ratio_from_list(self, parameter_list,
+                                       parameter_dictionary=None, debug=False):
+        # Parameters here has to be a 1d array of variables or a dictionary if
+        # specified.
+        if not parameter_dictionary:
+            parameter_dictionary = self.get_parameter_dictionary_from_list(
+                parameter_list)
+
+        d_inner_h = 0.
+        optimal_snr_squared = 0.
+        complex_matched_filter_snr = 0.
+
+        for interferometer in self.interferometers:
+            # Relative waveform to compute for each detector.
+            r0, r1 = self.compute_relative_ratio(parameter_dictionary,
+                                                 interferometer, debug=debug)
+            per_detector_snr = self.calculate_snrs_from_summary_data(
+                self.summary_data[interferometer.name], r0, r1, debug=debug)
+
+            d_inner_h += per_detector_snr.d_inner_h
+            optimal_snr_squared += np.real(
+                per_detector_snr.optimal_snr_squared)
+            complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
+
+        log_l = np.real(d_inner_h) - optimal_snr_squared / 2
+        # print('logl in inner calculation = ', log_l)
+        return float(log_l.real)
+
+    def setup_bins(self):
+        frequency_array = self.waveform_generator.frequency_array
+        num_points = 50000
+        freq_vals = np.linspace(self.min_bin_frequency,
+                                self.max_bin_frequency, num_points)
+        gamma = np.array([-5 / 3, -2 / 3, 1, 5 / 3, 7 / 3])
+        d_alpha = self.chi * 2 * np.pi / np.abs(
+            (self.min_bin_frequency ** gamma) * np.heaviside(
+                -gamma, 1) - (self.max_bin_frequency ** gamma) * np.heaviside(
+                gamma, 1))
+        d_phi = np.sum(np.array([np.sign(gamma[i]) * d_alpha[i] * (
+            freq_vals ** gamma[i]) for i in range(len(gamma))]), axis=0)
+        d_phi_from_start = d_phi - d_phi[0]
+        # Now construct frequency bins- number is floor(max(d_phi) / epsilon)
+        num_bins = int(d_phi_from_start[-1] // self.epsilon)
+        # Frequency array points.
+        self.bin_freqs = np.array([freq_vals[np.where(d_phi_from_start >= (
+            (i / num_bins) * d_phi_from_start[-1]))[0][0]] for i in range(
+                num_bins + 1)])
+
+        # Indices of frequency array points.
+        self.bin_inds = np.array([np.where(frequency_array >= bin_freq)[0][0]
+                                  for bin_freq in self.bin_freqs])
+        return
+
+    def find_maximum_likelihood_waveform(self, initial_parameter_guess,
+                                         parameter_bounds, max_iters=10,
+                                         likelihood_threshold=1):
+        prev_log_likelihood = -np.inf
+        self.set_fiducial_waveforms(initial_parameter_guess)
+        print('fiducial waveforms obtained!')
+        self.compute_summary_data()
+        print('summary data obtained!')
+
+        for i in range(max_iters):
+            print("iter: %s" % i)
+            log_likelihood = self.get_best_fit_parameters(
+                self.get_parameter_list_from_dictionary(parameter_bounds),
+                atol=1e-10, maxiter=10)  # change back to 500, no input
+            print("likelihood: %s" % log_likelihood)
+
+            self.set_fiducial_waveforms(self.maximum_likelihood_parameters)
+            self.compute_summary_data()
+
+            if np.abs(log_likelihood - prev_log_likelihood) < (
+                    likelihood_threshold):
+                print('Likelihood change threshold reached. Stopping.')
+                return
+
+            prev_log_likelihood = log_likelihood
+
+        print("Max iters reached. Stopping.")
+        return
+
+    def get_best_fit_parameters(self, initial_parameter_bounds, maxiter=500,
+                                atol=1e-10):
+        # Walk uphill using differential evolution from scipy.
+        print('computing maxL parameters...')
+        output = differential_evolution(
+            self.log_likelihood_ratio_from_list,
+            bounds=initial_parameter_bounds, atol=atol,
+            maxiter=maxiter, seed=0)
+        best_fit = output['x']
+        log_likelihood = -output['fun']
+
+        # Output best-fit parameters if requested.
+        self.maximum_likelihood_parameters = (
+            self.get_parameter_dictionary_from_list(best_fit))
+        print('log-likelihood = ', log_likelihood)
+        for param in self.maximum_likelihood_parameters.keys():
+            print('best fit %s = %s' % (
+                param, self.maximum_likelihood_parameters[param]))
+
+        return log_likelihood
+
+    def get_parameter_dictionary_from_list(self, parameter_values_sorted):
+        # Combine sorted keys, values.
+        return dict(zip(self.initial_parameter_keys_sorted,
+                        parameter_values_sorted))
+
+    def get_parameter_list_from_dictionary(self, parameter_dict):
+        # Use sorted keys.
+        # If no parameters inputted, use self.parameters.
+        return [parameter_dict[k] for k in self.initial_parameter_keys_sorted]
+
+    def set_fiducial_waveforms(self, parameters):
+        self.fiducial_polarizations = self.waveform_generator.frequency_domain_strain(
+            parameters)
+
+        # Save detector response to the fiducial waveform as well, for
+        # computing the summary data.
+        for interferometer in self.interferometers:
+            self.per_detector_fiducial_waveforms[interferometer.name] = (
+                interferometer.get_detector_response(
+                    self.fiducial_polarizations, parameters))
+        return
+
+    def compute_summary_data(self):
+        bin_freqs = self.bin_freqs
+        num_bins = len(self.bin_freqs) - 1
+        # T = 1 / (self.frequency_grid[1] - self.frequency_grid[0])
+        T = self.waveform_generator.duration
+
+        # Helper function to calculate all our values for us:
+        def compute_as_and_bs(frequency_domain_data, h0, psd, bin_val):
+            bin_range = np.arange(self.bin_inds[bin_val],
+                                  self.bin_inds[bin_val + 1])
+            a_numerator = frequency_domain_data[bin_range] * np.conjugate(
+                h0[bin_range])
+            b_numerator = np.abs(h0[bin_range]) ** 2
+            denominator = (psd[bin_range] / T)
+            fm_val = (bin_freqs[bin_val] + bin_freqs[bin_val + 1]) / 2
+            f_vals = self.waveform_generator.frequency_array[bin_range]
+
+            a0 = 4 * np.sum(a_numerator / denominator)
+            a1 = 4 * np.sum((a_numerator / denominator) * (f_vals - fm_val))
+            b0 = 4 * np.sum(b_numerator / denominator)
+            b1 = 4 * np.sum((b_numerator / denominator) * (f_vals - fm_val))
+            return a0, a1, b0, b1
+
+        # all_values =
+        # np.array([[compute_as_and_bs(interferometer.frequency_domain_strain,
+        #                              self.per_detector_fiducial_waveforms[interferometer],
+        #                              interferometer.power_spectral_density, i) for i in range(num_bins)] for
+        #           interferometer in self.interferometers])
+        summary_data = {}
+
+        for interferometer in self.interferometers:
+            summary_data[interferometer.name] = []
+            for i in range(num_bins):
+                summary_data[interferometer.name].append(compute_as_and_bs(
+                    interferometer.frequency_domain_strain,
+                    self.per_detector_fiducial_waveforms[interferometer.name],
+                    interferometer.power_spectral_density.psd_array, i))
+
+            summary_data[interferometer.name] = np.array(
+                summary_data[interferometer.name]).T
+
+        # We want to return a list of a0 values, then a1 values, then a2, etc.
+        # return np.array([all_values[:, :, i] for i in range(4)])
+        self.summary_data = summary_data
+
+    def compute_relative_ratio(self, parameter_dictionary, interferometer,
+                               debug=False):
+
+        # We need to call on some internal waveform_generator elements in order
+        # to get frequency domain strain for a nonuniform frequency array.
+
+        # new_polarizations = self.waveform_generator._calculate_strain(
+        #     model=self.waveform_generator.frequency_domain_source_model,
+        #     model_data_points=self.bin_freqs,
+        #     parameters=parameter_dictionary,
+        #     transformation_function=nfft,
+        #     transformed_model=self.waveform_generator.time_domain_source_model,
+        #     transformed_model_data_points=self.waveform_generator.time_array)
+
+        # use waveform generator model directly so the waveform generator
+        # doesn't cache. Not really sure how to do it better, maybe check back
+        # once I'm done debugging...................................................
+        self.waveform_generator.parameters = parameter_dictionary
+        new_polarizations = self.waveform_generator._strain_from_model(
+            self.bin_freqs,
+            self.waveform_generator.frequency_domain_source_model)
+
+        if (debug):
+            [print(v.shape) for v in new_polarizations.values()]
+            print(len(self.bin_freqs))
+            print(parameter_dictionary)
+
+        # print('new polarizations = %s' % new_polarizations)
+
+        # Divide the individual waveform polarizations.
+        # Only evaluate at frequency bin edges.
+        waveform_polarization_ratios = {mode: (
+            self.fiducial_polarizations[mode][self.bin_inds] / (
+                new_polarizations[mode])) for mode in (
+                    self.fiducial_polarizations.keys())}
+
+        # BUG: there seems to be a divide by zero problem here. The waveform
+        # generator is returning waveforms (in new_polarizations) which have
+        # zeros at some frequency values, thus causing divide by zero
+        # errors. This did not occur in the earlier iteration of the demo, so
+        # it may be something wrong with the waveform generator. My first
+        # thought would be to try to exchange the _strain_from_model function
+        # with get_frequency_domain_source_model used in the earlier demo and
+        # see if the problem still persists.
+
+        # print('ratios = %s' % waveform_polarization_ratios)
+
+        # Set the frequency mask of the detector's strain data to a new mask
+        # given the subset of bin frequencies so that the calibration is only
+        # directed towards our bin frequencies.
+        # full_frequency_mask = interferometer.strain_data.frequency_mask.copy()
+        # bin_frequency_mask = np.zeros(len(full_frequency_mask), dtype=bool)
+        # bin_frequency_mask[self.bin_inds] = True
+        # interferometer.strain_data.frequency_mask = bin_frequency_mask
+
+        # # Additionally we need to set our waveform array to be able to be
+        # # masked by this new mask as well.
+        # full_waveform_ratio_arrays = {}
+        # for mode in waveform_polarization_ratios.keys():
+        #     full_waveform_ratio_arrays[mode] = np.zeros(
+        #         len(full_frequency_mask), dtype=np.complex128) - 1
+        #     full_waveform_ratio_arrays[mode][self.bin_inds] = waveform_polarization_ratios[mode]
+
+        # waveform_ratio = interferometer.get_detector_response()
+        # interferometer.strain_data.frequency_mask = full_frequency_mask
+
+        #######################################################################
+
+        # Gonna have to do get_detector_response from scratch... probably put
+        # it in interferometer but let us input a frequency mask to use
+        # (self.bin_inds)
+
+        # 1. get the antenna response and multiply it to the polarizations.
+        # 2. sum these (similar to (x + y * i), but kinda more complicated)
+        # 3. apply the time shift depending on detector, and multiply
+        #    accordingly via e^2 pi i t
+        # 4. Apply calibration factor depending on frequency
+
+        # Shouldn't be too tough!
+
+        # The calibration factor is done over a band of frequencies and thus
+        # it doesn't matter that we're taking a subset for the bins.
+
+        waveform_ratio = interferometer.get_detector_response_relative_binning(
+            waveform_polarization_ratios, parameter_dictionary, self.bin_freqs)
+
+        # Interpolate between the bins.  i.e. if r = [1, 2, 3, 4] at freqs of
+        # [10, 12, 30, 40] then r_0 becomes [1.5, 2.5, 3.5] and the middle
+        # freqs are [11, # 21, 35].
+        # r0 = average of bins (r_i + r_{i + 1}) / 2
+        r0 = (waveform_ratio[1:] + waveform_ratio[:-1]) / 2
+        # r1 = (r_{i + 1} - r_i) / (f_{i + 1} - f_i)
+        r1 = (waveform_ratio[1:] - waveform_ratio[:-1]) / (
+            self.bin_freqs[1:] - self.bin_freqs[:-1])
+        return r0, r1
+
+    def calculate_snrs_from_summary_data(self, summary_data, r0, r1,
+                                         debug=False):
+        a0, a1, b0, b1 = summary_data
+        d_inner_h = np.sum(a0 * np.conjugate(r0) + a1 * np.conjugate(r1))
+        h_inner_h = np.sum(b0 * np.abs(r0) ** 2 + 2 * b1 * np.real(
+            r0 * np.conjugate(r1)))
+        optimal_snr_squared = h_inner_h
+        complex_matched_filter_snr = d_inner_h / (optimal_snr_squared ** 0.5)
+
+        if (debug):
+            print('d_inner_h = %s' % d_inner_h)
+            print('optimal_snr_squared = %s' % optimal_snr_squared)
+        return self._CalculatedSNRs(
+            d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
+            complex_matched_filter_snr=complex_matched_filter_snr,
+            d_inner_h_squared_tc_array=None)
+
+    ###########################################################################
+    # Functions which calculate the likelihood using the full frequency array
+    # rather than the relative binning method, for testing purposes.
+    ###########################################################################
+
+    def calculate_snrs_full(self, waveform_polarizations, interferometer,
+                            parameters):
+        print(len(interferometer.strain_data.frequency_array))
+        signal = interferometer.get_detector_response_relative_binning(
+            waveform_polarizations, parameters,
+            interferometer.strain_data.frequency_array)
+        d_inner_h = interferometer.inner_product(signal=signal)
+        optimal_snr_squared = interferometer.optimal_snr_squared(signal=signal)
+        complex_matched_filter_snr = d_inner_h / (optimal_snr_squared**0.5)
+        print('d_inner_h = %s' % d_inner_h)
+        print('optimal_snr_squared = %s' % optimal_snr_squared)
+        return self._CalculatedSNRs(
+            d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
+            complex_matched_filter_snr=complex_matched_filter_snr,
+            d_inner_h_squared_tc_array=None)
+
+    def log_likelihood_ratio_full(self, parameter_dictionary):
+        waveform_polarizations = self.waveform_generator.frequency_domain_strain(
+            parameters=parameter_dictionary)
+
+        d_inner_h = 0.
+        optimal_snr_squared = 0.
+        complex_matched_filter_snr = 0.
+
+        for interferometer in self.interferometers:
+            per_detector_snr = self.calculate_snrs_full(
+                waveform_polarizations=waveform_polarizations,
+                interferometer=interferometer, parameters=parameter_dictionary)
+
+            d_inner_h += per_detector_snr.d_inner_h
+            optimal_snr_squared += np.real(
+                per_detector_snr.optimal_snr_squared)
+            complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
+
+        log_l = np.real(d_inner_h) - optimal_snr_squared / 2
+        return float(log_l.real)
