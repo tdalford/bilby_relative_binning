@@ -12,10 +12,10 @@ Files modified:
 
 ``/bilby/gw/detector/interferometer.py`` (slight function addition to get the detector response over a full frequency binning range for the relative binning technique).
 
-``/bilby/examples/gw_examples/data_examples/relative_binning_tests.py`` (file added to test functionality of this new class and to aid in debugging.)
+``/examples/gw_examples/data_examples/relative_binning_tests.py`` (file added to test functionality of this new class and to aid in debugging.)
 
 How to run:
 
 A sample test is set up in the
-``/bilby/examples/gw_examples/data_examples/relative_binning_tests.py`` as mentioned.
+``/examples/gw_examples/data_examples/relative_binning_tests.py`` as mentioned.
 
