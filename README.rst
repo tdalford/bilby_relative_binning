@@ -10,12 +10,9 @@ Files modified:
 
 ``/bilby/gw/likelihood.py`` (vast majority of new code, defined in RelativeBinningGravitationalWaveTransient class).
 
-``/bilby/gw/detector/interferometer.py`` (slight function addition to get
-      the detector response over a full frequency binning range for
-      the relative binning technique).
+``/bilby/gw/detector/interferometer.py`` (slight function addition to get the detector response over a full frequency binning range for the relative binning technique).
 
-``/bilby/examples/gw_examples/data_examples/relative_binning_tests.py`` (file added to
-      test functionality of this new class and to aid in debugging.)
+``/bilby/examples/gw_examples/data_examples/relative_binning_tests.py`` (file added to test functionality of this new class and to aid in debugging.)
 
 How to run:
 
