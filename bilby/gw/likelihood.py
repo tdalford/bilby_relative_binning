@@ -1523,17 +1523,14 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
             self.fiducial_waveform_obtained = True
 
             # Test and see how well we did. For debugging purposes.
-            maxl_logl = self.log_likelihood_ratio_from_list(
+            maxl_logl = self.log_likelihood_ratio_approx(
                 None, parameter_dictionary=self.maximum_likelihood_parameters)
             print('maxl value = %s' % maxl_logl)
-            # old_params = self.parameters
-            # self.parameters = self.maximum_likelihood_parameters
             print('actual maxl value = %s' % self.log_likelihood_ratio_full(
                 self.maximum_likelihood_parameters))
-            # self.parameters = old_params
 
         # Once fiducial waveform is obtained, use relative binning procedure.
-        logl = self.log_likelihood_ratio_from_list(
+        logl = self.log_likelihood_ratio_approx(
             None, parameter_dictionary=self.parameters)
         print('relative binning value = %s' % logl)
         print('actual value = %s' %
@@ -1541,8 +1538,8 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
 
         # return logl
 
-    def log_likelihood_ratio_from_list(self, parameter_list,
-                                       parameter_dictionary=None):
+    def log_likelihood_ratio_approx(self, parameter_list,
+                                    parameter_dictionary=None):
         # Parameters here has to be a 1d array of variables or a dictionary if
         # specified.
         if not parameter_dictionary:
@@ -1628,7 +1625,7 @@ class RelativeBinningGravitationalWaveTransient(GravitationalWaveTransient):
         # Walk uphill using differential evolution from scipy.
         print('computing maxL parameters...')
         output = differential_evolution(
-            self.log_likelihood_ratio_from_list,
+            self.log_likelihood_ratio_approx,
             bounds=initial_parameter_bounds, atol=atol,
             maxiter=maxiter, seed=0)
         best_fit = output['x']
